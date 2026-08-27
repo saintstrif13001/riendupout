@@ -63,6 +63,8 @@ func _process(delta: float) -> bool:
 			_run_reputation_test()
 		elif test_mode == "test_skills":
 			_run_skills_test()
+		elif test_mode == "test_data_integrity":
+			_run_data_integrity_test()
 		elif test_mode == "test_equip":
 			var hud2 = inst.get_node("Hud")
 			inst.char_data.inventory["armure_plates"] = 1
@@ -153,6 +155,80 @@ func _run_save_test() -> void:
 	var loaded = gs.load_saved_character()
 	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
 		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])
+
+func _run_data_integrity_test() -> void:
+	print("TEST_START:data_integrity")
+	var data = root.get_node("/root/Data")
+	var errors = []
+	var npc_ids = {}
+	for n in data.NPCS: npc_ids[n.id] = true
+	var quest_ids = {}
+	for q in data.QUESTS: quest_ids[q.id] = true
+
+	for q in data.QUESTS:
+		if not npc_ids.has(q.giver): errors.append("quest %s: giver PNJ inconnu '%s'" % [q.id, q.giver])
+		for r in q.requires:
+			if not quest_ids.has(r): errors.append("quest %s: requires quête inconnue '%s'" % [q.id, r])
+		var obj = q.obj
+		if obj.type in ["kill","boss"]:
+			var targets = obj.target if obj.target is Array else [obj.target]
+			for t in targets:
+				if not data.MONSTER_TYPES.has(t): errors.append("quest %s: monstre inconnu '%s'" % [q.id, t])
+		elif obj.type == "gather":
+			if not data.ITEMS.has(obj.target): errors.append("quest %s: item de récolte inconnu '%s'" % [q.id, obj.target])
+		elif obj.type == "gather_drop":
+			if not data.ITEMS.has(obj.target): errors.append("quest %s: item drop inconnu '%s'" % [q.id, obj.target])
+		elif obj.type == "talk":
+			if not npc_ids.has(obj.target): errors.append("quest %s: talk cible PNJ inconnu '%s'" % [q.id, obj.target])
+		elif obj.type == "deliver":
+			if not npc_ids.has(obj.target): errors.append("quest %s: deliver cible PNJ inconnu '%s'" % [q.id, obj.target])
+			if not data.ITEMS.has(obj.item): errors.append("quest %s: deliver item inconnu '%s'" % [q.id, obj.item])
+		for it in q.reward.get("items", []):
+			if not data.ITEMS.has(it): errors.append("quest %s: reward item inconnu '%s'" % [q.id, it])
+		var fac = data.QUEST_FACTION.get(q.id, "")
+		if fac != "" and not data.FACTIONS.has(fac): errors.append("quest %s: faction inconnue '%s'" % [q.id, fac])
+		if not data.QUEST_FACTION.has(q.id): errors.append("quest %s: aucune faction assignée (QUEST_FACTION)" % q.id)
+
+	for r in data.RECIPES:
+		if not data.ITEMS.has(r.result): errors.append("recipe %s: résultat inconnu '%s'" % [r.id, r.result])
+		for k in r.cost.keys():
+			if not data.ITEMS.has(k): errors.append("recipe %s: coût inconnu '%s'" % [r.id, k])
+		if not data.PROFESSIONS.has(r.profession): errors.append("recipe %s: métier inconnu '%s'" % [r.id, r.profession])
+
+	for n in data.GATHER_NODES:
+		if not data.ITEMS.has(n.type): errors.append("gather_node type inconnu '%s'" % n.type)
+
+	for tid in data.MONSTER_TYPES.keys():
+		var m = data.MONSTER_TYPES[tid]
+		if not data.ZONES.has(m.zone): errors.append("monster %s: zone inconnue '%s'" % [tid, m.zone])
+		var tex_path = "res://assets/sprites/enemies/%s.png" % m.sprite
+		if not FileAccess.file_exists(tex_path): errors.append("monster %s: fichier sprite manquant '%s'" % [tid, tex_path])
+		for drop in m.get("loot", []):
+			if not data.ITEMS.has(drop.id): errors.append("monster %s: loot inconnu '%s'" % [tid, drop.id])
+
+	for cid in data.CLASSES.keys():
+		if not data.TALENTS.has(cid): errors.append("classe %s: aucun talent défini" % cid)
+
+	# vérifie qu'aucune quête n'est orpheline (chaîne de prérequis atteignable depuis une quête de départ)
+	var reachable = {}
+	var changed = true
+	for q in data.QUESTS:
+		if q.requires.is_empty(): reachable[q.id] = true
+	while changed:
+		changed = false
+		for q in data.QUESTS:
+			if reachable.has(q.id): continue
+			var ok = true
+			for r in q.requires:
+				if not reachable.has(r): ok = false; break
+			if ok: reachable[q.id] = true; changed = true
+	for q in data.QUESTS:
+		if not reachable.has(q.id): errors.append("quest %s: INATTEIGNABLE (dépendance circulaire ou cassée)" % q.id)
+
+	print("TEST_RESULT total_quests=%d total_errors=%d" % [data.QUESTS.size(), errors.size()])
+	for e in errors:
+		print("  ERROR: " + e)
+	print("TEST_DONE:data_integrity")
 
 func _run_skills_test() -> void:
 	print("TEST_START:skills")

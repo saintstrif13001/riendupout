@@ -453,7 +453,34 @@ func roll_damage(atk: float, mult: float, extra_crit: float) -> float:
 	return dmg
 
 func flash_attack_fx(range_px: float) -> void:
-	pass # (retour visuel simplifié pour l'instant — les nombres de dégâts flottants suffisent)
+	# Anneau qui s'étend rapidement depuis le joueur pour matérialiser la portée de l'attaque.
+	var ring = Node2D.new()
+	ring.position = player.global_position
+	ring.z_index = 60
+	add_child(ring)
+	var mat = CanvasItemMaterial.new()
+	var pts = PackedVector2Array()
+	var segs = 20
+	for i in range(segs + 1):
+		var a = i * TAU / segs
+		pts.append(Vector2(cos(a), sin(a)) * 6.0)
+	var line = Line2D.new()
+	line.points = pts
+	line.width = 2.0
+	line.default_color = Color(1, 1, 1, 0.8)
+	ring.add_child(line)
+	var tw = create_tween()
+	tw.tween_method(func(r): line.points = _ring_points(r), 6.0, range_px, 0.18)
+	tw.parallel().tween_property(line, "default_color:a", 0.0, 0.18)
+	tw.tween_callback(ring.queue_free)
+
+func _ring_points(radius: float) -> PackedVector2Array:
+	var pts = PackedVector2Array()
+	var segs = 20
+	for i in range(segs + 1):
+		var a = i * TAU / segs
+		pts.append(Vector2(cos(a), sin(a)) * radius)
+	return pts
 
 func deal_damage_to_enemy(e: Enemy, dmg: float) -> void:
 	if is_sim:

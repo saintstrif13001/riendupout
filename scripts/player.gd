@@ -27,6 +27,7 @@ var head_tex: Texture2D
 @onready var body_sprite: Sprite2D = $Body
 @onready var head_sprite: Sprite2D = $Head
 @onready var name_label: Label = $NameLabel
+@onready var equip_label: Label = $EquipLabel
 @onready var hp_bg: ColorRect = $HpBg
 @onready var hp_fg: ColorRect = $HpFg
 @onready var collider: CollisionShape2D = $CollisionShape2D
@@ -63,6 +64,33 @@ func setup(cd: Dictionary, local: bool, pid: int) -> void:
 	name_label.text = cd.name
 	name_label.modulate = Color(1, 0.88, 0.4) if is_local else Color(0.65, 0.85, 1)
 	hp_fg.color = Color(0.23, 0.82, 0.23)
+	update_equipment_visual()
+
+func update_equipment_visual() -> void:
+	# Pas de sprites d'armure dédiés : on teinte légèrement les jambes/le torse
+	# selon l'armure équipée pour donner un indice visuel de progression.
+	var race = Data.RACES[char_data.race]
+	var armor_id = char_data.equipment.get("armor", "")
+	if armor_id == "" or armor_id == null:
+		legs_sprite.modulate = race.tint
+	else:
+		var armor = Data.ITEMS.get(armor_id, {})
+		var def_bonus = armor.get("bonus", {}).get("def", 0)
+		if def_bonus >= 8:
+			legs_sprite.modulate = Color(0.55, 0.58, 0.62) # gris acier (armures lourdes)
+		elif def_bonus >= 4:
+			legs_sprite.modulate = Color(0.5, 0.36, 0.2) # brun cuir
+		else:
+			legs_sprite.modulate = race.tint
+	equip_label.text = _equip_icon_text()
+
+func _equip_icon_text() -> String:
+	var parts = []
+	var w = char_data.equipment.get("weapon", "")
+	var a = char_data.equipment.get("armor", "")
+	if w != "" and w != null: parts.append(Data.ITEMS[w].icon)
+	if a != "" and a != null: parts.append(Data.ITEMS[a].icon)
+	return " ".join(parts)
 
 func set_anim(new_dir: String, is_moving: bool) -> void:
 	dir = new_dir

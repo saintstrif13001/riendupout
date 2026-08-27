@@ -453,29 +453,55 @@ func craft_recipe(rid: String) -> void:
 	render_npc_dialogue()
 
 # ---------------- Inventaire ----------------
+var inv_search_text := ""
+
+const ACCENT_MAP := {
+	"à":"a","â":"a","ä":"a","á":"a", "é":"e","è":"e","ê":"e","ë":"e",
+	"î":"i","ï":"i", "ô":"o","ö":"o", "ù":"u","û":"u","ü":"u", "ç":"c",
+}
+func _normalize_search(s: String) -> String:
+	s = s.strip_edges().to_lower()
+	var out = ""
+	for c in s:
+		out += ACCENT_MAP.get(c, c)
+	return out
+
 func render_inventory() -> void:
 	var cd = world.char_data
 	_clear_box(inventory_box)
 	_add_title(inventory_box, "Inventaire - " + cd.name)
 
-	_add_title(inventory_box, "Réputations", 15)
-	for fid in Data.FACTIONS.keys():
-		var rep = cd.reputation.get(fid, 0)
-		var lbl2 = Label.new()
-		lbl2.text = "%s : %d (%s)" % [Data.FACTIONS[fid].name, rep, Data.rep_tier_name(rep)]
-		inventory_box.add_child(lbl2)
+	var search = LineEdit.new()
+	search.placeholder_text = "Rechercher un objet..."
+	search.text = inv_search_text
+	search.custom_minimum_size = Vector2(0, 32)
+	search.text_changed.connect(func(t): inv_search_text = t; render_inventory())
+	inventory_box.add_child(search)
+	search.grab_focus()
+	search.caret_column = inv_search_text.length()
 
-	_add_title(inventory_box, "Equipement", 15)
-	for slot in ["weapon", "armor"]:
-		var item_id = cd.equipment.get(slot, "")
-		var lbl = Label.new()
-		var slot_name = "Arme" if slot == "weapon" else "Armure"
-		lbl.text = slot_name + ": " + (Data.ITEMS[item_id].name if item_id != "" else "Aucun")
-		inventory_box.add_child(lbl)
+	var filter = _normalize_search(inv_search_text)
+	var matches = func(id): return filter == "" or _normalize_search(Data.ITEMS[id].name).contains(filter)
+
+	if filter == "":
+		_add_title(inventory_box, "Réputations", 15)
+		for fid in Data.FACTIONS.keys():
+			var rep = cd.reputation.get(fid, 0)
+			var lbl2 = Label.new()
+			lbl2.text = "%s : %d (%s)" % [Data.FACTIONS[fid].name, rep, Data.rep_tier_name(rep)]
+			inventory_box.add_child(lbl2)
+
+		_add_title(inventory_box, "Equipement", 15)
+		for slot in ["weapon", "armor"]:
+			var item_id = cd.equipment.get(slot, "")
+			var lbl = Label.new()
+			var slot_name = "Arme" if slot == "weapon" else "Armure"
+			lbl.text = slot_name + ": " + (Data.ITEMS[item_id].name if item_id != "" else "Aucun")
+			inventory_box.add_child(lbl)
 
 	var equipable = []
 	for id in cd.inventory.keys():
-		if cd.inventory[id] > 0 and (Data.ITEMS[id].type == "weapon" or Data.ITEMS[id].type == "armor"):
+		if cd.inventory[id] > 0 and (Data.ITEMS[id].type == "weapon" or Data.ITEMS[id].type == "armor") and matches.call(id):
 			equipable.append(id)
 	if not equipable.is_empty():
 		_add_title(inventory_box, "A equiper", 15)
@@ -484,24 +510,28 @@ func render_inventory() -> void:
 
 	var consumables = []
 	for id in cd.inventory.keys():
-		if cd.inventory[id] > 0 and Data.ITEMS[id].type == "consumable":
+		if cd.inventory[id] > 0 and Data.ITEMS[id].type == "consumable" and matches.call(id):
 			consumables.append(id)
 	if not consumables.is_empty():
 		_add_title(inventory_box, "Consommables", 15)
 		for id in consumables:
 			_add_button(inventory_box, "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]], func(): use_item(id))
 
-	_add_title(inventory_box, "Materiaux", 15)
 	var mats = []
 	for id in cd.inventory.keys():
-		if cd.inventory[id] > 0 and (Data.ITEMS[id].type == "mat" or Data.ITEMS[id].type == "quest"):
+		if cd.inventory[id] > 0 and (Data.ITEMS[id].type == "mat" or Data.ITEMS[id].type == "quest") and matches.call(id):
 			mats.append(id)
+	_add_title(inventory_box, "Materiaux", 15)
 	if mats.is_empty():
-		var l = Label.new(); l.text = "(vide)"; inventory_box.add_child(l)
+		var l = Label.new(); l.text = "(vide)" if filter == "" else "(aucun résultat)"; inventory_box.add_child(l)
 	for id in mats:
 		var l = Label.new()
 		l.text = "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]]
 		inventory_box.add_child(l)
+
+	if equipable.is_empty() and consumables.is_empty() and mats.is_empty() and filter != "":
+		var none = Label.new(); none.text = "Aucun objet ne correspond à \"%s\"." % filter
+		inventory_box.add_child(none)
 
 	_add_button(inventory_box, "Fermer (I)", func(): close_all())
 
@@ -511,7 +541,9 @@ func equip_item(id: String) -> void:
 	var slot = "weapon" if it.type == "weapon" else "armor"
 	cd.equipment[slot] = id
 	world.player.stats = GameState.compute_stats(cd)
+	world.player.update_equipment_visual()
 	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
 	render_inventory()
 
 func use_item(id: String) -> void:

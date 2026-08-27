@@ -63,6 +63,22 @@ func _process(delta: float) -> bool:
 			_run_reputation_test()
 		elif test_mode == "test_skills":
 			_run_skills_test()
+		elif test_mode == "test_equip":
+			var hud2 = inst.get_node("Hud")
+			inst.char_data.inventory["armure_plates"] = 1
+			hud2.equip_item("armure_plates")
+			print("TEST_RESULT armor_equipped=%s legs_modulate=%s equip_label=%s"
+				% [inst.char_data.equipment.armor, inst.player.legs_sprite.modulate, inst.player.equip_label.text])
+		elif test_mode == "show_inventory_search":
+			var hud3 = inst.get_node("Hud")
+			inst.char_data.inventory = {"minerai":5,"bois":2,"epee_fer":1,"potion_vie":3}
+			hud3.inv_search_text = "epee"
+			hud3.render_inventory()
+			hud3.inventory_overlay.visible = true
+		elif test_mode == "test_fx":
+			inst.basic_attack()
+			inst.use_skill(0)
+			print("TEST_RESULT fx_ran_no_error=true")
 		elif test_mode == "show_talent_ui":
 			var gs2 = root.get_node("/root/GameState")
 			inst.char_data.level = 5

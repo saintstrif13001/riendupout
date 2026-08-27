@@ -664,7 +664,14 @@ func register_drop_for_quests(item_id: String) -> void:
 			emit_signal("quest_progress")
 
 # ---------------- Réseau ----------------
+const NETWORK_GRACE_PERIOD := 2.0 # laisse le temps à tous les pairs de charger World.tscn
+# avant d'émettre le moindre RPC — sinon un pair encore en chargement peut se faire déconnecter
+# (Godot ferme la connexion si un RPC cible un nœud "World" qui n'existe pas encore chez lui).
+var network_uptime: float = 0.0
+
 func network_tick(delta: float) -> void:
+	network_uptime += delta
+	if network_uptime < NETWORK_GRACE_PERIOD: return
 	net_send_accum += delta
 	if net_send_accum > 0.066:
 		net_send_accum = 0.0
@@ -673,11 +680,23 @@ func network_tick(delta: float) -> void:
 		net_enemy_accum += delta
 		if net_enemy_accum > 0.2:
 			net_enemy_accum = 0.0
+			# On ne diffuse que les ennemis proches d'au moins un joueur : évite d'envoyer
+			# tout le monde (potentiellement 60+ ennemis) dans un seul paquet UDP au-delà
+			# du MTU, ce qui cause des pertes de paquets voire des déconnexions.
+			var relevance_range = 1400.0
+			var player_positions = [player.global_position]
+			for pid in remote_players.keys():
+				player_positions.append(remote_players[pid].global_position)
 			var snap := []
 			for uid in enemies.keys():
 				var e: Enemy = enemies[uid]
+				var near = false
+				for pp in player_positions:
+					if e.global_position.distance_to(pp) < relevance_range: near = true; break
+				if not near: continue
 				snap.append({"uid": uid, "type_id": e.type_id, "x": e.global_position.x, "y": e.global_position.y, "hp": e.hp, "max_hp": e.max_hp, "dead": e.dead, "dir": e.dir})
-			rpc("net_enemy_snapshot", snap)
+			if not snap.is_empty():
+				rpc("net_enemy_snapshot", snap)
 
 @rpc("any_peer", "unreliable")
 func net_pos(x: float, y: float, pdir: String, moving: bool, hp: float, max_hp: float) -> void:

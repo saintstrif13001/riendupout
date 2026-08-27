@@ -24,6 +24,7 @@ var net_send_accum: float = 0.0
 var net_enemy_accum: float = 0.0
 var npc_nodes: Array = []
 var gather_nodes: Array = []
+var hud_tick_accum: float = 0.0
 
 func _ready() -> void:
 	char_data = GameState.char_data
@@ -213,6 +214,11 @@ func _physics_process(delta: float) -> void:
 
 	if Net.is_online:
 		network_tick(delta)
+
+	hud_tick_accum += delta
+	if hud_tick_accum > 0.4:
+		hud_tick_accum = 0.0
+		emit_signal("hud_update", make_hud_data())
 
 func handle_movement(delta: float) -> void:
 	var vx := 0.0

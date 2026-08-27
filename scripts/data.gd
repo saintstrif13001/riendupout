@@ -85,10 +85,11 @@ const PROFESSIONS := {
 const ZONES := {
 	"village": {"name":"Val-Repos", "x0":0, "x1":1400, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
 	"plaine": {"name":"Plaine d'Aubval", "x0":1400, "x1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
-	"foret": {"name":"Forêt de Sylvombre", "x0":3200, "x1":5200, "safe":false, "bg":Color("2f5a34"), "lvl":[5,11]},
+	"foret": {"name":"Forêt de Sylvombre", "x0":3200, "x1":5200, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
 	"caverne": {"name":"Caverne des Ossements", "x0":5200, "x1":7200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
+	"marais": {"name":"Marais Putride", "x0":7200, "x1":9200, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
 }
-const WORLD_WIDTH := 7200.0
+const WORLD_WIDTH := 9200.0
 const WORLD_HEIGHT := 1200.0
 
 const MONSTER_TYPES := {
@@ -97,6 +98,11 @@ const MONSTER_TYPES := {
 	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":10, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
 	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":13, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
 	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne"},
+	"orc_guerrier": {"name":"Orc Guerrier", "sprite":"orc_warrior", "hp":80, "atk":14, "def":5, "spd":85, "xp":40, "loot":[{"id":"bois","chance":0.2},{"id":"croc_orc","chance":0.5}], "zone":"foret"},
+	"orc_chef": {"name":"Chef Orc Grondmar", "sprite":"orc_chief", "hp":340, "atk":24, "def":10, "spd":75, "xp":160, "boss":true, "loot":[{"id":"croc_orc","chance":1.0},{"id":"totem_orc","chance":1.0}], "zone":"foret"},
+	"zombie": {"name":"Zombie", "sprite":"zombie", "hp":110, "atk":15, "def":5, "spd":55, "xp":45, "loot":[{"id":"chair_pourrie","chance":0.6},{"id":"herbe","chance":0.2}], "zone":"marais"},
+	"zombie_pourri": {"name":"Zombie Pourrissant", "sprite":"zombie_rotting", "hp":150, "atk":19, "def":7, "spd":50, "xp":60, "loot":[{"id":"chair_pourrie","chance":0.7},{"id":"ichor_putride","chance":0.35}], "zone":"marais"},
+	"zombie_ancien": {"name":"Zombie Ancestral", "sprite":"zombie_rotting", "hp":420, "atk":28, "def":11, "spd":45, "xp":220, "boss":true, "loot":[{"id":"ichor_putride","chance":1.0},{"id":"coeur_marais","chance":1.0}], "zone":"marais"},
 }
 
 const ITEMS := {
@@ -107,6 +113,14 @@ const ITEMS := {
 	"os": {"name":"Os", "type":"mat", "icon":"o"},
 	"dent_gobelin": {"name":"Dent de Gobelin", "type":"mat", "icon":"o"},
 	"relique_ossements": {"name":"Relique d'Ossements", "type":"quest", "icon":"*"},
+	"croc_orc": {"name":"Croc d'Orc", "type":"mat", "icon":"o"},
+	"totem_orc": {"name":"Totem du Chef Orc", "type":"quest", "icon":"*"},
+	"chair_pourrie": {"name":"Chair Pourrie", "type":"mat", "icon":"o"},
+	"ichor_putride": {"name":"Ichor Putride", "type":"mat", "icon":"o"},
+	"coeur_marais": {"name":"Coeur du Marais", "type":"quest", "icon":"*"},
+	"hache_orc": {"name":"Hache Orc", "type":"weapon", "icon":"/", "bonus":{"atk":9,"def":-1}},
+	"armure_ecailles": {"name":"Armure d'Écailles Putrides", "type":"armor", "icon":"#", "bonus":{"def":12,"hp":25}},
+	"amulette_marais": {"name":"Amulette du Marais", "type":"weapon", "icon":"|", "bonus":{"atk":10,"mana":25}},
 	"epee_fer": {"name":"Épée de Fer", "type":"weapon", "icon":"/", "bonus":{"atk":5}},
 	"arc_chasse": {"name":"Arc de Chasse", "type":"weapon", "icon":"}", "bonus":{"atk":4,"spd":5}},
 	"baton_novice": {"name":"Bâton du Novice", "type":"weapon", "icon":"|", "bonus":{"atk":6,"mana":10}},
@@ -124,6 +138,9 @@ const RECIPES := [
 	{"id":"r_potion_mana", "profession":"alchimiste", "result":"potion_mana", "cost":{"herbe":2,"minerai":1}, "name":"Potion de Mana"},
 	{"id":"r_arc", "profession":"forgeron", "result":"arc_chasse", "cost":{"bois":5,"minerai":2}, "name":"Arc de Chasse"},
 	{"id":"r_baton", "profession":"alchimiste", "result":"baton_novice", "cost":{"herbe":4,"bois":2}, "name":"Bâton du Novice"},
+	{"id":"r_hache_orc", "profession":"forgeron", "result":"hache_orc", "cost":{"minerai":6,"croc_orc":3}, "name":"Hache Orc"},
+	{"id":"r_armure_ecailles", "profession":"forgeron", "result":"armure_ecailles", "cost":{"minerai":10,"ichor_putride":2}, "name":"Armure d'Écailles Putrides"},
+	{"id":"r_amulette_marais", "profession":"alchimiste", "result":"amulette_marais", "cost":{"ichor_putride":4,"chair_pourrie":3}, "name":"Amulette du Marais"},
 ]
 
 const GATHER_NODES := [
@@ -133,6 +150,9 @@ const GATHER_NODES := [
 	{"type":"minerai","x":6800,"y":500},
 	{"type":"herbe","x":1900,"y":500}, {"type":"herbe","x":2600,"y":300}, {"type":"herbe","x":3400,"y":700},
 	{"type":"herbe","x":4700,"y":800},
+	{"type":"bois","x":7600,"y":300}, {"type":"bois","x":8300,"y":850},
+	{"type":"minerai","x":8600,"y":400},
+	{"type":"herbe","x":7700,"y":900}, {"type":"herbe","x":8900,"y":600},
 ]
 
 const NPCS := [
@@ -145,6 +165,7 @@ const NPCS := [
 	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":3900, "y":300, "role":"quest", "tint":Color(0.29,0.85,0.43)},
 	{"id":"ranger", "name":"Ranger Doff", "x":3400, "y":900, "role":"quest", "tint":Color(0.18,0.54,0.23)},
 	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85)},
+	{"id":"hulda", "name":"Vieille Hulda", "x":7400, "y":600, "role":"quest", "tint":Color(0.55,0.7,0.4)},
 ]
 
 const QUESTS := [
@@ -174,7 +195,11 @@ const QUESTS := [
 		"desc":"Rapporte 8 Bois à Doff.", "obj":{"type":"gather","target":"bois","count":8}, "reward":{"xp":120,"gold":55}},
 	{"id":"q_chasse_profonde","name":"Chasse Profonde","giver":"ranger","requires":["q_bois_ancien","q_dents"],"level":8,
 		"desc":"Élimine 15 Gobelins.", "obj":{"type":"kill","target":["gobelin"],"count":15}, "reward":{"xp":220,"gold":90,"items":["arc_chasse"]}},
-	{"id":"q_vers_caverne","name":"Vers les Profondeurs","giver":"ranger","requires":["q_chasse_profonde"],"level":9,
+	{"id":"q_orc1","name":"Le Camp Orc","giver":"ranger","requires":["q_chasse_profonde"],"level":9,
+		"desc":"Un camp orc s'est installé au coeur de la forêt. Élimine 10 Orcs Guerriers.", "obj":{"type":"kill","target":["orc_guerrier"],"count":10}, "reward":{"xp":260,"gold":110}},
+	{"id":"q_orc_chef","name":"Le Chef Grondmar","giver":"ranger","requires":["q_orc1"],"level":11,
+		"desc":"Vaincs le Chef Orc Grondmar qui dirige le camp.", "obj":{"type":"boss","target":"orc_chef","count":1}, "reward":{"xp":420,"gold":180,"items":["hache_orc"]}},
+	{"id":"q_vers_caverne","name":"Vers les Profondeurs","giver":"ranger","requires":["q_orc_chef"],"level":11,
 		"desc":"Parle au Prêtre Ozias.", "obj":{"type":"talk","target":"pretre","count":1}, "reward":{"xp":80,"gold":30}},
 	{"id":"q_squelette1","name":"Profondeurs Osseuses","giver":"pretre","requires":["q_vers_caverne"],"level":10,
 		"desc":"Élimine 12 Squelettes.", "obj":{"type":"kill","target":["squelette"],"count":12}, "reward":{"xp":260,"gold":100,"items":["armure_plates"]}},
@@ -186,6 +211,20 @@ const QUESTS := [
 		"desc":"Vaincs le Squelette Guerrier.", "obj":{"type":"boss","target":"squelette_guerrier","count":1}, "reward":{"xp":600,"gold":300,"items":["relique_ossements"]}},
 	{"id":"q_relique","name":"Relique Retrouvée","giver":"pretre","requires":["q_gardien"],"level":16,
 		"desc":"Ramène la Relique à l'Ancien Malorin.", "obj":{"type":"deliver","target":"ancien","item":"relique_ossements","count":1}, "reward":{"xp":500,"gold":250}},
+
+	{"id":"q_vers_marais","name":"Rumeurs du Marais","giver":"ancien","requires":["q_relique"],"level":16,
+		"desc":"L'Ancien parle d'une vieille recluse, Hulda, qui vit en lisière du Marais Putride, à l'est de la caverne.",
+		"obj":{"type":"talk","target":"hulda","count":1}, "reward":{"xp":100,"gold":40}},
+	{"id":"q_zombie1","name":"Les Morts qui Marchent","giver":"hulda","requires":["q_vers_marais"],"level":16,
+		"desc":"Élimine 14 Zombies dans le marais.", "obj":{"type":"kill","target":["zombie"],"count":14}, "reward":{"xp":300,"gold":120}},
+	{"id":"q_chair","name":"Ingrédients Répugnants","giver":"hulda","requires":["q_zombie1"],"level":17,
+		"desc":"Rapporte 8 morceaux de Chair Pourrie pour les rituels d'Hulda.", "obj":{"type":"gather_drop","target":"chair_pourrie","count":8}, "reward":{"xp":260,"gold":110}},
+	{"id":"q_zombie2","name":"Putréfaction Galopante","giver":"hulda","requires":["q_zombie1"],"level":18,
+		"desc":"Élimine 10 Zombies Pourrissants, plus coriaces.", "obj":{"type":"kill","target":["zombie_pourri"],"count":10}, "reward":{"xp":380,"gold":160,"items":["armure_ecailles"]}},
+	{"id":"q_marais_boss","name":"Le Coeur Putride","giver":"hulda","requires":["q_zombie2","q_chair"],"level":20,
+		"desc":"Un Zombie Ancestral règne sur le marais. Vaincs-le.", "obj":{"type":"boss","target":"zombie_ancien","count":1}, "reward":{"xp":700,"gold":320,"items":["amulette_marais"]}},
+	{"id":"q_marais_final","name":"Le Rituel d'Hulda","giver":"hulda","requires":["q_marais_boss"],"level":21,
+		"desc":"Ramène le Coeur du Marais à Hulda pour clore le rituel.", "obj":{"type":"deliver","target":"hulda","item":"coeur_marais","count":1}, "reward":{"xp":600,"gold":300}},
 ]
 
 func get_quest(id: String) -> Dictionary:

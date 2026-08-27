@@ -25,6 +25,15 @@ func _process(delta: float) -> bool:
 		var packed: PackedScene = load(scene_path)
 		var inst = packed.instantiate()
 		root.add_child(inst)
+		var args = OS.get_cmdline_user_args()
+		if args.size() > 3 and inst.has_method("get") and "player" in inst:
+			var zone_id = args[3]
+			var data = root.get_node("/root/Data")
+			if data.ZONES.has(zone_id):
+				var z = data.ZONES[zone_id]
+				inst.player.global_position = Vector2(z.x0 + 300, data.WORLD_HEIGHT/2.0)
+				var cam = inst.player.get_node_or_null("Camera2D")
+				if cam: cam.reset_smoothing()
 		return false
 
 	frame_count += 1

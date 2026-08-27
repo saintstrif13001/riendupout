@@ -61,6 +61,8 @@ func _process(delta: float) -> bool:
 			_run_talent_test()
 		elif test_mode == "test_reputation":
 			_run_reputation_test()
+		elif test_mode == "test_skills":
+			_run_skills_test()
 		elif test_mode == "show_talent_ui":
 			var gs2 = root.get_node("/root/GameState")
 			inst.char_data.level = 5
@@ -135,6 +137,24 @@ func _run_save_test() -> void:
 	var loaded = gs.load_saved_character()
 	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
 		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])
+
+func _run_skills_test() -> void:
+	print("TEST_START:skills")
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 30, "y": inst.player.global_position.y, "type_id": "slime_rouge", "respawn_at": 0.0})
+	var mana_before = inst.player.mana
+	var atk_before = inst.player.stats.atk
+	var def_before = inst.player.stats.def
+	inst.use_skill(0) # Coup Puissant (dmg)
+	print("TEST_SKILL0 mana_before=%.1f mana_after=%.1f enemy_hp=%.1f/%.1f cooldown_set=%s"
+		% [mana_before, inst.player.mana, e.hp, e.max_hp, inst.player.cooldowns.has("skill0")])
+	inst.player.mana = inst.player.stats.max_mana # assure assez de mana pour tester le buff isolément
+	inst.use_skill(1) # Cri de Guerre (buff)
+	print("TEST_SKILL1 atk_before=%.2f atk_after=%.2f def_before=%.2f def_after=%.2f mana_after=%.1f"
+		% [atk_before, inst.player.stats.atk, def_before, inst.player.stats.def, inst.player.mana])
+	# re-tente immédiatement : doit être bloqué par le cooldown (aucun changement de mana)
+	var mana_before_cd = inst.player.mana
+	inst.use_skill(0)
+	print("TEST_COOLDOWN_BLOCKS_REUSE mana_unchanged=%s" % [inst.player.mana == mana_before_cd])
 
 func _run_reputation_test() -> void:
 	print("TEST_START:reputation")

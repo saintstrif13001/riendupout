@@ -19,6 +19,8 @@ var inventory_overlay: Control
 var inventory_box: VBoxContainer
 var talent_overlay: Control
 var talent_box: VBoxContainer
+var travel_overlay: Control
+var travel_box: VBoxContainer
 
 func bind(w) -> void:
 	world = w
@@ -36,6 +38,7 @@ func _ready() -> void:
 	_build_dialogue_overlay()
 	_build_inventory_overlay()
 	_build_talent_overlay()
+	_build_travel_overlay()
 
 func _build_bars() -> void:
 	var root = Control.new()
@@ -99,7 +102,7 @@ func _build_bars() -> void:
 	root.add_child(quest_label)
 
 	var help = Label.new()
-	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire"
+	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · M: voyage rapide"
 	help.add_theme_font_size_override("font_size", 11)
 	help.add_theme_color_override("font_color", Color(1,1,1,0.6))
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -201,13 +204,50 @@ func _choose_talent(tier: Dictionary, opt_id: String) -> void:
 	var next_tier = GameState.pending_talent(cd)
 	if not next_tier.is_empty(): _on_talent_available(next_tier)
 
+func _build_travel_overlay() -> void:
+	travel_overlay = Control.new()
+	travel_overlay.theme = UiTheme.build()
+	travel_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	travel_overlay.visible = false
+	var bg = ColorRect.new()
+	bg.color = Color(0,0,0,0.75)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	travel_overlay.add_child(bg)
+	var panel = PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(420, 0)
+	travel_box = VBoxContainer.new()
+	travel_box.add_theme_constant_override("separation", 8)
+	panel.add_child(travel_box)
+	travel_overlay.add_child(panel)
+	add_child(travel_overlay)
+
+func render_travel() -> void:
+	var cd = world.char_data
+	_clear_box(travel_box)
+	_add_title(travel_box, "Voyage Rapide", 20)
+	for zid in cd.unlocked_zones:
+		var z = Data.ZONES[zid]
+		_add_button(travel_box, z.name, func(): travel_to(zid))
+	_add_button(travel_box, "Fermer (M)", func(): travel_overlay.visible = false)
+
+func travel_to(zone_id: String) -> void:
+	var spawn = world.get_zone_spawn(zone_id)
+	world.player.global_position = spawn
+	world.save_now()
+	travel_overlay.visible = false
+
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo: return
 	if event.physical_keycode == KEY_I:
 		if inventory_overlay.visible: close_all()
 		else: render_inventory(); inventory_overlay.visible = true
+	elif event.physical_keycode == KEY_M:
+		if travel_overlay.visible: travel_overlay.visible = false
+		else: render_travel(); travel_overlay.visible = true
 	elif event.physical_keycode == KEY_ESCAPE:
 		close_all()
+		travel_overlay.visible = false
 
 func close_all() -> void:
 	dialogue_overlay.visible = false

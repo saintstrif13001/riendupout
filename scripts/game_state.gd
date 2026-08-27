@@ -48,6 +48,7 @@ func new_character(cname: String, race: String, cls: String) -> Dictionary:
 		"bounties_done": 0,
 		"talents": {}, # "5" -> talent_id, "15" -> talent_id
 		"reputation": {}, # faction_id -> int
+		"unlocked_zones": ["village"], # zones visitées, débloque le voyage rapide
 	}
 
 func pending_talent(cd: Dictionary) -> Dictionary:

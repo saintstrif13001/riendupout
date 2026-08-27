@@ -27,6 +27,7 @@ var npc_nodes: Array = []
 var gather_nodes: Array = []
 var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
+var death_zone_id: String = "village"
 
 func _ready() -> void:
 	char_data = GameState.char_data
@@ -343,6 +344,11 @@ func _physics_process(delta: float) -> void:
 	if hud_tick_accum > 0.4:
 		hud_tick_accum = 0.0
 		emit_signal("hud_update", make_hud_data())
+		var zid = Data.zone_at(player.global_position.x).id
+		death_zone_id = zid
+		if not char_data.unlocked_zones.has(zid):
+			char_data.unlocked_zones.append(zid)
+			float_text(player.global_position + Vector2(0,-90), "Zone découverte : voyage rapide débloqué", Color(0.7,1,0.85))
 
 	autosave_accum += delta
 	if autosave_accum > 20.0:
@@ -605,7 +611,9 @@ func handle_respawn(delta: float) -> void:
 		float_text(player.global_position + Vector2(0,-40), "Réapparition...", Color(1,1,1))
 	if Time.get_ticks_msec()/1000.0 > respawn_at:
 		respawn_at = -1.0
-		player.respawn(get_zone_spawn("village"))
+		# Réapparaît à l'entrée de la zone où le joueur est mort (pas toujours au village),
+		# pour éviter d'avoir à retraverser toute la carte après une mort en zone avancée.
+		player.respawn(get_zone_spawn(death_zone_id))
 		emit_signal("hud_update", make_hud_data())
 
 # ---------------- Récolte & PNJ ----------------

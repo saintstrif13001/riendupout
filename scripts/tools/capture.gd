@@ -74,6 +74,13 @@ func _process(delta: float) -> bool:
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "loup", "respawn_at": 0.0})
 		elif test_mode == "test_continue_menu":
 			_run_continue_menu_test()
+		elif test_mode == "show_travel_ui":
+			inst.char_data.unlocked_zones = ["village","plaine","foret","caverne","marais"]
+			var hud4 = inst.get_node("Hud")
+			hud4.render_travel()
+			hud4.travel_overlay.visible = true
+		elif test_mode == "test_travel":
+			_run_travel_test()
 		elif test_mode == "test_boss_phase":
 			_run_boss_phase_test()
 		elif test_mode == "test_death":
@@ -189,6 +196,31 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_travel_test() -> void:
+	print("TEST_START:travel")
+	var data = root.get_node("/root/Data")
+	print("TEST_INITIAL unlocked=%s" % [inst.char_data.unlocked_zones])
+	# simule le joueur qui se déplace dans marais (comme le ferait _physics_process en jeu réel)
+	inst.player.global_position = Vector2(data.ZONES.marais.x0 + 300, data.WORLD_HEIGHT/2.0)
+	var zid = data.zone_at(inst.player.global_position.x).id
+	inst.death_zone_id = zid
+	if not inst.char_data.unlocked_zones.has(zid): inst.char_data.unlocked_zones.append(zid)
+	print("TEST_AFTER_VISIT zone=%s unlocked=%s" % [zid, inst.char_data.unlocked_zones])
+	# simule une mort dans le marais -> doit réapparaître à l'entrée du marais, pas au village
+	inst.player.take_damage(99999.0)
+	inst.respawn_at = -1.0
+	inst.handle_respawn(0.0) # 1er appel: démarre le minuteur de 3s
+	# force le minuteur à être expiré pour déclencher la réapparition immédiatement
+	inst.respawn_at = 0.0
+	inst.handle_respawn(0.0)
+	var expected = inst.get_zone_spawn("marais")
+	print("TEST_RESULT respawn_pos=%s expected_marais_spawn=%s village_spawn=%s dead=%s"
+		% [inst.player.global_position, expected, inst.get_zone_spawn("village"), inst.player.dead])
+	# teste le voyage rapide vers le village depuis le marais
+	var hud = inst.get_node("Hud")
+	hud.travel_to("village")
+	print("TEST_RESULT2 pos_after_travel=%s expected_village=%s" % [inst.player.global_position, inst.get_zone_spawn("village")])
 
 func _run_boss_phase_test() -> void:
 	print("TEST_START:boss_phase")

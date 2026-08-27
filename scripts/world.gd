@@ -493,6 +493,9 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 				register_drop_for_quests(drop.id)
 	update_quest_progress("kill", e.type_id)
 	if e.mdef.get("boss", false): update_quest_progress("boss", e.type_id)
+	if p.char_data.bounty != null and p.char_data.bounty.target == e.type_id and p == player:
+		p.char_data.bounty.progress = min(p.char_data.bounty.count, p.char_data.bounty.progress + 1)
+		float_text(p.global_position + Vector2(0,-90), "Prime: %d/%d" % [p.char_data.bounty.progress, p.char_data.bounty.count], Color(1,0.75,0.3))
 	emit_signal("hud_update", make_hud_data())
 
 func update_enemies(delta: float) -> void:

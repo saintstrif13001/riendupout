@@ -15,6 +15,8 @@ func new_character(cname: String, race: String, cls: String) -> Dictionary:
 		"quests_completed": [],
 		"profession": "",
 		"gather_counts": {},
+		"bounty": null, # {target, target_name, count, progress, reward_gold, reward_xp}
+		"bounties_done": 0,
 	}
 
 func compute_stats(cd: Dictionary) -> Dictionary:

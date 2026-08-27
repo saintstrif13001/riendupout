@@ -288,6 +288,27 @@ func render_npc_dialogue() -> void:
 				var btn = _add_button(dialogue_box, "Fabriquer " + r.name, func(): craft_recipe(r.id))
 				btn.disabled = not has
 
+	if npc.role == "bounty":
+		_add_title(dialogue_box, "Chasse aux Primes", 15)
+		var b = cd.bounty
+		if b == null:
+			var doneLbl = Label.new()
+			doneLbl.text = "Primes complétées : %d" % cd.bounties_done
+			dialogue_box.add_child(doneLbl)
+			_add_button(dialogue_box, "Demander une prime", func(): request_bounty())
+		elif b.progress >= b.count:
+			var lbl = Label.new()
+			lbl.text = "Prime terminée : %s (%d/%d) !" % [b.target_name, b.progress, b.count]
+			dialogue_box.add_child(lbl)
+			_add_button(dialogue_box, "Encaisser : %d or, %d XP" % [b.reward_gold, b.reward_xp], func(): collect_bounty())
+		else:
+			var lbl = Label.new()
+			lbl.text = "Prime en cours : élimine %d %s (%d/%d)" % [b.count, b.target_name, b.progress, b.count]
+			dialogue_box.add_child(lbl)
+			var rew = Label.new()
+			rew.text = "Récompense : %d or, %d XP" % [b.reward_gold, b.reward_xp]
+			dialogue_box.add_child(rew)
+
 	_add_button(dialogue_box, "Fermer (ESC)", func(): close_all())
 
 func accept_quest(qid: String) -> void:
@@ -323,6 +344,24 @@ func buy_item(key: String) -> void:
 
 func learn_profession(pid: String) -> void:
 	world.char_data.profession = pid
+	render_npc_dialogue()
+
+func request_bounty() -> void:
+	var cd = world.char_data
+	var data = get_node("/root/Data")
+	cd.bounty = data.random_bounty(cd.level)
+	render_npc_dialogue()
+
+func collect_bounty() -> void:
+	var cd = world.char_data
+	var b = cd.bounty
+	if b == null or b.progress < b.count: return
+	cd.gold += b.reward_gold
+	world.player.gain_xp(b.reward_xp)
+	cd.bounties_done += 1
+	cd.bounty = null
+	world.float_text(world.player.global_position + Vector2(0,-60), "Prime encaissée !", Color(1,0.75,0.3))
+	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()
 
 func craft_recipe(rid: String) -> void:

@@ -166,6 +166,7 @@ const NPCS := [
 	{"id":"ranger", "name":"Ranger Doff", "x":3400, "y":900, "role":"quest", "tint":Color(0.18,0.54,0.23)},
 	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85)},
 	{"id":"hulda", "name":"Vieille Hulda", "x":7400, "y":600, "role":"quest", "tint":Color(0.55,0.7,0.4)},
+	{"id":"chasseur", "name":"Chasseur Kessler", "x":1100, "y":450, "role":"bounty", "tint":Color(0.6,0.45,0.25)},
 ]
 
 const QUESTS := [
@@ -245,3 +246,22 @@ func zone_at(x: float) -> Dictionary:
 
 func xp_for_level(level: int) -> int:
 	return int(floor(30 * pow(level, 1.7)))
+
+func random_bounty(level: int) -> Dictionary:
+	# Choisit un monstre non-boss dont la zone correspond approximativement au niveau du joueur.
+	var candidates := []
+	for tid in MONSTER_TYPES.keys():
+		var m = MONSTER_TYPES[tid]
+		if m.get("boss", false): continue
+		var lvl = ZONES[m.zone].lvl
+		if level >= lvl[0] - 3 and level <= lvl[1] + 4:
+			candidates.append(tid)
+	if candidates.is_empty():
+		candidates = MONSTER_TYPES.keys().filter(func(t): return not MONSTER_TYPES[t].get("boss", false))
+	var tid = candidates[randi() % candidates.size()]
+	var m = MONSTER_TYPES[tid]
+	var count = randi_range(6, 12)
+	return {
+		"target": tid, "target_name": m.name, "count": count, "progress": 0,
+		"reward_gold": int(m.xp * count * 0.6), "reward_xp": int(m.xp * count * 0.7),
+	}

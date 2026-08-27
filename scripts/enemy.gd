@@ -5,6 +5,9 @@ const DIR_ROW := {"up":0, "left":1, "down":2, "right":3}
 const FW := 48
 const FH := 64
 
+var fw := FW
+var fh := FH
+
 var uid: String = ""
 var type_id: String = ""
 var mdef: Dictionary
@@ -37,9 +40,11 @@ func setup(tid: String, u: String, lvl: int) -> void:
 	edef = mdef.def * scale_f
 	spd = mdef.spd
 
+	fw = mdef.get("fw", FW)
+	fh = mdef.get("fh", FH)
 	sprite.texture = load("res://assets/sprites/enemies/%s.png" % mdef.sprite)
 	sprite.region_enabled = true
-	sprite.region_rect = Rect2(0, 2*FH, FW, FH)
+	sprite.region_rect = Rect2(0, 2*fh, fw, fh)
 	sprite.centered = true
 	if mdef.get("boss", false):
 		sprite.scale = Vector2(1.6, 1.6)
@@ -57,7 +62,7 @@ func set_anim(new_dir: String, moving: bool) -> void:
 	var frame = 0
 	if moving:
 		frame = int(Time.get_ticks_msec() / 150) % 3
-	sprite.region_rect = Rect2(frame * FW, row * FH, FW, FH)
+	sprite.region_rect = Rect2(frame * fw, row * fh, fw, fh)
 
 func take_damage(dmg: float) -> float:
 	if dead: return 0.0

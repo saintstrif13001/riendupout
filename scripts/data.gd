@@ -95,6 +95,7 @@ const WORLD_HEIGHT := 1200.0
 const MONSTER_TYPES := {
 	"slime_vert": {"name":"Slime Vert", "sprite":"slime_green", "hp":24, "atk":4, "def":0, "spd":60, "xp":8, "loot":[{"id":"gelee","chance":0.6}], "zone":"plaine"},
 	"slime_rouge": {"name":"Slime Rouge", "sprite":"slime_red", "hp":36, "atk":7, "def":1, "spd":70, "xp":14, "loot":[{"id":"gelee","chance":0.6},{"id":"minerai","chance":0.15}], "zone":"plaine"},
+	"loup": {"name":"Loup des Plaines", "sprite":"wolf", "fw":64, "fh":85, "hp":45, "atk":9, "def":1, "spd":110, "xp":18, "loot":[{"id":"peau_loup","chance":0.5},{"id":"gelee","chance":0.1}], "zone":"plaine"},
 	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":10, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
 	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":13, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
 	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne"},
@@ -107,6 +108,7 @@ const MONSTER_TYPES := {
 
 const ITEMS := {
 	"gelee": {"name":"Gelée de Slime", "type":"mat", "icon":"o"},
+	"peau_loup": {"name":"Peau de Loup", "type":"mat", "icon":"o"},
 	"bois": {"name":"Bois", "type":"mat", "icon":"o"},
 	"minerai": {"name":"Minerai", "type":"mat", "icon":"o"},
 	"herbe": {"name":"Herbe Médicinale", "type":"mat", "icon":"o"},
@@ -128,6 +130,7 @@ const ITEMS := {
 	"arc_chasse": {"name":"Arc de Chasse", "type":"weapon", "icon":"}", "bonus":{"atk":4,"spd":5}},
 	"baton_novice": {"name":"Bâton du Novice", "type":"weapon", "icon":"|", "bonus":{"atk":6,"mana":10}},
 	"armure_cuir": {"name":"Armure de Cuir", "type":"armor", "icon":"[", "bonus":{"def":4,"hp":10}},
+	"bottes_loup": {"name":"Bottes en Peau de Loup", "type":"armor", "icon":"[", "bonus":{"spd":12,"def":2}},
 	"armure_plates": {"name":"Armure de Plates", "type":"armor", "icon":"#", "bonus":{"def":8,"hp":20}},
 	"potion_vie": {"name":"Potion de Vie", "type":"consumable", "icon":"+", "heal":40},
 	"potion_mana": {"name":"Potion de Mana", "type":"consumable", "icon":"~", "mana":40},
@@ -136,6 +139,7 @@ const ITEMS := {
 const RECIPES := [
 	{"id":"r_epee_fer", "profession":"forgeron", "result":"epee_fer", "cost":{"minerai":5}, "name":"Épée de Fer"},
 	{"id":"r_armure_cuir", "profession":"forgeron", "result":"armure_cuir", "cost":{"minerai":3,"bois":2}, "name":"Armure de Cuir"},
+	{"id":"r_bottes_loup", "profession":"forgeron", "result":"bottes_loup", "cost":{"peau_loup":4,"minerai":1}, "name":"Bottes en Peau de Loup"},
 	{"id":"r_armure_plates", "profession":"forgeron", "result":"armure_plates", "cost":{"minerai":8}, "name":"Armure de Plates"},
 	{"id":"r_potion_vie", "profession":"alchimiste", "result":"potion_vie", "cost":{"herbe":3}, "name":"Potion de Vie"},
 	{"id":"r_potion_mana", "profession":"alchimiste", "result":"potion_mana", "cost":{"herbe":2,"minerai":1}, "name":"Potion de Mana"},
@@ -187,7 +191,9 @@ const QUESTS := [
 		"desc":"Rapporte 5 Minerais à Otto.", "obj":{"type":"gather","target":"minerai","count":5}, "reward":{"xp":70,"gold":30}},
 	{"id":"q_fermier_herbe","name":"Récolte Utile","giver":"fermier","requires":["q_fermier_intro"],"level":2,
 		"desc":"Récolte 6 Herbes pour Otto.", "obj":{"type":"gather","target":"herbe","count":6}, "reward":{"xp":75,"gold":30}},
-	{"id":"q_garde_frontiere","name":"Garde-Frontière","giver":"garde","requires":["q_slime2"],"level":3,
+	{"id":"q_loups","name":"Hurlements Nocturnes","giver":"garde","requires":["q_slime2"],"level":3,
+		"desc":"Des loups rôdent près du village. Élimine 8 Loups des Plaines.", "obj":{"type":"kill","target":["loup"],"count":8}, "reward":{"xp":95,"gold":40}},
+	{"id":"q_garde_frontiere","name":"Garde-Frontière","giver":"garde","requires":["q_loups"],"level":3,
 		"desc":"Élimine 10 Slimes.", "obj":{"type":"kill","target":["slime_vert","slime_rouge"],"count":10}, "reward":{"xp":110,"gold":50,"items":["armure_cuir"]}},
 	{"id":"q_vers_foret","name":"Vers la Forêt","giver":"fermier","requires":["q_garde_frontiere","q_fermier_herbe"],"level":4,
 		"desc":"Parle à l'Éclaireuse Lira.", "obj":{"type":"talk","target":"eclaireur","count":1}, "reward":{"xp":60,"gold":20}},
@@ -265,7 +271,7 @@ func rep_tier_name(rep: int) -> String:
 # Faction associée à chaque quête — la réputation gagnée = xp de récompense / 10 (arrondi).
 const QUEST_FACTION := {
 	"q_intro":"garde", "q_bois_village":"garde", "q_herbe_village":"garde",
-	"q_slime1":"garde", "q_slime2":"garde", "q_fermier_intro":"garde", "q_fermier_herbe":"garde",
+	"q_slime1":"garde", "q_slime2":"garde", "q_loups":"garde", "q_fermier_intro":"garde", "q_fermier_herbe":"garde",
 	"q_garde_frontiere":"garde", "q_vers_foret":"garde",
 	"q_gobelin1":"rangers", "q_dents":"rangers", "q_bois_ancien":"rangers", "q_chasse_profonde":"rangers",
 	"q_orc1":"rangers", "q_orc_chef":"rangers", "q_vers_caverne":"rangers",

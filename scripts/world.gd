@@ -75,6 +75,8 @@ func draw_world() -> void:
 		var z = Data.zone_at(x)
 		if z.safe and randf() > 0.45:
 			continue
+		if z.id == "caverne":
+			continue # pas d'arbres sous terre — remplacés par des rochers plus bas
 		var spr = Sprite2D.new()
 		spr.texture = tree_tex
 		spr.position = Vector2(x, y)
@@ -84,6 +86,12 @@ func draw_world() -> void:
 			spr.modulate = Color(0.75, 0.95, 0.65)
 		spr.z_index = int(y)
 		$Decor.add_child(spr)
+	# rochers dans la caverne (formes procédurales, pas des arbres déguisés)
+	var cav = Data.ZONES.caverne
+	for i in range(70):
+		var x = randi_range(int(cav.x0) + 60, int(cav.x1) - 60)
+		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		_spawn_rock(x, y)
 	# petites touffes d'herbe (points de couleur) pour casser l'uniformité du fond
 	for i in range(260):
 		var x = randi_range(20, int(Data.WORLD_WIDTH) - 20)
@@ -96,6 +104,104 @@ func draw_world() -> void:
 		tuft.position = Vector2(x, y)
 		tuft.z_index = -8
 		$Decor.add_child(tuft)
+
+	build_village_structures()
+	build_props()
+
+func build_village_structures() -> void:
+	# Bâtiments simples (silhouettes procédurales) pour donner une structure au village.
+	var houses = [
+		{"x":300, "y":250, "w":90, "h":70, "roof":Color(0.55,0.22,0.2), "wall":Color(0.78,0.68,0.5)},
+		{"x":600, "y":500, "w":110, "h":80, "roof":Color(0.4,0.28,0.18), "wall":Color(0.7,0.62,0.48)},
+		{"x":450, "y":700, "w":90, "h":70, "roof":Color(0.5,0.2,0.22), "wall":Color(0.75,0.65,0.5)},
+		{"x":900, "y":300, "w":120, "h":90, "roof":Color(0.35,0.25,0.35), "wall":Color(0.65,0.6,0.6)},
+		{"x":950, "y":650, "w":100, "h":75, "roof":Color(0.45,0.3,0.18), "wall":Color(0.72,0.63,0.47)},
+		{"x":200, "y":650, "w":85, "h":65, "roof":Color(0.5,0.24,0.2), "wall":Color(0.76,0.66,0.5)},
+	]
+	for h in houses:
+		var wall = ColorRect.new()
+		wall.color = h.wall
+		wall.size = Vector2(h.w, h.h)
+		wall.position = Vector2(h.x - h.w/2.0, h.y - h.h/2.0)
+		wall.z_index = int(h.y) - 1
+		$Decor.add_child(wall)
+		var roof = Polygon2D.new()
+		roof.color = h.roof
+		var hw = h.w/2.0 + 10
+		var top = h.y - h.h/2.0
+		roof.polygon = PackedVector2Array([Vector2(h.x - hw, top), Vector2(h.x + hw, top), Vector2(h.x, top - 40)])
+		roof.z_index = int(h.y)
+		$Decor.add_child(roof)
+		var door = ColorRect.new()
+		door.color = Color(0.3, 0.2, 0.12)
+		door.size = Vector2(18, 28)
+		door.position = Vector2(h.x - 9, h.y + h.h/2.0 - 28)
+		door.z_index = int(h.y) + 1
+		$Decor.add_child(door)
+	# Puits central comme point de repère
+	var well_base = ColorRect.new()
+	well_base.color = Color(0.5, 0.5, 0.52)
+	well_base.size = Vector2(40, 40)
+	well_base.position = Vector2(700 - 20, 480 - 20)
+	well_base.z_index = 470
+	$Decor.add_child(well_base)
+
+func build_props() -> void:
+	# Coffres et torches dans les zones dangereuses, pour l'ambiance et un peu de loot passif.
+	seed(4321)
+	for key in Data.ZONES.keys():
+		var z = Data.ZONES[key]
+		if z.safe: continue
+		var count = int((z.x1 - z.x0) / 260.0)
+		for i in range(count):
+			var x = randi_range(int(z.x0) + 100, int(z.x1) - 100)
+			var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+			if randf() < 0.4:
+				_spawn_torch(x, y)
+			else:
+				_spawn_chest(x, y)
+
+func _spawn_torch(x: int, y: int) -> void:
+	var pole = ColorRect.new()
+	pole.color = Color(0.3, 0.2, 0.12)
+	pole.size = Vector2(4, 20)
+	pole.position = Vector2(x - 2, y - 10)
+	pole.z_index = int(y)
+	$Decor.add_child(pole)
+	var flame = ColorRect.new()
+	flame.color = Color(1.0, 0.55, 0.15)
+	flame.size = Vector2(8, 10)
+	flame.position = Vector2(x - 4, y - 20)
+	flame.z_index = int(y) + 1
+	$Decor.add_child(flame)
+
+func _spawn_rock(x: int, y: int) -> void:
+	var rock = Polygon2D.new()
+	var w = randf_range(16, 34)
+	var h = w * randf_range(0.55, 0.75)
+	var shade = randf_range(0.32, 0.5)
+	rock.color = Color(shade, shade * 0.94, shade * 0.9)
+	rock.polygon = PackedVector2Array([
+		Vector2(-w/2, h/3), Vector2(-w/3, -h/2), Vector2(w/4, -h/2.3),
+		Vector2(w/2, 0), Vector2(w/3, h/2), Vector2(-w/4, h/2.2)
+	])
+	rock.position = Vector2(x, y)
+	rock.z_index = int(y)
+	$Decor.add_child(rock)
+
+func _spawn_chest(x: int, y: int) -> void:
+	var base = ColorRect.new()
+	base.color = Color(0.42, 0.28, 0.14)
+	base.size = Vector2(22, 16)
+	base.position = Vector2(x - 11, y - 8)
+	base.z_index = int(y)
+	$Decor.add_child(base)
+	var lid = ColorRect.new()
+	lid.color = Color(0.55, 0.4, 0.2)
+	lid.size = Vector2(22, 5)
+	lid.position = Vector2(x - 11, y - 12)
+	lid.z_index = int(y) + 1
+	$Decor.add_child(lid)
 
 func get_zone_spawn(zone_id: String) -> Vector2:
 	var z = Data.ZONES[zone_id]

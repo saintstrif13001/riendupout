@@ -83,11 +83,11 @@ const PROFESSIONS := {
 }
 
 const ZONES := {
-	"village": {"name":"Val-Repos", "x0":0, "x1":1400, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
-	"plaine": {"name":"Plaine d'Aubval", "x0":1400, "x1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
-	"foret": {"name":"Forêt de Sylvombre", "x0":3200, "x1":5200, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
-	"caverne": {"name":"Caverne des Ossements", "x0":5200, "x1":7200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
-	"marais": {"name":"Marais Putride", "x0":7200, "x1":9200, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
+	"village": {"id":"village", "name":"Val-Repos", "x0":0, "x1":1400, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
+	"plaine": {"id":"plaine", "name":"Plaine d'Aubval", "x0":1400, "x1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
+	"foret": {"id":"foret", "name":"Forêt de Sylvombre", "x0":3200, "x1":5200, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
+	"caverne": {"id":"caverne", "name":"Caverne des Ossements", "x0":5200, "x1":7200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
+	"marais": {"id":"marais", "name":"Marais Putride", "x0":7200, "x1":9200, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
 }
 const WORLD_WIDTH := 9200.0
 const WORLD_HEIGHT := 1200.0

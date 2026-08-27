@@ -65,6 +65,8 @@ func _process(delta: float) -> bool:
 			_run_skills_test()
 		elif test_mode == "show_wolf":
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "loup", "respawn_at": 0.0})
+		elif test_mode == "show_kobold":
+			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "kobold", "respawn_at": 0.0})
 		elif test_mode == "test_data_integrity":
 			_run_data_integrity_test()
 		elif test_mode == "test_equip":

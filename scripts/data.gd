@@ -98,6 +98,7 @@ const MONSTER_TYPES := {
 	"loup": {"name":"Loup des Plaines", "sprite":"wolf", "fw":64, "fh":85, "hp":45, "atk":9, "def":1, "spd":110, "xp":18, "loot":[{"id":"peau_loup","chance":0.5},{"id":"gelee","chance":0.1}], "zone":"plaine"},
 	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":10, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
 	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":13, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
+	"kobold": {"name":"Kobold Soldat", "sprite":"kobold", "hp":75, "atk":12, "def":3, "spd":95, "xp":30, "loot":[{"id":"minerai","chance":0.3},{"id":"ecaille_kobold","chance":0.45}], "zone":"caverne"},
 	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne"},
 	"orc_guerrier": {"name":"Orc Guerrier", "sprite":"orc_warrior", "hp":80, "atk":14, "def":5, "spd":85, "xp":40, "loot":[{"id":"bois","chance":0.2},{"id":"croc_orc","chance":0.5}], "zone":"foret"},
 	"orc_chef": {"name":"Chef Orc Grondmar", "sprite":"orc_chief", "hp":340, "atk":24, "def":10, "spd":75, "xp":160, "boss":true, "loot":[{"id":"croc_orc","chance":1.0},{"id":"totem_orc","chance":1.0}], "zone":"foret"},
@@ -109,6 +110,7 @@ const MONSTER_TYPES := {
 const ITEMS := {
 	"gelee": {"name":"Gelée de Slime", "type":"mat", "icon":"o"},
 	"peau_loup": {"name":"Peau de Loup", "type":"mat", "icon":"o"},
+	"ecaille_kobold": {"name":"Écaille de Kobold", "type":"mat", "icon":"o"},
 	"bois": {"name":"Bois", "type":"mat", "icon":"o"},
 	"minerai": {"name":"Minerai", "type":"mat", "icon":"o"},
 	"herbe": {"name":"Herbe Médicinale", "type":"mat", "icon":"o"},
@@ -211,6 +213,8 @@ const QUESTS := [
 		"desc":"Vaincs le Chef Orc Grondmar qui dirige le camp.", "obj":{"type":"boss","target":"orc_chef","count":1}, "reward":{"xp":420,"gold":180,"items":["hache_orc"]}},
 	{"id":"q_vers_caverne","name":"Vers les Profondeurs","giver":"ranger","requires":["q_orc_chef"],"level":11,
 		"desc":"Parle au Prêtre Ozias.", "obj":{"type":"talk","target":"pretre","count":1}, "reward":{"xp":80,"gold":30}},
+	{"id":"q_kobolds","name":"Fouisseurs Indésirables","giver":"pretre","requires":["q_vers_caverne"],"level":10,
+		"desc":"Élimine 10 Kobolds Soldats qui infestent les tunnels.", "obj":{"type":"kill","target":["kobold"],"count":10}, "reward":{"xp":220,"gold":95}},
 	{"id":"q_squelette1","name":"Profondeurs Osseuses","giver":"pretre","requires":["q_vers_caverne"],"level":10,
 		"desc":"Élimine 12 Squelettes.", "obj":{"type":"kill","target":["squelette"],"count":12}, "reward":{"xp":260,"gold":100,"items":["armure_plates"]}},
 	{"id":"q_reserve_os","name":"Réserve d'Os","giver":"pretre","requires":["q_squelette1"],"level":11,
@@ -275,7 +279,7 @@ const QUEST_FACTION := {
 	"q_garde_frontiere":"garde", "q_vers_foret":"garde",
 	"q_gobelin1":"rangers", "q_dents":"rangers", "q_bois_ancien":"rangers", "q_chasse_profonde":"rangers",
 	"q_orc1":"rangers", "q_orc_chef":"rangers", "q_vers_caverne":"rangers",
-	"q_squelette1":"cercle", "q_reserve_os":"cercle", "q_echo_caverne":"cercle", "q_gardien":"cercle",
+	"q_kobolds":"cercle", "q_squelette1":"cercle", "q_reserve_os":"cercle", "q_echo_caverne":"cercle", "q_gardien":"cercle",
 	"q_relique":"cercle", "q_vers_marais":"cercle", "q_zombie1":"cercle", "q_chair":"cercle",
 	"q_zombie2":"cercle", "q_marais_boss":"cercle", "q_marais_final":"cercle",
 }

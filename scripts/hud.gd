@@ -267,6 +267,7 @@ func _on_open_npc(npc: Dictionary) -> void:
 	dialogue_overlay.visible = true
 
 func render_npc_dialogue() -> void:
+	if current_npc.is_empty(): return
 	var npc = current_npc
 	var cd = world.char_data
 	_clear_box(dialogue_box)
@@ -315,6 +316,15 @@ func render_npc_dialogue() -> void:
 		for key in ["potion_vie", "potion_mana"]:
 			var it = Data.ITEMS[key]
 			_add_button(dialogue_box, it.name + " - 15 or", func(): buy_item(key))
+		_add_title(dialogue_box, "Objets de faction", 14)
+		for key in ["cape_heros", "arc_rangers", "robe_cercle"]:
+			var it = Data.ITEMS[key]
+			var req = it.rep_req
+			var have_rep = cd.reputation.get(req.faction, 0)
+			var unlocked = have_rep >= req.min
+			var label = "%s — %d or (réputation %s requise: %s)" % [it.name, it.price, Data.FACTIONS[req.faction].name, Data.rep_tier_name(req.min)]
+			var btn = _add_button(dialogue_box, label, func(): buy_faction_item(key))
+			btn.disabled = not unlocked
 
 	if npc.role == "profession":
 		var prof = Data.PROFESSIONS[npc.profession]
@@ -376,6 +386,11 @@ func turn_in_quest(qid: String) -> void:
 	var res = world.player.gain_xp(q.reward.xp)
 	for it in q.reward.get("items", []):
 		cd.inventory[it] = cd.inventory.get(it, 0) + 1
+	var faction = Data.QUEST_FACTION.get(qid, "")
+	if faction != "":
+		var rep_gain = max(5, int(q.reward.xp / 10.0))
+		cd.reputation[faction] = cd.reputation.get(faction, 0) + rep_gain
+		world.float_text(world.player.global_position + Vector2(0,-100), "+%d réputation (%s)" % [rep_gain, Data.FACTIONS[faction].name], Color(0.6,0.85,1))
 	world.float_text(world.player.global_position + Vector2(0,-60), "Quete terminee: " + q.name, Color(1,0.88,0.4))
 	world.emit_signal("hud_update", world.make_hud_data())
 	world.save_now()
@@ -388,6 +403,18 @@ func buy_item(key: String) -> void:
 	cd.gold -= 15
 	cd.inventory[key] = cd.inventory.get(key, 0) + 1
 	world.emit_signal("hud_update", world.make_hud_data())
+	render_npc_dialogue()
+
+func buy_faction_item(key: String) -> void:
+	var cd = world.char_data
+	var it = Data.ITEMS[key]
+	var req = it.rep_req
+	if cd.reputation.get(req.faction, 0) < req.min: return
+	if cd.gold < it.price: return
+	cd.gold -= it.price
+	cd.inventory[key] = cd.inventory.get(key, 0) + 1
+	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
 	render_npc_dialogue()
 
 func learn_profession(pid: String) -> void:
@@ -430,6 +457,13 @@ func render_inventory() -> void:
 	var cd = world.char_data
 	_clear_box(inventory_box)
 	_add_title(inventory_box, "Inventaire - " + cd.name)
+
+	_add_title(inventory_box, "Réputations", 15)
+	for fid in Data.FACTIONS.keys():
+		var rep = cd.reputation.get(fid, 0)
+		var lbl2 = Label.new()
+		lbl2.text = "%s : %d (%s)" % [Data.FACTIONS[fid].name, rep, Data.rep_tier_name(rep)]
+		inventory_box.add_child(lbl2)
 
 	_add_title(inventory_box, "Equipement", 15)
 	for slot in ["weapon", "armor"]:

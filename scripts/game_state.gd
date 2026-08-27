@@ -47,6 +47,7 @@ func new_character(cname: String, race: String, cls: String) -> Dictionary:
 		"bounty": null, # {target, target_name, count, progress, reward_gold, reward_xp}
 		"bounties_done": 0,
 		"talents": {}, # "5" -> talent_id, "15" -> talent_id
+		"reputation": {}, # faction_id -> int
 	}
 
 func pending_talent(cd: Dictionary) -> Dictionary:

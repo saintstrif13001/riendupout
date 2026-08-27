@@ -59,6 +59,8 @@ func _process(delta: float) -> bool:
 			_run_save_test()
 		elif test_mode == "test_talent":
 			_run_talent_test()
+		elif test_mode == "test_reputation":
+			_run_reputation_test()
 		elif test_mode == "show_talent_ui":
 			var gs2 = root.get_node("/root/GameState")
 			inst.char_data.level = 5
@@ -133,6 +135,24 @@ func _run_save_test() -> void:
 	var loaded = gs.load_saved_character()
 	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
 		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])
+
+func _run_reputation_test() -> void:
+	print("TEST_START:reputation")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	cd.quests_active["q_intro"] = 1 # obj count for q_intro is 1 (talk)
+	hud.turn_in_quest("q_intro")
+	var rep = cd.reputation.get("garde", 0)
+	print("TEST_RESULT rep_after_q_intro=%d quests_completed=%s gold=%d" % [rep, cd.quests_completed, cd.gold])
+	# teste l'achat d'un objet de faction avant/après avoir le rang requis
+	cd.gold = 200
+	var before_buy = cd.inventory.get("cape_heros", 0)
+	hud.buy_faction_item("cape_heros")
+	var after_buy_locked = cd.inventory.get("cape_heros", 0)
+	cd.reputation["garde"] = 300
+	hud.buy_faction_item("cape_heros")
+	var after_buy_unlocked = cd.inventory.get("cape_heros", 0)
+	print("TEST_RESULT buy_locked=%d buy_unlocked=%d gold_after=%d" % [after_buy_locked, after_buy_unlocked, cd.gold])
 
 func _run_talent_test() -> void:
 	print("TEST_START:talent")

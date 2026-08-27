@@ -121,6 +121,9 @@ const ITEMS := {
 	"hache_orc": {"name":"Hache Orc", "type":"weapon", "icon":"/", "bonus":{"atk":9,"def":-1}},
 	"armure_ecailles": {"name":"Armure d'Écailles Putrides", "type":"armor", "icon":"#", "bonus":{"def":12,"hp":25}},
 	"amulette_marais": {"name":"Amulette du Marais", "type":"weapon", "icon":"|", "bonus":{"atk":10,"mana":25}},
+	"cape_heros": {"name":"Cape du Héros de Val-Repos", "type":"armor", "icon":"#", "bonus":{"def":6,"hp":15,"spd":8}, "rep_req":{"faction":"garde","min":250}, "price":80},
+	"arc_rangers": {"name":"Arc des Rangers", "type":"weapon", "icon":"}", "bonus":{"atk":9,"spd":10}, "rep_req":{"faction":"rangers","min":250}, "price":90},
+	"robe_cercle": {"name":"Robe du Cercle d'Ozias", "type":"armor", "icon":"[", "bonus":{"def":5,"mana":20,"hp":10}, "rep_req":{"faction":"cercle","min":250}, "price":90},
 	"epee_fer": {"name":"Épée de Fer", "type":"weapon", "icon":"/", "bonus":{"atk":5}},
 	"arc_chasse": {"name":"Arc de Chasse", "type":"weapon", "icon":"}", "bonus":{"atk":4,"spd":5}},
 	"baton_novice": {"name":"Bâton du Novice", "type":"weapon", "icon":"|", "bonus":{"atk":6,"mana":10}},
@@ -243,6 +246,33 @@ func zone_at(x: float) -> Dictionary:
 		var z = ZONES[key]
 		if x >= z.x0 and x < z.x1: return z
 	return ZONES.village
+
+const FACTIONS := {
+	"garde": {"name":"Garde de Val-Repos", "desc":"La milice qui protège le village et la Plaine d'Aubval."},
+	"rangers": {"name":"Rangers de Sylvombre", "desc":"Les gardiens de la Forêt de Sylvombre, ennemis des orcs."},
+	"cercle": {"name":"Cercle d'Ozias", "desc":"L'ordre religieux qui veille sur la Caverne et le Marais."},
+}
+const REP_TIERS := [
+	{"min":0, "name":"Neutre"}, {"min":100, "name":"Amical"},
+	{"min":250, "name":"Honoré"}, {"min":500, "name":"Vénéré"},
+]
+func rep_tier_name(rep: int) -> String:
+	var name = REP_TIERS[0].name
+	for t in REP_TIERS:
+		if rep >= t.min: name = t.name
+	return name
+
+# Faction associée à chaque quête — la réputation gagnée = xp de récompense / 10 (arrondi).
+const QUEST_FACTION := {
+	"q_intro":"garde", "q_bois_village":"garde", "q_herbe_village":"garde",
+	"q_slime1":"garde", "q_slime2":"garde", "q_fermier_intro":"garde", "q_fermier_herbe":"garde",
+	"q_garde_frontiere":"garde", "q_vers_foret":"garde",
+	"q_gobelin1":"rangers", "q_dents":"rangers", "q_bois_ancien":"rangers", "q_chasse_profonde":"rangers",
+	"q_orc1":"rangers", "q_orc_chef":"rangers", "q_vers_caverne":"rangers",
+	"q_squelette1":"cercle", "q_reserve_os":"cercle", "q_echo_caverne":"cercle", "q_gardien":"cercle",
+	"q_relique":"cercle", "q_vers_marais":"cercle", "q_zombie1":"cercle", "q_chair":"cercle",
+	"q_zombie2":"cercle", "q_marais_boss":"cercle", "q_marais_final":"cercle",
+}
 
 const TALENTS := {
 	"guerrier": [

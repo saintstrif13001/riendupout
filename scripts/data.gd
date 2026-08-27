@@ -99,12 +99,15 @@ const MONSTER_TYPES := {
 	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":10, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
 	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":13, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
 	"kobold": {"name":"Kobold Soldat", "sprite":"kobold", "hp":75, "atk":12, "def":3, "spd":95, "xp":30, "loot":[{"id":"minerai","chance":0.3},{"id":"ecaille_kobold","chance":0.45}], "zone":"caverne"},
-	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne"},
+	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne",
+		"phases":[{"hp_pct":0.5, "summon":"squelette", "count":2}]},
 	"orc_guerrier": {"name":"Orc Guerrier", "sprite":"orc_warrior", "hp":80, "atk":14, "def":5, "spd":85, "xp":40, "loot":[{"id":"bois","chance":0.2},{"id":"croc_orc","chance":0.5}], "zone":"foret"},
-	"orc_chef": {"name":"Chef Orc Grondmar", "sprite":"orc_chief", "hp":340, "atk":24, "def":10, "spd":75, "xp":160, "boss":true, "loot":[{"id":"croc_orc","chance":1.0},{"id":"totem_orc","chance":1.0}], "zone":"foret"},
+	"orc_chef": {"name":"Chef Orc Grondmar", "sprite":"orc_chief", "hp":340, "atk":24, "def":10, "spd":75, "xp":160, "boss":true, "loot":[{"id":"croc_orc","chance":1.0},{"id":"totem_orc","chance":1.0}], "zone":"foret",
+		"phases":[{"hp_pct":0.6, "summon":"orc_guerrier", "count":2}, {"hp_pct":0.25, "summon":"orc_guerrier", "count":2}]},
 	"zombie": {"name":"Zombie", "sprite":"zombie", "hp":110, "atk":15, "def":5, "spd":55, "xp":45, "loot":[{"id":"chair_pourrie","chance":0.6},{"id":"herbe","chance":0.2}], "zone":"marais"},
 	"zombie_pourri": {"name":"Zombie Pourrissant", "sprite":"zombie_rotting", "hp":150, "atk":19, "def":7, "spd":50, "xp":60, "loot":[{"id":"chair_pourrie","chance":0.7},{"id":"ichor_putride","chance":0.35}], "zone":"marais"},
-	"zombie_ancien": {"name":"Zombie Ancestral", "sprite":"zombie_rotting", "hp":420, "atk":28, "def":11, "spd":45, "xp":220, "boss":true, "loot":[{"id":"ichor_putride","chance":1.0},{"id":"coeur_marais","chance":1.0}], "zone":"marais"},
+	"zombie_ancien": {"name":"Zombie Ancestral", "sprite":"zombie_rotting", "hp":420, "atk":28, "def":11, "spd":45, "xp":220, "boss":true, "loot":[{"id":"ichor_putride","chance":1.0},{"id":"coeur_marais","chance":1.0}], "zone":"marais",
+		"phases":[{"hp_pct":0.66, "summon":"zombie", "count":3}, {"hp_pct":0.33, "summon":"zombie_pourri", "count":2}]},
 }
 
 const ITEMS := {

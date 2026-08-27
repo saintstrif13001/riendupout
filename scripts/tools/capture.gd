@@ -74,6 +74,8 @@ func _process(delta: float) -> bool:
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "loup", "respawn_at": 0.0})
 		elif test_mode == "test_continue_menu":
 			_run_continue_menu_test()
+		elif test_mode == "test_boss_phase":
+			_run_boss_phase_test()
 		elif test_mode == "test_death":
 			_run_death_test()
 		elif test_mode == "show_kobold":
@@ -187,6 +189,20 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_boss_phase_test() -> void:
+	print("TEST_START:boss_phase")
+	var boss = inst.spawn_enemy({"x": inst.player.global_position.x + 50, "y": inst.player.global_position.y, "type_id": "zombie_ancien", "respawn_at": 0.0})
+	var before_count = inst.enemies.size()
+	print("TEST_BOSS_SPAWNED hp=%.0f max_hp=%.0f enemies_before=%d" % [boss.hp, boss.max_hp, before_count])
+	# fait tomber le boss à 60% (au-dessus du 1er seuil à 66%... on vise juste sous 66%)
+	boss.take_damage(boss.max_hp * 0.35)
+	var after_phase1 = inst.enemies.size()
+	print("TEST_AFTER_PHASE1 hp=%.0f enemies=%d (devrait avoir +3 zombies invoqués)" % [boss.hp, after_phase1])
+	boss.take_damage(boss.max_hp * 0.34)
+	var after_phase2 = inst.enemies.size()
+	print("TEST_RESULT hp=%.0f enemies=%d (devrait avoir +2 zombies pourrissants de plus) triggered=%s"
+		% [boss.hp, after_phase2, boss.triggered_phases.keys()])
 
 func _run_death_test() -> void:
 	print("TEST_START:death")

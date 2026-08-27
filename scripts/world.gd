@@ -307,7 +307,18 @@ func spawn_enemy(sd: Dictionary) -> Enemy:
 	e.spawn_pos = Vector2(sd.x, sd.y)
 	e.set_meta("spawn_def", sd)
 	enemies[uid] = e
+	if is_sim and e.mdef.has("phases"):
+		e.phase_triggered.connect(func(phase): _on_boss_phase(e, phase))
 	return e
+
+func _on_boss_phase(boss: Enemy, phase: Dictionary) -> void:
+	float_text(boss.global_position + Vector2(0,-70), "%s invoque des renforts !" % boss.mdef.name, Color(1,0.4,0.2))
+	for i in range(phase.get("count", 1)):
+		var ang = randf() * TAU
+		var offset = Vector2(cos(ang), sin(ang)) * 70.0
+		var sd = {"x": boss.global_position.x + offset.x, "y": boss.global_position.y + offset.y, "type_id": phase.summon, "respawn_at": 0.0}
+		var add = spawn_enemy(sd)
+		add.set_meta("spawn_def", null) # les renforts ne réapparaissent pas après leur mort
 
 # ---------------- Boucle ----------------
 func _physics_process(delta: float) -> void:

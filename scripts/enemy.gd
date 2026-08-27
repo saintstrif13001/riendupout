@@ -21,6 +21,9 @@ var dead: bool = false
 var dir: String = "down"
 var last_attack: float = 0.0
 var spawn_pos: Vector2
+var triggered_phases: Dictionary = {}
+
+signal phase_triggered(phase: Dictionary)
 
 @onready var sprite: Sprite2D = $Sprite
 @onready var name_label: Label = $NameLabel
@@ -71,8 +74,19 @@ func take_damage(dmg: float) -> float:
 	sprite.modulate = Color(2, 2, 2)
 	get_tree().create_timer(0.08).timeout.connect(func():
 		if is_instance_valid(sprite): sprite.modulate = Color(1,1,1))
-	if hp <= 0: die()
+	if hp <= 0:
+		die()
+	else:
+		_check_phases()
 	return mitig
+
+func _check_phases() -> void:
+	for phase in mdef.get("phases", []):
+		var key = str(phase.hp_pct)
+		if triggered_phases.has(key): continue
+		if hp <= max_hp * phase.hp_pct:
+			triggered_phases[key] = true
+			phase_triggered.emit(phase)
 
 func die() -> void:
 	dead = true

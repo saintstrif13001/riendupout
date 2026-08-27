@@ -25,6 +25,7 @@ var net_enemy_accum: float = 0.0
 var npc_nodes: Array = []
 var gather_nodes: Array = []
 var hud_tick_accum: float = 0.0
+var autosave_accum: float = 0.0
 
 func _ready() -> void:
 	char_data = GameState.char_data
@@ -211,7 +212,10 @@ func spawn_local_player() -> void:
 	player = PlayerScene.instantiate()
 	$Players.add_child(player)
 	player.setup(char_data, true, multiplayer.get_unique_id())
-	player.global_position = get_zone_spawn("village")
+	if char_data.has("last_x") and char_data.last_x != null:
+		player.global_position = Vector2(char_data.last_x, char_data.last_y)
+	else:
+		player.global_position = get_zone_spawn("village")
 	var cam = Camera2D.new()
 	cam.zoom = Vector2(1.6, 1.6)
 	cam.limit_left = 0
@@ -325,6 +329,22 @@ func _physics_process(delta: float) -> void:
 	if hud_tick_accum > 0.4:
 		hud_tick_accum = 0.0
 		emit_signal("hud_update", make_hud_data())
+
+	autosave_accum += delta
+	if autosave_accum > 20.0:
+		autosave_accum = 0.0
+		save_now()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST and player != null:
+		save_now()
+
+func save_now() -> void:
+	char_data.last_x = player.global_position.x
+	char_data.last_y = player.global_position.y
+	char_data.hp = player.hp
+	char_data.mana = player.mana
+	GameState.save_character()
 
 func handle_movement(delta: float) -> void:
 	var vx := 0.0
@@ -485,6 +505,7 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 	float_text(p.global_position + Vector2(0,-60), "+%d XP" % res.amount, Color(1,0.88,0.4))
 	if res.leveled:
 		float_text(p.global_position + Vector2(0,-80), "NIVEAU %d !" % p.char_data.level, Color(1,0.4,1))
+		if p == player: save_now()
 	if not partial:
 		for drop in e.mdef.get("loot", []):
 			if randf() < drop.chance:

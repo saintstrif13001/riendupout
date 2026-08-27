@@ -331,6 +331,7 @@ func turn_in_quest(qid: String) -> void:
 		cd.inventory[it] = cd.inventory.get(it, 0) + 1
 	world.float_text(world.player.global_position + Vector2(0,-60), "Quete terminee: " + q.name, Color(1,0.88,0.4))
 	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
 	_render_quests()
 	render_npc_dialogue()
 
@@ -362,6 +363,7 @@ func collect_bounty() -> void:
 	cd.bounty = null
 	world.float_text(world.player.global_position + Vector2(0,-60), "Prime encaissée !", Color(1,0.75,0.3))
 	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
 	render_npc_dialogue()
 
 func craft_recipe(rid: String) -> void:

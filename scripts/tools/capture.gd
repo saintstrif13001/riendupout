@@ -55,6 +55,8 @@ func _process(delta: float) -> bool:
 			_run_quest_test()
 		elif test_mode == "test_bounty":
 			_run_bounty_test()
+		elif test_mode == "test_save":
+			_run_save_test()
 		return false
 
 	frame_count += 1
@@ -109,3 +111,18 @@ func _run_bounty_test() -> void:
 		inst.grant_kill_rewards(inst.player, e, false)
 	print("TEST_RESULT bounty_progress=%d/%d gold_before=%d gold_after=%d bounty_cleared=%s"
 		% [inst.char_data.bounty.progress if inst.char_data.bounty else -1, b.count, gold_before, inst.char_data.gold, inst.char_data.bounty == null])
+
+func _run_save_test() -> void:
+	print("TEST_START:save")
+	var gs = root.get_node("/root/GameState")
+	gs.delete_save()
+	inst.char_data.level = 7
+	inst.char_data.gold = 555
+	inst.char_data.quests_completed = ["q_intro", "q_slime1"]
+	inst.char_data.inventory = {"minerai": 3, "epee_fer": 1}
+	inst.player.global_position = Vector2(3333, 444)
+	inst.save_now()
+	print("TEST_SAVE_FILE_EXISTS=%s" % gs.has_save())
+	var loaded = gs.load_saved_character()
+	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
+		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])

@@ -71,9 +71,48 @@ func show_main() -> void:
 	_clear()
 	_title("Rien du Pout Online")
 	_sub("Une aventure coopérative jusqu'à 4 joueurs. Val-Repos t'attend...")
-	_button("Solo", func(): GameState.mode = "solo"; show_char_create())
-	_button("Héberger (coop)", func(): GameState.mode = "host"; show_char_create())
-	_button("Rejoindre", func(): GameState.mode = "join"; show_join_ip())
+	if GameState.has_save():
+		var saved = GameState.load_saved_character()
+		if not saved.is_empty():
+			var race_name = Data.RACES.get(saved.race, {}).get("name", saved.race)
+			var class_name_ = Data.CLASSES.get(saved.get("class"), {}).get("name", saved.get("class"))
+			_button("▶ Continuer : %s — %s Nv.%d" % [saved.name, class_name_, saved.level], func():
+				GameState.char_data = saved
+				show_continue_mode_select())
+	_button("Nouveau personnage (Solo)", func(): GameState.mode = "solo"; show_char_create())
+	_button("Nouveau personnage (Héberger)", func(): GameState.mode = "host"; show_char_create())
+	_button("Nouveau personnage (Rejoindre)", func(): GameState.mode = "join"; show_join_ip())
+	if GameState.has_save():
+		_button("Supprimer la sauvegarde", func(): GameState.delete_save(); show_main())
+
+func show_continue_mode_select() -> void:
+	_clear()
+	_button("< Retour", show_main)
+	_title("Continuer l'aventure")
+	_sub("%s — Comment veux-tu jouer ?" % GameState.char_data.name)
+	_button("Solo", func(): GameState.mode = "solo"; launch_world())
+	_button("Héberger (coop)", func(): GameState.mode = "host"; do_host())
+	_button("Rejoindre", func(): GameState.mode = "join"; show_join_ip_continue())
+
+func show_join_ip_continue() -> void:
+	_clear()
+	_button("< Retour", show_continue_mode_select)
+	_title("Rejoindre une partie")
+	_sub("Demande l'adresse IP locale de l'hôte.")
+	ip_edit = LineEdit.new()
+	ip_edit.placeholder_text = "192.168.1.23"
+	ip_edit.custom_minimum_size = Vector2(0, 36)
+	content.add_child(ip_edit)
+	status_label = Label.new()
+	content.add_child(status_label)
+	_button("Continuer", func():
+		var ip = ip_edit.text.strip_edges()
+		if ip == "":
+			status_label.text = "Adresse IP invalide."
+			return
+		GameState.join_ip = ip
+		GameState.mode = "join"
+		do_join())
 
 func show_join_ip() -> void:
 	_clear()

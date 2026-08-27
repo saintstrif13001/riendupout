@@ -36,8 +36,10 @@ func setup(cd: Dictionary, local: bool, pid: int) -> void:
 	is_local = local
 	peer_id = pid
 	stats = GameState.compute_stats(cd)
-	hp = stats.max_hp
-	mana = stats.max_mana
+	hp = cd.hp if cd.get("hp") != null else stats.max_hp
+	mana = cd.mana if cd.get("mana") != null else stats.max_mana
+	hp = clamp(hp, 1.0, stats.max_hp)
+	mana = clamp(mana, 0.0, stats.max_mana)
 
 	body_tex = load("res://assets/sprites/player/body_walk.png")
 	legs_tex = load("res://assets/sprites/player/legs_walk.png")

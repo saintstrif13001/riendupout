@@ -6,6 +6,35 @@ var char_data: Dictionary = {}
 var roster: Dictionary = {} # peer_id(int) -> char_data (host/clients)
 var join_ip: String = "127.0.0.1"
 
+const SAVE_PATH := "user://save.json"
+
+func has_save() -> bool:
+	return FileAccess.file_exists(SAVE_PATH)
+
+func save_character() -> void:
+	if char_data.is_empty(): return
+	var f = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if f == null: return
+	f.store_string(JSON.stringify(char_data))
+	f.close()
+
+func load_saved_character() -> Dictionary:
+	if not has_save(): return {}
+	var f = FileAccess.open(SAVE_PATH, FileAccess.READ)
+	if f == null: return {}
+	var txt = f.get_as_text()
+	f.close()
+	var parsed = JSON.parse_string(txt)
+	if typeof(parsed) != TYPE_DICTIONARY: return {}
+	# rétro-compatibilité : complète les champs manquants si la sauvegarde est ancienne
+	var defaults = new_character(parsed.get("name","Aventurier"), parsed.get("race","humain"), parsed.get("class","guerrier"))
+	for k in defaults.keys():
+		if not parsed.has(k): parsed[k] = defaults[k]
+	return parsed
+
+func delete_save() -> void:
+	if has_save(): DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+
 func new_character(cname: String, race: String, cls: String) -> Dictionary:
 	return {
 		"name": cname, "race": race, "class": cls, "level": 1, "xp": 0, "gold": 20,

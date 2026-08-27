@@ -18,6 +18,7 @@ func _initialize() -> void:
 	out_path = args[1] if args.size() > 1 else "user://screenshot.png"
 	wait_frames = int(args[2]) if args.size() > 2 else 20
 	zone_id = args[3] if args.size() > 3 else ""
+	if zone_id == "none": zone_id = ""
 	test_mode = args[4] if args.size() > 4 else ""
 	root.size = Vector2i(1152, 648)
 
@@ -28,6 +29,12 @@ func _process(delta: float) -> bool:
 			var gs = root.get_node("/root/GameState")
 			gs.mode = "solo"
 			gs.char_data = gs.new_character("Testeur", "humain", "guerrier")
+		if test_mode == "test_continue_menu":
+			var gs2 = root.get_node("/root/GameState")
+			gs2.char_data = gs2.new_character("SauvegardeTest", "elfe", "mage")
+			gs2.char_data.level = 9
+			gs2.save_character()
+			print("TEST_PRESAVE has_save=%s" % gs2.has_save())
 		var packed: PackedScene = load(scene_path)
 		inst = packed.instantiate()
 		root.add_child(inst)
@@ -65,6 +72,10 @@ func _process(delta: float) -> bool:
 			_run_skills_test()
 		elif test_mode == "show_wolf":
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "loup", "respawn_at": 0.0})
+		elif test_mode == "test_continue_menu":
+			_run_continue_menu_test()
+		elif test_mode == "test_death":
+			_run_death_test()
 		elif test_mode == "show_kobold":
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "kobold", "respawn_at": 0.0})
 		elif test_mode == "test_data_integrity":
@@ -159,6 +170,37 @@ func _run_save_test() -> void:
 	var loaded = gs.load_saved_character()
 	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
 		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])
+
+func _find_button_with_text(node: Node, needle: String) -> Button:
+	if node is Button and needle in node.text: return node
+	for c in node.get_children():
+		var r = _find_button_with_text(c, needle)
+		if r: return r
+	return null
+
+func _run_continue_menu_test() -> void:
+	print("TEST_START:continue_menu")
+	var btn = _find_button_with_text(inst, "Continuer")
+	print("TEST_CONTINUE_BUTTON_FOUND=%s text=%s" % [btn != null, btn.text if btn else ""])
+	if btn:
+		btn.pressed.emit()
+		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
+		var gs = root.get_node("/root/GameState")
+		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_death_test() -> void:
+	print("TEST_START:death")
+	var p = inst.player
+	print("TEST_BEFORE dead=%s hp=%.1f" % [p.dead, p.hp])
+	var applied = p.take_damage(99999.0)
+	print("TEST_AFTER_LETHAL_HIT dead=%s hp=%.1f applied=%.1f" % [p.dead, p.hp, applied])
+	# un coup supplémentaire pendant que mort ne doit rien faire (déjà géré par take_damage's early-return)
+	var applied2 = p.take_damage(50.0)
+	print("TEST_HIT_WHILE_DEAD applied=%.1f (doit être 0)" % applied2)
+	var village_spawn = inst.get_zone_spawn("village")
+	p.respawn(village_spawn)
+	print("TEST_RESULT after_respawn dead=%s hp=%.1f max_hp=%.1f pos=%s expected_pos=%s"
+		% [p.dead, p.hp, p.stats.max_hp, p.global_position, village_spawn])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

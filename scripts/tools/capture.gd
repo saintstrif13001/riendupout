@@ -57,6 +57,13 @@ func _process(delta: float) -> bool:
 			_run_bounty_test()
 		elif test_mode == "test_save":
 			_run_save_test()
+		elif test_mode == "test_talent":
+			_run_talent_test()
+		elif test_mode == "show_talent_ui":
+			var gs2 = root.get_node("/root/GameState")
+			inst.char_data.level = 5
+			var tier2 = gs2.pending_talent(inst.char_data)
+			inst.emit_signal("talent_available", tier2)
 		return false
 
 	frame_count += 1
@@ -126,3 +133,20 @@ func _run_save_test() -> void:
 	var loaded = gs.load_saved_character()
 	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
 		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])
+
+func _run_talent_test() -> void:
+	print("TEST_START:talent")
+	var gs = root.get_node("/root/GameState")
+	var data = root.get_node("/root/Data")
+	var atk_before = inst.player.stats.atk
+	inst.char_data.level = 5
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	var tier = gs.pending_talent(inst.char_data)
+	print("TEST_TIER level=%s options=%s" % [tier.get("level"), tier.options.map(func(o): return o.id)])
+	var chosen = tier.options[0]
+	inst.char_data.talents[str(tier.level)] = chosen.id
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	var atk_after = inst.player.stats.atk
+	var still_pending = gs.pending_talent(inst.char_data)
+	print("TEST_RESULT chosen=%s atk_before=%.2f atk_after=%.2f still_pending=%s"
+		% [chosen.id, atk_before, atk_after, still_pending.get("level")])

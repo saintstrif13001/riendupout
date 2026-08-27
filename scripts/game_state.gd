@@ -46,7 +46,15 @@ func new_character(cname: String, race: String, cls: String) -> Dictionary:
 		"gather_counts": {},
 		"bounty": null, # {target, target_name, count, progress, reward_gold, reward_xp}
 		"bounties_done": 0,
+		"talents": {}, # "5" -> talent_id, "15" -> talent_id
 	}
+
+func pending_talent(cd: Dictionary) -> Dictionary:
+	var tiers = Data.TALENTS.get(cd.get("class"), [])
+	for tier in tiers:
+		if cd.level >= tier.level and not cd.talents.has(str(tier.level)):
+			return tier
+	return {}
 
 func compute_stats(cd: Dictionary) -> Dictionary:
 	var race = Data.RACES[cd.race]
@@ -64,4 +72,17 @@ func compute_stats(cd: Dictionary) -> Dictionary:
 		var bonus = it.get("bonus", {})
 		hp += bonus.get("hp", 0); mana += bonus.get("mana", 0)
 		atk += bonus.get("atk", 0); def += bonus.get("def", 0); spd += bonus.get("spd", 0)
+	# talents (bonus en %, appliqués après l'équipement)
+	var tiers = Data.TALENTS.get(cd.get("class"), [])
+	for tier in tiers:
+		var chosen_id = cd.get("talents", {}).get(str(tier.level))
+		if chosen_id == null: continue
+		for opt in tier.options:
+			if opt.id != chosen_id: continue
+			var b = opt.bonus
+			hp *= (1.0 + b.get("hp_pct", 0.0))
+			mana *= (1.0 + b.get("mana_pct", 0.0))
+			atk *= (1.0 + b.get("atk_pct", 0.0))
+			def *= (1.0 + b.get("def_pct", 0.0))
+			spd *= (1.0 + b.get("spd_pct", 0.0))
 	return {"max_hp": round(hp), "max_mana": round(mana), "atk": atk, "def": def, "spd": spd}

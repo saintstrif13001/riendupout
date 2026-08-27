@@ -17,6 +17,8 @@ var dialogue_overlay: Control
 var dialogue_box: VBoxContainer
 var inventory_overlay: Control
 var inventory_box: VBoxContainer
+var talent_overlay: Control
+var talent_box: VBoxContainer
 
 func bind(w) -> void:
 	world = w
@@ -24,6 +26,7 @@ func bind(w) -> void:
 	world.near_update.connect(_on_near_update)
 	world.open_npc.connect(_on_open_npc)
 	world.quest_progress.connect(_render_quests)
+	world.talent_available.connect(_on_talent_available)
 	_render_quests()
 
 func _ready() -> void:
@@ -32,6 +35,7 @@ func _ready() -> void:
 	_build_hint()
 	_build_dialogue_overlay()
 	_build_inventory_overlay()
+	_build_talent_overlay()
 
 func _build_bars() -> void:
 	var root = Control.new()
@@ -153,6 +157,49 @@ func _build_inventory_overlay() -> void:
 	panel.add_child(scroll)
 	inventory_overlay.add_child(panel)
 	add_child(inventory_overlay)
+
+func _build_talent_overlay() -> void:
+	talent_overlay = Control.new()
+	talent_overlay.theme = UiTheme.build()
+	talent_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	talent_overlay.visible = false
+	var bg = ColorRect.new()
+	bg.color = Color(0,0,0,0.8)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	talent_overlay.add_child(bg)
+	var panel = PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(480, 0)
+	talent_box = VBoxContainer.new()
+	talent_box.add_theme_constant_override("separation", 10)
+	panel.add_child(talent_box)
+	talent_overlay.add_child(panel)
+	add_child(talent_overlay)
+
+func _on_talent_available(tier: Dictionary) -> void:
+	_clear_box(talent_box)
+	_add_title(talent_box, "Spécialisation — Niveau %d" % tier.level, 20)
+	var sub = Label.new()
+	sub.text = "Choisis une voie pour ton personnage (définitif) :"
+	talent_box.add_child(sub)
+	for opt in tier.options:
+		var card = VBoxContainer.new()
+		var b = _add_button(talent_box, "%s\n%s" % [opt.name, opt.desc], func(): _choose_talent(tier, opt.id))
+		b.custom_minimum_size = Vector2(0, 60)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD
+	talent_overlay.visible = true
+
+func _choose_talent(tier: Dictionary, opt_id: String) -> void:
+	var cd = world.char_data
+	cd.talents[str(tier.level)] = opt_id
+	world.player.stats = GameState.compute_stats(cd)
+	world.player.hp = min(world.player.hp, world.player.stats.max_hp)
+	world.player.mana = min(world.player.mana, world.player.stats.max_mana)
+	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
+	talent_overlay.visible = false
+	var next_tier = GameState.pending_talent(cd)
+	if not next_tier.is_empty(): _on_talent_available(next_tier)
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo: return

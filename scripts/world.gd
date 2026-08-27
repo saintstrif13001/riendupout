@@ -10,6 +10,7 @@ signal hud_update(d)
 signal near_update(text)
 signal open_npc(npc)
 signal quest_progress()
+signal talent_available(tier)
 
 var player: Player
 var remote_players: Dictionary = {} # peer_id -> Player
@@ -43,6 +44,8 @@ func _ready() -> void:
 	add_child(hud)
 	hud.bind(self)
 	emit_signal("hud_update", make_hud_data())
+	var tier = GameState.pending_talent(char_data)
+	if not tier.is_empty(): emit_signal("talent_available", tier)
 
 func draw_world() -> void:
 	var zones_node = $Zones
@@ -505,7 +508,10 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 	float_text(p.global_position + Vector2(0,-60), "+%d XP" % res.amount, Color(1,0.88,0.4))
 	if res.leveled:
 		float_text(p.global_position + Vector2(0,-80), "NIVEAU %d !" % p.char_data.level, Color(1,0.4,1))
-		if p == player: save_now()
+		if p == player:
+			save_now()
+			var tier = GameState.pending_talent(p.char_data)
+			if not tier.is_empty(): emit_signal("talent_available", tier)
 	if not partial:
 		for drop in e.mdef.get("loot", []):
 			if randf() < drop.chance:

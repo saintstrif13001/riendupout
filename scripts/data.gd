@@ -244,6 +244,57 @@ func zone_at(x: float) -> Dictionary:
 		if x >= z.x0 and x < z.x1: return z
 	return ZONES.village
 
+const TALENTS := {
+	"guerrier": [
+		{"level":5, "options":[
+			{"id":"berserker", "name":"Berserker", "desc":"+18% ATK, -8% DEF", "bonus":{"atk_pct":0.18,"def_pct":-0.08}},
+			{"id":"bastion", "name":"Bastion", "desc":"+22% DEF, -6% Vitesse", "bonus":{"def_pct":0.22,"spd_pct":-0.06}}]},
+		{"level":15, "options":[
+			{"id":"implacable", "name":"Implacable", "desc":"+12% PV max, +8% ATK", "bonus":{"hp_pct":0.12,"atk_pct":0.08}},
+			{"id":"rempart", "name":"Rempart", "desc":"+20% PV max, +10% DEF", "bonus":{"hp_pct":0.20,"def_pct":0.10}}]},
+	],
+	"mage": [
+		{"level":5, "options":[
+			{"id":"pyromancie", "name":"Pyromancie", "desc":"+20% ATK magique", "bonus":{"atk_pct":0.20}},
+			{"id":"reserve_arcane", "name":"Réserve Arcane", "desc":"+25% Mana max", "bonus":{"mana_pct":0.25}}]},
+		{"level":15, "options":[
+			{"id":"archimage", "name":"Archimage", "desc":"+18% ATK, +10% Mana", "bonus":{"atk_pct":0.18,"mana_pct":0.10}},
+			{"id":"survie_arcanique", "name":"Survie Arcanique", "desc":"+22% PV max", "bonus":{"hp_pct":0.22}}]},
+	],
+	"pretre": [
+		{"level":5, "options":[
+			{"id":"lumiere_vive", "name":"Lumière Vive", "desc":"+20% Mana max", "bonus":{"mana_pct":0.20}},
+			{"id":"devotion", "name":"Dévotion", "desc":"+15% PV max, +8% DEF", "bonus":{"hp_pct":0.15,"def_pct":0.08}}]},
+		{"level":15, "options":[
+			{"id":"grand_pretre", "name":"Grand Prêtre", "desc":"+25% Mana, +10% ATK", "bonus":{"mana_pct":0.25,"atk_pct":0.10}},
+			{"id":"gardien_sacre", "name":"Gardien Sacré", "desc":"+18% PV, +12% DEF", "bonus":{"hp_pct":0.18,"def_pct":0.12}}]},
+	],
+	"archer": [
+		{"level":5, "options":[
+			{"id":"oeil_de_faucon", "name":"Œil de Faucon", "desc":"+18% ATK", "bonus":{"atk_pct":0.18}},
+			{"id":"pieds_legers", "name":"Pieds Légers", "desc":"+15% Vitesse", "bonus":{"spd_pct":0.15}}]},
+		{"level":15, "options":[
+			{"id":"tireur_elite", "name":"Tireur d'Élite", "desc":"+22% ATK", "bonus":{"atk_pct":0.22}},
+			{"id":"survivant", "name":"Survivant", "desc":"+18% PV, +10% Vitesse", "bonus":{"hp_pct":0.18,"spd_pct":0.10}}]},
+	],
+	"voleur": [
+		{"level":5, "options":[
+			{"id":"lame_rapide", "name":"Lame Rapide", "desc":"+16% ATK, +8% Vitesse", "bonus":{"atk_pct":0.16,"spd_pct":0.08}},
+			{"id":"ombre", "name":"Ombre", "desc":"+16% PV max, +8% DEF", "bonus":{"hp_pct":0.16,"def_pct":0.08}}]},
+		{"level":15, "options":[
+			{"id":"assassin", "name":"Assassin", "desc":"+24% ATK", "bonus":{"atk_pct":0.24}},
+			{"id":"maitre_evasion", "name":"Maître de l'Évasion", "desc":"+16% Vitesse, +14% PV", "bonus":{"spd_pct":0.16,"hp_pct":0.14}}]},
+	],
+	"barde": [
+		{"level":5, "options":[
+			{"id":"virtuose", "name":"Virtuose", "desc":"+18% ATK", "bonus":{"atk_pct":0.18}},
+			{"id":"harmonie", "name":"Harmonie", "desc":"+20% Mana max", "bonus":{"mana_pct":0.20}}]},
+		{"level":15, "options":[
+			{"id":"chef_de_choeur", "name":"Chef de Chœur", "desc":"+16% PV, +16% Mana", "bonus":{"hp_pct":0.16,"mana_pct":0.16}},
+			{"id":"discorde", "name":"Discorde", "desc":"+22% ATK", "bonus":{"atk_pct":0.22}}]},
+	],
+}
+
 func xp_for_level(level: int) -> int:
 	return int(floor(30 * pow(level, 1.7)))
 

@@ -325,6 +325,7 @@ func render_npc_dialogue() -> void:
 		var ok = true
 		for r in q.requires:
 			if not cd.quests_completed.has(r): ok = false; break
+		if q.has("race_req") and cd.race != q.race_req: ok = false
 		if ok: available.append(q)
 
 	if not to_turnin.is_empty():

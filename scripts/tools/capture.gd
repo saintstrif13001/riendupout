@@ -79,6 +79,8 @@ func _process(delta: float) -> bool:
 			var hud4 = inst.get_node("Hud")
 			hud4.render_travel()
 			hud4.travel_overlay.visible = true
+		elif test_mode == "test_race_quests":
+			_run_race_quest_test()
 		elif test_mode == "test_travel":
 			_run_travel_test()
 		elif test_mode == "test_boss_phase":
@@ -196,6 +198,24 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_race_quest_test() -> void:
+	print("TEST_START:race_quests")
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	for race in ["humain", "elfe", "nain", "orc", "ratkin", "golem"]:
+		inst.char_data.race = race
+		inst.char_data.quests_active = {}
+		inst.char_data.quests_completed = []
+		for c in hud.dialogue_box.get_children(): hud.dialogue_box.remove_child(c); c.free() # nettoyage immédiat (queue_free() est différé, fausserait le test suivant dans la même frame)
+		hud.current_npc = data.get_npc("ancien")
+		hud.render_npc_dialogue()
+		var visible_race_quest_names = []
+		for qid in ["q_race_humain","q_race_elfe","q_race_nain","q_race_orc","q_race_ratkin","q_race_golem"]:
+			var q = data.get_quest(qid)
+			var btn = _find_button_with_text(hud.dialogue_box, "Accepter: " + q.name)
+			if btn: visible_race_quest_names.append(qid)
+		print("TEST_RACE=%s hud_shows=%s" % [race, visible_race_quest_names])
 
 func _run_travel_test() -> void:
 	print("TEST_START:travel")

@@ -65,21 +65,36 @@ func draw_world() -> void:
 			lvl.position = Vector2(z.x0 + 40, 50)
 			lvl.z_index = -9
 			zones_node.add_child(lvl)
-	# décor
+	# décor : arbres + bosquets, densité plus élevée et variée, y compris au village
 	var tree_tex = load("res://assets/tiles/small_tree.png")
 	seed(1234)
-	for i in range(140):
+	for i in range(420):
 		var x = randi_range(60, int(Data.WORLD_WIDTH) - 60)
 		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
 		var z = Data.zone_at(x)
-		if z.safe and randf() > 0.15:
+		if z.safe and randf() > 0.45:
 			continue
 		var spr = Sprite2D.new()
 		spr.texture = tree_tex
 		spr.position = Vector2(x, y)
-		spr.scale = Vector2.ONE * randf_range(1.4, 2.2)
+		var is_bush = randf() < 0.35
+		spr.scale = Vector2.ONE * (randf_range(0.7, 1.1) if is_bush else randf_range(1.6, 2.6))
+		if is_bush:
+			spr.modulate = Color(0.75, 0.95, 0.65)
 		spr.z_index = int(y)
 		$Decor.add_child(spr)
+	# petites touffes d'herbe (points de couleur) pour casser l'uniformité du fond
+	for i in range(260):
+		var x = randi_range(20, int(Data.WORLD_WIDTH) - 20)
+		var y = randi_range(90, int(Data.WORLD_HEIGHT) - 20)
+		var tuft = ColorRect.new()
+		var shade = randf_range(-0.08, 0.1)
+		var base = Data.zone_at(x).bg
+		tuft.color = Color(clamp(base.r+shade,0,1), clamp(base.g+shade+0.05,0,1), clamp(base.b+shade,0,1), 0.55)
+		tuft.size = Vector2(randf_range(10,26), randf_range(6,12))
+		tuft.position = Vector2(x, y)
+		tuft.z_index = -8
+		$Decor.add_child(tuft)
 
 func get_zone_spawn(zone_id: String) -> Vector2:
 	var z = Data.ZONES[zone_id]
@@ -101,15 +116,25 @@ func spawn_local_player() -> void:
 	cam.make_current()
 
 func build_npcs() -> void:
+	var npc_body_tex = load("res://assets/sprites/player/body_walk.png")
+	var npc_head_tex = load("res://assets/sprites/player/head_walk.png")
 	for npc in Data.NPCS:
 		var node = Node2D.new()
 		node.position = Vector2(npc.x, npc.y)
 		var spr = Sprite2D.new()
-		spr.texture = load("res://assets/sprites/player/body_walk.png")
+		spr.texture = npc_body_tex
 		spr.region_enabled = true
 		spr.region_rect = Rect2(2*64, 2*64, 64, 64)
 		spr.modulate = npc.tint
+		spr.z_index = 1
 		node.add_child(spr)
+		var head = Sprite2D.new()
+		head.texture = npc_head_tex
+		head.region_enabled = true
+		head.region_rect = Rect2(2*64, 2*64, 64, 64)
+		head.modulate = npc.tint
+		head.z_index = 2
+		node.add_child(head)
 		var label = Label.new()
 		label.text = npc.name
 		label.position = Vector2(-50, -54)

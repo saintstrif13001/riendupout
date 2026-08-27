@@ -1,5 +1,7 @@
 extends Control
 
+const UiTheme = preload("res://scripts/ui_theme.gd")
+
 var sel_race := "humain"
 var sel_class := "guerrier"
 var name_edit: LineEdit
@@ -8,27 +10,32 @@ var status_label: Label
 var ip_edit: LineEdit
 
 func _ready() -> void:
+	theme = UiTheme.build()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var bg = ColorRect.new()
-	bg.color = Color(0.04, 0.04, 0.07)
+	bg.color = Color(0.05, 0.065, 0.045)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
+	var vign = ColorRect.new()
+	vign.color = Color(0,0,0,0.25)
+	vign.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(vign)
 
 	var center = CenterContainer.new()
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
 	var panel = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(560, 0)
+	panel.custom_minimum_size = Vector2(580, 0)
 	center.add_child(panel)
 
 	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(560, 620)
+	scroll.custom_minimum_size = Vector2(560, 640)
 	panel.add_child(scroll)
 
 	content = VBoxContainer.new()
-	content.add_theme_constant_override("separation", 10)
-	content.custom_minimum_size = Vector2(520, 0)
+	content.add_theme_constant_override("separation", 12)
+	content.custom_minimum_size = Vector2(540, 0)
 	scroll.add_child(content)
 
 	show_main()
@@ -40,6 +47,8 @@ func _title(text: String, size := 26) -> void:
 	var l = Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
+	if size >= 24:
+		l.add_theme_color_override("font_color", UiTheme.gold())
 	content.add_child(l)
 
 func _sub(text: String) -> void:

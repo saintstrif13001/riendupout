@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+const UiTheme = preload("res://scripts/ui_theme.gd")
+
 var world # référence à World.gd (typage lâche pour éviter les dépendances circulaires)
 
 var hp_bar: ProgressBar
@@ -33,6 +35,7 @@ func _ready() -> void:
 
 func _build_bars() -> void:
 	var root = Control.new()
+	root.theme = UiTheme.build()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(root)
@@ -101,6 +104,7 @@ func _build_bars() -> void:
 
 func _build_hint() -> void:
 	hint_panel = PanelContainer.new()
+	hint_panel.theme = UiTheme.build()
 	hint_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
 	hint_panel.position = Vector2(-100, -50)
 	hint_panel.visible = false
@@ -110,6 +114,7 @@ func _build_hint() -> void:
 
 func _build_dialogue_overlay() -> void:
 	dialogue_overlay = Control.new()
+	dialogue_overlay.theme = UiTheme.build()
 	dialogue_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	dialogue_overlay.visible = false
 	var bg = ColorRect.new()
@@ -130,6 +135,7 @@ func _build_dialogue_overlay() -> void:
 
 func _build_inventory_overlay() -> void:
 	inventory_overlay = Control.new()
+	inventory_overlay.theme = UiTheme.build()
 	inventory_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	inventory_overlay.visible = false
 	var bg = ColorRect.new()

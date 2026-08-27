@@ -1,0 +1,208 @@
+extends Node
+# Autoload "Data" : toutes les données statiques du jeu.
+
+const RACES := {
+	"humain": {"name":"Humain", "desc":"Polyvalents et adaptables. +5% XP gagnée.",
+		"bonus":{"hp":0,"mana":0,"atk":0,"def":0,"spd":0}, "xp_mult":1.05, "tint":Color(1,1,1)},
+	"elfe": {"name":"Elfe Sylvain", "desc":"Agilité et affinité nature/magie. +Vitesse, +Mana.",
+		"bonus":{"hp":-10,"mana":15,"atk":1,"def":-1,"spd":25}, "xp_mult":1.0, "tint":Color(0.8,0.96,0.88)},
+	"nain": {"name":"Nain des Forges", "desc":"Résistants, doués pour l'artisanat/minage. +Vie, +Défense.",
+		"bonus":{"hp":25,"mana":-10,"atk":0,"def":3,"spd":-15}, "xp_mult":1.0, "tint":Color(0.88,0.73,0.54)},
+	"orc": {"name":"Orc des Terres Brisées", "desc":"Force brute. +Attaque, +Vie.",
+		"bonus":{"hp":15,"mana":-15,"atk":3,"def":1,"spd":0}, "xp_mult":1.0, "tint":Color(0.73,0.85,0.54)},
+	"ratkin": {"name":"Ratkin", "desc":"Peuple-bête furtif, perception accrue. +Vitesse, +Critique.",
+		"bonus":{"hp":-5,"mana":5,"atk":1,"def":0,"spd":20}, "xp_mult":1.0, "tint":Color(0.79,0.66,0.47), "crit_bonus":0.08},
+	"golem": {"name":"Golem de Pierre Vivante", "desc":"Tank naturel, résiste aux éléments. +Vie, +Défense, -Vitesse.",
+		"bonus":{"hp":40,"mana":-20,"atk":1,"def":5,"spd":-25}, "xp_mult":0.95, "tint":Color(0.6,0.6,0.6)},
+}
+
+const CLASSES := {
+	"guerrier": {"name":"Guerrier/Tank", "role":"tank", "desc":"Encaisse et contrôle les ennemis.",
+		"base":{"hp":150,"mana":20,"atk":11,"def":11,"spd":150},
+		"growth":{"hp":19,"mana":2,"atk":2.1,"def":2.0},
+		"color":Color(0.85,0.29,0.29),
+		"skills":[
+			{"id":"coup_puissant","name":"Coup Puissant","key":"skill_q","cd":4.0,"cost":8,"dmg_mult":2.0,"range":60,"desc":"Frappe lourde."},
+			{"id":"cri_guerre","name":"Cri de Guerre","key":"skill_e","cd":12.0,"cost":15,"buff":{"atk":6,"def":6,"duration":6.0},"range":0,"party":true,"desc":"+ATK/DEF pour le groupe."},
+		]},
+	"mage": {"name":"Mage Élémentaire", "role":"dps_zone", "desc":"Sorts de zone dévastateurs, fragile.",
+		"base":{"hp":75,"mana":110,"atk":14,"def":3,"spd":150},
+		"growth":{"hp":8,"mana":15,"atk":2.8,"def":0.6},
+		"color":Color(0.29,0.56,0.85),
+		"skills":[
+			{"id":"boule_feu","name":"Boule de Feu","key":"skill_q","cd":2.5,"cost":14,"dmg_mult":2.6,"range":260,"projectile":true,"desc":"Projectile de feu."},
+			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"desc":"Dégâts de zone + ralentit."},
+		]},
+	"pretre": {"name":"Soigneur/Prêtre", "role":"heal", "desc":"Soigne et protège le groupe.",
+		"base":{"hp":90,"mana":100,"atk":8,"def":5,"spd":150},
+		"growth":{"hp":10,"mana":13,"atk":1.4,"def":1.0},
+		"color":Color(0.94,0.88,0.56),
+		"skills":[
+			{"id":"soin","name":"Lumière Bienfaisante","key":"skill_q","cd":2.2,"cost":16,"heal":35,"range":180,"party":true,"desc":"Soigne toi ou l'allié le plus proche."},
+			{"id":"bouclier_saint","name":"Bouclier Saint","key":"skill_e","cd":10.0,"cost":30,"shield":60,"duration":5.0,"range":180,"party":true,"desc":"Bouclier absorbant."},
+		]},
+	"archer": {"name":"Rôdeur/Chasseur", "role":"dps_range", "desc":"Dégâts à distance et pièges.",
+		"base":{"hp":100,"mana":50,"atk":13,"def":5,"spd":170},
+		"growth":{"hp":11,"mana":6,"atk":2.6,"def":1.0},
+		"color":Color(0.29,0.85,0.56),
+		"skills":[
+			{"id":"tir_rapide","name":"Tir Rapide","key":"skill_q","cd":1.8,"cost":8,"dmg_mult":1.5,"range":220,"projectile":true,"desc":"Flèche rapide."},
+			{"id":"piege","name":"Piège à Ours","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"desc":"Immobilise un ennemi."},
+		]},
+	"voleur": {"name":"Voleur/Assassin", "role":"dps_burst", "desc":"Burst de dégâts et crochetage.",
+		"base":{"hp":95,"mana":40,"atk":12,"def":4,"spd":195},
+		"growth":{"hp":10,"mana":4,"atk":2.4,"def":0.8},
+		"color":Color(0.6,0.29,0.85),
+		"skills":[
+			{"id":"coup_dos","name":"Coup dans le Dos","key":"skill_q","cd":3.0,"cost":10,"dmg_mult":2.8,"range":55,"crit_bonus":0.5,"desc":"Fort dégâts, critique accru."},
+			{"id":"esquive","name":"Esquive Fumigène","key":"skill_e","cd":8.0,"cost":12,"dash":220,"invuln":0.4,"desc":"Fonce en avant, invulnérabilité brève."},
+		]},
+	"barde": {"name":"Barde/Support", "role":"support", "desc":"Buffs de groupe, débuffs ennemis.",
+		"base":{"hp":100,"mana":80,"atk":9,"def":5,"spd":165},
+		"growth":{"hp":11,"mana":10,"atk":1.8,"def":1.0},
+		"color":Color(0.85,0.29,0.69),
+		"skills":[
+			{"id":"chant_vaillance","name":"Chant de Vaillance","key":"skill_q","cd":9.0,"cost":20,"buff":{"atk":5,"spd":20,"duration":7.0},"range":0,"party":true,"desc":"+ATK/Vitesse pour le groupe."},
+			{"id":"complainte","name":"Complainte Lugubre","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.5,"range":180,"aoe":true,"desc":"Réduit la défense ennemie."},
+		]},
+}
+
+const PROFESSIONS := {
+	"mineur": {"name":"Mineur", "desc":"Extrait le minerai.", "gather":"minerai"},
+	"bucheron": {"name":"Bûcheron", "desc":"Coupe le bois.", "gather":"bois"},
+	"herboriste": {"name":"Herboriste", "desc":"Récolte les plantes.", "gather":"herbe"},
+	"forgeron": {"name":"Forgeron / Armurier", "desc":"Forge armes et armures.", "craft_uses":"minerai"},
+	"alchimiste": {"name":"Alchimiste", "desc":"Prépare potions.", "craft_uses":"herbe"},
+	"dresseur": {"name":"Dresseur de Montures", "desc":"Vend des montures.", "npc_only":true},
+	"maitre_armes": {"name":"Maître d'Armes", "desc":"Entraîne les compétences.", "npc_only":true},
+	"cartographe": {"name":"Cartographe / Guide", "desc":"Vend des cartes.", "npc_only":true},
+	"tavernier": {"name":"Tavernier", "desc":"Rumeurs et quêtes annexes.", "npc_only":true},
+	"enchanteur": {"name":"Enchanteur / Runiste", "desc":"Ajoute des runes à l'équipement.", "npc_only":true},
+	"chasseur_primes": {"name":"Chasseur de Primes", "desc":"Contrats contre monstres d'élite.", "npc_only":true},
+	"necromancien": {"name":"Nécromancien Renégat", "desc":"Quêtes grises.", "npc_only":true},
+}
+
+const ZONES := {
+	"village": {"name":"Val-Repos", "x0":0, "x1":1400, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
+	"plaine": {"name":"Plaine d'Aubval", "x0":1400, "x1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
+	"foret": {"name":"Forêt de Sylvombre", "x0":3200, "x1":5200, "safe":false, "bg":Color("2f5a34"), "lvl":[5,11]},
+	"caverne": {"name":"Caverne des Ossements", "x0":5200, "x1":7200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
+}
+const WORLD_WIDTH := 7200.0
+const WORLD_HEIGHT := 1200.0
+
+const MONSTER_TYPES := {
+	"slime_vert": {"name":"Slime Vert", "sprite":"slime_green", "hp":24, "atk":4, "def":0, "spd":60, "xp":8, "loot":[{"id":"gelee","chance":0.6}], "zone":"plaine"},
+	"slime_rouge": {"name":"Slime Rouge", "sprite":"slime_red", "hp":36, "atk":7, "def":1, "spd":70, "xp":14, "loot":[{"id":"gelee","chance":0.6},{"id":"minerai","chance":0.15}], "zone":"plaine"},
+	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":10, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
+	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":13, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
+	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne"},
+}
+
+const ITEMS := {
+	"gelee": {"name":"Gelée de Slime", "type":"mat", "icon":"o"},
+	"bois": {"name":"Bois", "type":"mat", "icon":"o"},
+	"minerai": {"name":"Minerai", "type":"mat", "icon":"o"},
+	"herbe": {"name":"Herbe Médicinale", "type":"mat", "icon":"o"},
+	"os": {"name":"Os", "type":"mat", "icon":"o"},
+	"dent_gobelin": {"name":"Dent de Gobelin", "type":"mat", "icon":"o"},
+	"relique_ossements": {"name":"Relique d'Ossements", "type":"quest", "icon":"*"},
+	"epee_fer": {"name":"Épée de Fer", "type":"weapon", "icon":"/", "bonus":{"atk":5}},
+	"arc_chasse": {"name":"Arc de Chasse", "type":"weapon", "icon":"}", "bonus":{"atk":4,"spd":5}},
+	"baton_novice": {"name":"Bâton du Novice", "type":"weapon", "icon":"|", "bonus":{"atk":6,"mana":10}},
+	"armure_cuir": {"name":"Armure de Cuir", "type":"armor", "icon":"[", "bonus":{"def":4,"hp":10}},
+	"armure_plates": {"name":"Armure de Plates", "type":"armor", "icon":"#", "bonus":{"def":8,"hp":20}},
+	"potion_vie": {"name":"Potion de Vie", "type":"consumable", "icon":"+", "heal":40},
+	"potion_mana": {"name":"Potion de Mana", "type":"consumable", "icon":"~", "mana":40},
+}
+
+const RECIPES := [
+	{"id":"r_epee_fer", "profession":"forgeron", "result":"epee_fer", "cost":{"minerai":5}, "name":"Épée de Fer"},
+	{"id":"r_armure_cuir", "profession":"forgeron", "result":"armure_cuir", "cost":{"minerai":3,"bois":2}, "name":"Armure de Cuir"},
+	{"id":"r_armure_plates", "profession":"forgeron", "result":"armure_plates", "cost":{"minerai":8}, "name":"Armure de Plates"},
+	{"id":"r_potion_vie", "profession":"alchimiste", "result":"potion_vie", "cost":{"herbe":3}, "name":"Potion de Vie"},
+	{"id":"r_potion_mana", "profession":"alchimiste", "result":"potion_mana", "cost":{"herbe":2,"minerai":1}, "name":"Potion de Mana"},
+	{"id":"r_arc", "profession":"forgeron", "result":"arc_chasse", "cost":{"bois":5,"minerai":2}, "name":"Arc de Chasse"},
+	{"id":"r_baton", "profession":"alchimiste", "result":"baton_novice", "cost":{"herbe":4,"bois":2}, "name":"Bâton du Novice"},
+]
+
+const GATHER_NODES := [
+	{"type":"bois","x":1650,"y":300}, {"type":"bois","x":1800,"y":850}, {"type":"bois","x":3600,"y":250},
+	{"type":"bois","x":3900,"y":900}, {"type":"bois","x":4400,"y":500},
+	{"type":"minerai","x":2100,"y":900}, {"type":"minerai","x":5500,"y":300}, {"type":"minerai","x":6200,"y":850},
+	{"type":"minerai","x":6800,"y":500},
+	{"type":"herbe","x":1900,"y":500}, {"type":"herbe","x":2600,"y":300}, {"type":"herbe","x":3400,"y":700},
+	{"type":"herbe","x":4700,"y":800},
+]
+
+const NPCS := [
+	{"id":"ancien", "name":"l'Ancien Malorin", "x":400, "y":400, "role":"quest_turnin", "tint":Color(1,1,1)},
+	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":600, "y":600, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53)},
+	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":700, "y":300, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85)},
+	{"id":"marchand", "name":"Bosk le Marchand", "x":500, "y":750, "role":"shop", "tint":Color(0.85,0.76,0.29)},
+	{"id":"garde", "name":"Garde Ren", "x":1300, "y":500, "role":"quest", "tint":Color(0.29,0.43,0.85)},
+	{"id":"fermier", "name":"Fermier Otto", "x":1900, "y":700, "role":"quest", "tint":Color(0.85,0.56,0.29)},
+	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":3900, "y":300, "role":"quest", "tint":Color(0.29,0.85,0.43)},
+	{"id":"ranger", "name":"Ranger Doff", "x":3400, "y":900, "role":"quest", "tint":Color(0.18,0.54,0.23)},
+	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85)},
+]
+
+const QUESTS := [
+	{"id":"q_intro","name":"Premiers Pas","giver":"ancien","requires":[],"level":1,
+		"desc":"Parle à Garde Ren à la sortie du village.", "obj":{"type":"talk","target":"garde","count":1}, "reward":{"xp":20,"gold":10}},
+	{"id":"q_bois_village","name":"Ravitaillement du Forgeron","giver":"forgeron_pnj","requires":[],"level":1,
+		"desc":"Récolte 3 Bois pour Grondar.", "obj":{"type":"gather","target":"bois","count":3}, "reward":{"xp":25,"gold":15}},
+	{"id":"q_herbe_village","name":"Remèdes Simples","giver":"alchimiste_pnj","requires":[],"level":1,
+		"desc":"Récolte 3 Herbes pour Yvenne.", "obj":{"type":"gather","target":"herbe","count":3}, "reward":{"xp":25,"gold":15}},
+	{"id":"q_slime1","name":"Peste de Gelée","giver":"garde","requires":["q_intro"],"level":1,
+		"desc":"Élimine 8 Slimes Verts.", "obj":{"type":"kill","target":["slime_vert"],"count":8}, "reward":{"xp":60,"gold":25,"items":["potion_vie"]}},
+	{"id":"q_slime2","name":"Le Rouge Danger","giver":"garde","requires":["q_slime1"],"level":2,
+		"desc":"Élimine 5 Slimes Rouges.", "obj":{"type":"kill","target":["slime_rouge"],"count":5}, "reward":{"xp":80,"gold":35,"items":["potion_vie"]}},
+	{"id":"q_fermier_intro","name":"Le Repos du Fermier","giver":"fermier","requires":["q_intro"],"level":1,
+		"desc":"Rapporte 5 Minerais à Otto.", "obj":{"type":"gather","target":"minerai","count":5}, "reward":{"xp":70,"gold":30}},
+	{"id":"q_fermier_herbe","name":"Récolte Utile","giver":"fermier","requires":["q_fermier_intro"],"level":2,
+		"desc":"Récolte 6 Herbes pour Otto.", "obj":{"type":"gather","target":"herbe","count":6}, "reward":{"xp":75,"gold":30}},
+	{"id":"q_garde_frontiere","name":"Garde-Frontière","giver":"garde","requires":["q_slime2"],"level":3,
+		"desc":"Élimine 10 Slimes.", "obj":{"type":"kill","target":["slime_vert","slime_rouge"],"count":10}, "reward":{"xp":110,"gold":50,"items":["armure_cuir"]}},
+	{"id":"q_vers_foret","name":"Vers la Forêt","giver":"fermier","requires":["q_garde_frontiere","q_fermier_herbe"],"level":4,
+		"desc":"Parle à l'Éclaireuse Lira.", "obj":{"type":"talk","target":"eclaireur","count":1}, "reward":{"xp":60,"gold":20}},
+	{"id":"q_gobelin1","name":"Infestation Gobeline","giver":"eclaireur","requires":["q_vers_foret"],"level":5,
+		"desc":"Élimine 10 Gobelins.", "obj":{"type":"kill","target":["gobelin"],"count":10}, "reward":{"xp":140,"gold":60,"items":["potion_vie","potion_vie"]}},
+	{"id":"q_dents","name":"Les Dents Longues","giver":"eclaireur","requires":["q_gobelin1"],"level":6,
+		"desc":"Collecte 6 Dents de Gobelin.", "obj":{"type":"gather_drop","target":"dent_gobelin","count":6}, "reward":{"xp":150,"gold":70}},
+	{"id":"q_bois_ancien","name":"Le Bois Ancien","giver":"ranger","requires":["q_vers_foret"],"level":6,
+		"desc":"Rapporte 8 Bois à Doff.", "obj":{"type":"gather","target":"bois","count":8}, "reward":{"xp":120,"gold":55}},
+	{"id":"q_chasse_profonde","name":"Chasse Profonde","giver":"ranger","requires":["q_bois_ancien","q_dents"],"level":8,
+		"desc":"Élimine 15 Gobelins.", "obj":{"type":"kill","target":["gobelin"],"count":15}, "reward":{"xp":220,"gold":90,"items":["arc_chasse"]}},
+	{"id":"q_vers_caverne","name":"Vers les Profondeurs","giver":"ranger","requires":["q_chasse_profonde"],"level":9,
+		"desc":"Parle au Prêtre Ozias.", "obj":{"type":"talk","target":"pretre","count":1}, "reward":{"xp":80,"gold":30}},
+	{"id":"q_squelette1","name":"Profondeurs Osseuses","giver":"pretre","requires":["q_vers_caverne"],"level":10,
+		"desc":"Élimine 12 Squelettes.", "obj":{"type":"kill","target":["squelette"],"count":12}, "reward":{"xp":260,"gold":100,"items":["armure_plates"]}},
+	{"id":"q_reserve_os","name":"Réserve d'Os","giver":"pretre","requires":["q_squelette1"],"level":11,
+		"desc":"Rapporte 10 Os.", "obj":{"type":"gather_drop","target":"os","count":10}, "reward":{"xp":230,"gold":100}},
+	{"id":"q_echo_caverne","name":"Écho de la Caverne","giver":"pretre","requires":["q_reserve_os"],"level":13,
+		"desc":"Élimine 20 Squelettes de plus.", "obj":{"type":"kill","target":["squelette"],"count":20}, "reward":{"xp":380,"gold":160,"items":["epee_fer"]}},
+	{"id":"q_gardien","name":"Le Gardien Ossu","giver":"pretre","requires":["q_echo_caverne"],"level":15,
+		"desc":"Vaincs le Squelette Guerrier.", "obj":{"type":"boss","target":"squelette_guerrier","count":1}, "reward":{"xp":600,"gold":300,"items":["relique_ossements"]}},
+	{"id":"q_relique","name":"Relique Retrouvée","giver":"pretre","requires":["q_gardien"],"level":16,
+		"desc":"Ramène la Relique à l'Ancien Malorin.", "obj":{"type":"deliver","target":"ancien","item":"relique_ossements","count":1}, "reward":{"xp":500,"gold":250}},
+]
+
+func get_quest(id: String) -> Dictionary:
+	for q in QUESTS:
+		if q.id == id: return q
+	return {}
+
+func get_npc(id: String) -> Dictionary:
+	for n in NPCS:
+		if n.id == id: return n
+	return {}
+
+func zone_at(x: float) -> Dictionary:
+	for key in ZONES:
+		var z = ZONES[key]
+		if x >= z.x0 and x < z.x1: return z
+	return ZONES.village
+
+func xp_for_level(level: int) -> int:
+	return int(floor(30 * pow(level, 1.7)))

@@ -87,6 +87,8 @@ func _process(delta: float) -> bool:
 			_run_boss_phase_test()
 		elif test_mode == "test_death":
 			_run_death_test()
+		elif test_mode == "show_alpha":
+			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
 		elif test_mode == "show_kobold":
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "kobold", "respawn_at": 0.0})
 		elif test_mode == "test_data_integrity":

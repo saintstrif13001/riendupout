@@ -115,34 +115,58 @@ func draw_world() -> void:
 	build_props()
 
 func build_village_structures() -> void:
-	# Bâtiments simples (silhouettes procédurales) pour donner une structure au village.
+	# Bâtiments : murs procéduraux + vrai sprite de toit (tuiles LPC) pour une silhouette
+	# bien plus lisible que le triangle plat d'avant.
+	var roof_tan = load("res://assets/buildings/roof_tan.png")
+	var roof_brown = load("res://assets/buildings/roof_brown.png")
 	var houses = [
-		{"x":300, "y":250, "w":90, "h":70, "roof":Color(0.55,0.22,0.2), "wall":Color(0.78,0.68,0.5)},
-		{"x":600, "y":500, "w":110, "h":80, "roof":Color(0.4,0.28,0.18), "wall":Color(0.7,0.62,0.48)},
-		{"x":450, "y":700, "w":90, "h":70, "roof":Color(0.5,0.2,0.22), "wall":Color(0.75,0.65,0.5)},
-		{"x":900, "y":300, "w":120, "h":90, "roof":Color(0.35,0.25,0.35), "wall":Color(0.65,0.6,0.6)},
-		{"x":950, "y":650, "w":100, "h":75, "roof":Color(0.45,0.3,0.18), "wall":Color(0.72,0.63,0.47)},
-		{"x":200, "y":650, "w":85, "h":65, "roof":Color(0.5,0.24,0.2), "wall":Color(0.76,0.66,0.5)},
+		{"x":300, "y":250, "w":90, "h":70, "wall":Color(0.78,0.68,0.5), "roof":roof_tan},
+		{"x":600, "y":500, "w":110, "h":80, "wall":Color(0.7,0.62,0.48), "roof":roof_brown},
+		{"x":450, "y":700, "w":90, "h":70, "wall":Color(0.75,0.65,0.5), "roof":roof_tan},
+		{"x":900, "y":300, "w":120, "h":90, "wall":Color(0.65,0.6,0.6), "roof":roof_brown},
+		{"x":950, "y":650, "w":100, "h":75, "wall":Color(0.72,0.63,0.47), "roof":roof_tan},
+		{"x":200, "y":650, "w":85, "h":65, "wall":Color(0.76,0.66,0.5), "roof":roof_brown},
 	]
 	for h in houses:
+		# ombre portée douce sous la maison
+		var shadow = ColorRect.new()
+		shadow.color = Color(0,0,0,0.18)
+		shadow.size = Vector2(h.w + 16, h.h * 0.35)
+		shadow.position = Vector2(h.x - h.w/2.0 - 8, h.y + h.h/2.0 - h.h*0.12)
+		shadow.z_index = int(h.y) - 2
+		$Decor.add_child(shadow)
+		# contour légèrement plus sombre derrière le mur pour donner du relief
+		var outline = ColorRect.new()
+		outline.color = h.wall.darkened(0.35)
+		outline.size = Vector2(h.w + 4, h.h + 4)
+		outline.position = Vector2(h.x - h.w/2.0 - 2, h.y - h.h/2.0 - 2)
+		outline.z_index = int(h.y) - 1
+		$Decor.add_child(outline)
 		var wall = ColorRect.new()
 		wall.color = h.wall
 		wall.size = Vector2(h.w, h.h)
 		wall.position = Vector2(h.x - h.w/2.0, h.y - h.h/2.0)
-		wall.z_index = int(h.y) - 1
+		wall.z_index = int(h.y)
 		$Decor.add_child(wall)
-		var roof = Polygon2D.new()
-		roof.color = h.roof
-		var hw = h.w/2.0 + 10
-		var top = h.y - h.h/2.0
-		roof.polygon = PackedVector2Array([Vector2(h.x - hw, top), Vector2(h.x + hw, top), Vector2(h.x, top - 40)])
-		roof.z_index = int(h.y)
+		# bande d'ombre en bas du mur (donne un peu de volume)
+		var wall_shade = ColorRect.new()
+		wall_shade.color = h.wall.darkened(0.2)
+		wall_shade.size = Vector2(h.w, h.h * 0.22)
+		wall_shade.position = Vector2(h.x - h.w/2.0, h.y + h.h/2.0 - h.h*0.22)
+		wall_shade.z_index = int(h.y) + 1
+		$Decor.add_child(wall_shade)
+		var roof = Sprite2D.new()
+		roof.texture = h.roof
+		var roof_scale = (h.w + 26) / float(h.roof.get_width())
+		roof.scale = Vector2(roof_scale, roof_scale)
+		roof.position = Vector2(h.x, h.y - h.h/2.0 - (h.roof.get_height() * roof_scale) * 0.42)
+		roof.z_index = int(h.y) + 2
 		$Decor.add_child(roof)
 		var door = ColorRect.new()
-		door.color = Color(0.3, 0.2, 0.12)
+		door.color = Color(0.28, 0.18, 0.1)
 		door.size = Vector2(18, 28)
 		door.position = Vector2(h.x - 9, h.y + h.h/2.0 - 28)
-		door.z_index = int(h.y) + 1
+		door.z_index = int(h.y) + 3
 		$Decor.add_child(door)
 	# Puits central comme point de repère
 	var well_base = ColorRect.new()

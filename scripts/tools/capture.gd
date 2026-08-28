@@ -79,6 +79,9 @@ func _process(delta: float) -> bool:
 			var hud4 = inst.get_node("Hud")
 			hud4.render_travel()
 			hud4.travel_overlay.visible = true
+		elif test_mode == "debug_roof":
+			var tex = load("res://assets/buildings/roof_tan.png")
+			print("TEX_RESULT valid=%s width=%s height=%s" % [tex != null, tex.get_width() if tex else "n/a", tex.get_height() if tex else "n/a"])
 		elif test_mode == "test_souls":
 			_run_souls_test()
 		elif test_mode == "test_respec":
@@ -109,6 +112,12 @@ func _process(delta: float) -> bool:
 			hud3.inv_search_text = "epee"
 			hud3.render_inventory()
 			hud3.inventory_overlay.visible = true
+		elif test_mode == "show_inventory_full":
+			var hud5 = inst.get_node("Hud")
+			inst.char_data.inventory = {"minerai":5,"bois":3,"herbe":2,"os":1,"epee_fer":1,"armure_cuir":1,"potion_vie":3,"potion_mana":2}
+			inst.char_data.equipment = {"weapon":"epee_fer","armor":"armure_cuir"}
+			hud5.render_inventory()
+			hud5.inventory_overlay.visible = true
 		elif test_mode == "test_fx":
 			inst.basic_attack()
 			inst.use_skill(0)

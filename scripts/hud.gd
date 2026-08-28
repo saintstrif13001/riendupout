@@ -298,6 +298,39 @@ func _add_button(box, text: String, cb: Callable) -> Button:
 	box.add_child(b)
 	return b
 
+func _icon_tex(item_id: String) -> TextureRect:
+	var t = TextureRect.new()
+	t.texture = load(Data.ICON_PATH + Data.ITEMS[item_id].icon)
+	t.custom_minimum_size = Vector2(28, 28)
+	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	return t
+
+# Ligne d'objet avec icône, utilisée dans l'inventaire et les boutiques.
+# Si cb est fourni, toute la ligne est cliquable (bouton) ; sinon c'est un simple affichage.
+func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(_icon_tex(item_id))
+	if cb == null:
+		var l = Label.new()
+		l.text = label_text
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		row.add_child(l)
+		box.add_child(row)
+		return row
+	else:
+		var b = Button.new()
+		b.text = label_text
+		b.custom_minimum_size = Vector2(0, 36)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.pressed.connect(cb)
+		row.add_child(b)
+		box.add_child(row)
+		return b
+
 # ---------------- Dialogue PNJ ----------------
 var current_npc: Dictionary = {}
 
@@ -356,7 +389,7 @@ func render_npc_dialogue() -> void:
 		_add_title(dialogue_box, "Boutique", 15)
 		for key in ["potion_vie", "potion_mana"]:
 			var it = Data.ITEMS[key]
-			_add_button(dialogue_box, it.name + " - 15 or", func(): buy_item(key))
+			_add_item_row(dialogue_box, key, it.name + " - 15 or", func(): buy_item(key))
 		_add_title(dialogue_box, "Objets de faction", 14)
 		for key in ["cape_heros", "arc_rangers", "robe_cercle"]:
 			var it = Data.ITEMS[key]
@@ -364,7 +397,7 @@ func render_npc_dialogue() -> void:
 			var have_rep = cd.reputation.get(req.faction, 0)
 			var unlocked = have_rep >= req.min
 			var label = "%s — %d or (réputation %s requise: %s)" % [it.name, it.price, Data.FACTIONS[req.faction].name, Data.rep_tier_name(req.min)]
-			var btn = _add_button(dialogue_box, label, func(): buy_faction_item(key))
+			var btn = _add_item_row(dialogue_box, key, label, func(): buy_faction_item(key))
 			btn.disabled = not unlocked
 
 	if npc.role == "profession":
@@ -564,10 +597,11 @@ func render_inventory() -> void:
 		_add_title(inventory_box, "Equipement", 15)
 		for slot in ["weapon", "armor"]:
 			var item_id = cd.equipment.get(slot, "")
-			var lbl = Label.new()
 			var slot_name = "Arme" if slot == "weapon" else "Armure"
-			lbl.text = slot_name + ": " + (Data.ITEMS[item_id].name if item_id != "" else "Aucun")
-			inventory_box.add_child(lbl)
+			if item_id != "":
+				_add_item_row(inventory_box, item_id, slot_name + ": " + Data.ITEMS[item_id].name, null)
+			else:
+				var lbl = Label.new(); lbl.text = slot_name + ": Aucun"; inventory_box.add_child(lbl)
 
 	var equipable = []
 	for id in cd.inventory.keys():
@@ -576,7 +610,7 @@ func render_inventory() -> void:
 	if not equipable.is_empty():
 		_add_title(inventory_box, "A equiper", 15)
 		for id in equipable:
-			_add_button(inventory_box, Data.ITEMS[id].name, func(): equip_item(id))
+			_add_item_row(inventory_box, id, Data.ITEMS[id].name, func(): equip_item(id))
 
 	var consumables = []
 	for id in cd.inventory.keys():
@@ -585,7 +619,7 @@ func render_inventory() -> void:
 	if not consumables.is_empty():
 		_add_title(inventory_box, "Consommables", 15)
 		for id in consumables:
-			_add_button(inventory_box, "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]], func(): use_item(id))
+			_add_item_row(inventory_box, id, "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]], func(): use_item(id))
 
 	var mats = []
 	for id in cd.inventory.keys():
@@ -595,9 +629,7 @@ func render_inventory() -> void:
 	if mats.is_empty():
 		var l = Label.new(); l.text = "(vide)" if filter == "" else "(aucun résultat)"; inventory_box.add_child(l)
 	for id in mats:
-		var l = Label.new()
-		l.text = "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]]
-		inventory_box.add_child(l)
+		_add_item_row(inventory_box, id, "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]], null)
 
 	if equipable.is_empty() and consumables.is_empty() and mats.is_empty() and filter != "":
 		var none = Label.new(); none.text = "Aucun objet ne correspond à \"%s\"." % filter

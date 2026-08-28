@@ -27,7 +27,8 @@ var head_tex: Texture2D
 @onready var body_sprite: Sprite2D = $Body
 @onready var head_sprite: Sprite2D = $Head
 @onready var name_label: Label = $NameLabel
-@onready var equip_label: Label = $EquipLabel
+@onready var equip_icon_weapon: Sprite2D = $EquipIconWeapon
+@onready var equip_icon_armor: Sprite2D = $EquipIconArmor
 @onready var hp_bg: ColorRect = $HpBg
 @onready var hp_fg: ColorRect = $HpFg
 @onready var collider: CollisionShape2D = $CollisionShape2D
@@ -82,15 +83,21 @@ func update_equipment_visual() -> void:
 			legs_sprite.modulate = Color(0.5, 0.36, 0.2) # brun cuir
 		else:
 			legs_sprite.modulate = race.tint
-	equip_label.text = _equip_icon_text()
+	_update_equip_icons()
 
-func _equip_icon_text() -> String:
-	var parts = []
+func _update_equip_icons() -> void:
 	var w = char_data.equipment.get("weapon", "")
 	var a = char_data.equipment.get("armor", "")
-	if w != "" and w != null: parts.append(Data.ITEMS[w].icon)
-	if a != "" and a != null: parts.append(Data.ITEMS[a].icon)
-	return " ".join(parts)
+	if w != "" and w != null:
+		equip_icon_weapon.texture = load(Data.ICON_PATH + Data.ITEMS[w].icon)
+		equip_icon_weapon.visible = true
+	else:
+		equip_icon_weapon.visible = false
+	if a != "" and a != null:
+		equip_icon_armor.texture = load(Data.ICON_PATH + Data.ITEMS[a].icon)
+		equip_icon_armor.visible = true
+	else:
+		equip_icon_armor.visible = false
 
 func set_anim(new_dir: String, is_moving: bool) -> void:
 	dir = new_dir

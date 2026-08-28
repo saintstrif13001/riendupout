@@ -288,6 +288,8 @@ func _add_title(box, text: String, size := 20) -> void:
 	var l = Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_override("font", UiTheme.title_font())
+	l.add_theme_color_override("font_color", UiTheme.gold())
 	box.add_child(l)
 
 func _add_button(box, text: String, cb: Callable) -> Button:

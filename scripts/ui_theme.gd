@@ -2,8 +2,20 @@ extends RefCounted
 # Thème visuel partagé (menus + HUD) : palette fantasy sombre/or, panneaux à bordure arrondie.
 # Accès via: const UiTheme = preload("res://scripts/ui_theme.gd")
 
+static var _body_font: Font = null
+static var _title_font: Font = null
+
+static func body_font() -> Font:
+	if _body_font == null: _body_font = load("res://assets/fonts/pixelifysans.ttf")
+	return _body_font
+
+static func title_font() -> Font:
+	if _title_font == null: _title_font = load("res://assets/fonts/medievalsharp.ttf")
+	return _title_font
+
 static func build() -> Theme:
 	var t = Theme.new()
+	t.default_font = body_font()
 
 	var col_bg = Color(0.09, 0.1, 0.08)
 	var col_panel = Color(0.10, 0.12, 0.09, 0.96)
@@ -47,6 +59,7 @@ static func build() -> Theme:
 	t.set_stylebox("hover", "Button", btn_hover)
 	t.set_stylebox("pressed", "Button", btn_press)
 	t.set_stylebox("disabled", "Button", btn_disabled)
+	t.set_font("font", "Button", body_font())
 	t.set_color("font_color", "Button", col_text)
 	t.set_color("font_hover_color", "Button", col_gold)
 	t.set_color("font_pressed_color", "Button", col_gold)

@@ -47,6 +47,7 @@ func _title(text: String, size := 26) -> void:
 	var l = Label.new()
 	l.text = text
 	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_font_override("font", UiTheme.title_font())
 	if size >= 24:
 		l.add_theme_color_override("font_color", UiTheme.gold())
 	content.add_child(l)

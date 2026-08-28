@@ -79,6 +79,8 @@ func _process(delta: float) -> bool:
 			var hud4 = inst.get_node("Hud")
 			hud4.render_travel()
 			hud4.travel_overlay.visible = true
+		elif test_mode == "test_respec":
+			_run_respec_test()
 		elif test_mode == "test_race_quests":
 			_run_race_quest_test()
 		elif test_mode == "test_travel":
@@ -200,6 +202,26 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_respec_test() -> void:
+	print("TEST_START:respec")
+	var hud = inst.get_node("Hud")
+	var gs = root.get_node("/root/GameState")
+	inst.char_data.level = 5
+	inst.char_data.talents["5"] = "berserker"
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	var atk_with_talent = inst.player.stats.atk
+	inst.char_data.gold = 200
+	var gold_before = inst.char_data.gold
+	hud.respec_talents(50)
+	print("TEST_RESULT talents_after=%s gold_before=%d gold_after=%d atk_with_talent=%.2f atk_after_respec=%.2f pending_now=%s"
+		% [inst.char_data.talents, gold_before, inst.char_data.gold, atk_with_talent, inst.player.stats.atk, gs.pending_talent(inst.char_data).get("level")])
+	# vérifie qu'on ne peut pas respec sans assez d'or
+	inst.char_data.gold = 10
+	inst.char_data.talents["5"] = "berserker"
+	var gold_locked = inst.char_data.gold
+	hud.respec_talents(50)
+	print("TEST_RESULT2 blocked_when_poor=%s (gold inchangé=%s)" % [inst.char_data.talents.has("5"), inst.char_data.gold == gold_locked])
 
 func _run_race_quest_test() -> void:
 	print("TEST_START:race_quests")

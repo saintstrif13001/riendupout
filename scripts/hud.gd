@@ -386,6 +386,21 @@ func render_npc_dialogue() -> void:
 				var btn = _add_button(dialogue_box, "Fabriquer " + r.name, func(): craft_recipe(r.id))
 				btn.disabled = not has
 
+	if npc.role == "respec":
+		_add_title(dialogue_box, "Maître d'Armes", 15)
+		var n_talents = cd.talents.size()
+		if n_talents == 0:
+			var lbl = Label.new(); lbl.text = "\"Tu n'as encore choisi aucune spécialisation.\""
+			dialogue_box.add_child(lbl)
+		else:
+			var cost = 50 * n_talents
+			var lbl2 = Label.new()
+			lbl2.text = "Réinitialise tes %d spécialisation(s) choisie(s) pour les re-choisir au prochain palier de niveau." % n_talents
+			lbl2.autowrap_mode = TextServer.AUTOWRAP_WORD
+			dialogue_box.add_child(lbl2)
+			var btn = _add_button(dialogue_box, "Réinitialiser — %d or" % cost, func(): respec_talents(cost))
+			btn.disabled = cd.gold < cost
+
 	if npc.role == "bounty":
 		_add_title(dialogue_box, "Chasse aux Primes", 15)
 		var b = cd.bounty
@@ -461,6 +476,20 @@ func buy_faction_item(key: String) -> void:
 func learn_profession(pid: String) -> void:
 	world.char_data.profession = pid
 	render_npc_dialogue()
+
+func respec_talents(cost: int) -> void:
+	var cd = world.char_data
+	if cd.gold < cost: return
+	cd.gold -= cost
+	cd.talents = {}
+	world.player.stats = GameState.compute_stats(cd)
+	world.player.hp = min(world.player.hp, world.player.stats.max_hp)
+	world.player.mana = min(world.player.mana, world.player.stats.max_mana)
+	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
+	render_npc_dialogue()
+	var tier = GameState.pending_talent(cd)
+	if not tier.is_empty(): _on_talent_available(tier)
 
 func request_bounty() -> void:
 	var cd = world.char_data

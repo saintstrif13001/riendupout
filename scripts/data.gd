@@ -181,6 +181,7 @@ const NPCS := [
 	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85)},
 	{"id":"hulda", "name":"Vieille Hulda", "x":7400, "y":600, "role":"quest", "tint":Color(0.55,0.7,0.4)},
 	{"id":"chasseur", "name":"Chasseur Kessler", "x":1100, "y":450, "role":"bounty", "tint":Color(0.6,0.45,0.25)},
+	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":800, "y":500, "role":"respec", "tint":Color(0.8,0.65,0.3)},
 ]
 
 const QUESTS := [

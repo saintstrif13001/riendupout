@@ -37,6 +37,7 @@ func _ready() -> void:
 	spawn_local_player()
 	build_npcs()
 	build_gather_nodes()
+	if char_data.bloodstain: spawn_bloodstain_marker()
 	if is_sim:
 		build_enemy_spawns()
 	if Net.is_online:
@@ -600,10 +601,57 @@ func update_enemies(delta: float) -> void:
 						emit_signal("hud_update", make_hud_data())
 						if player.dead:
 							float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
+							on_player_died()
 		else:
 			e.velocity = Vector2.ZERO
 			e.set_anim(e.dir, false)
 		e.update_visuals()
+
+var bloodstain_node: Node2D = null
+
+func on_player_died() -> void:
+	# Mécanique "tache de sang" : la mort a un coût. La moitié de l'or est perdue et
+	# laissée sur place, récupérable une seule fois. Si le joueur meurt à nouveau avant
+	# de la récupérer, cet or est perdu pour de bon (seule la tache la plus récente compte).
+	if bloodstain_node and is_instance_valid(bloodstain_node):
+		bloodstain_node.queue_free()
+		bloodstain_node = null
+	var lost = int(char_data.gold / 2.0)
+	if lost > 0:
+		char_data.gold -= lost
+		char_data.bloodstain = {"x": player.global_position.x, "y": player.global_position.y, "gold": lost}
+		spawn_bloodstain_marker()
+		float_text(player.global_position + Vector2(0,-60), "-%d or (tache de sang)" % lost, Color(0.7,0.15,0.15))
+	save_now()
+
+func spawn_bloodstain_marker() -> void:
+	if not char_data.bloodstain: return
+	var b = char_data.bloodstain
+	bloodstain_node = Node2D.new()
+	bloodstain_node.position = Vector2(b.x, b.y)
+	bloodstain_node.z_index = 5
+	var stain = ColorRect.new()
+	stain.color = Color(0.4, 0.05, 0.08, 0.75)
+	stain.size = Vector2(28, 20)
+	stain.position = Vector2(-14, -6)
+	bloodstain_node.add_child(stain)
+	var label = Label.new()
+	label.text = "💀"
+	label.add_theme_font_size_override("font_size", 16)
+	label.position = Vector2(-8, -30)
+	bloodstain_node.add_child(label)
+	$Decor.add_child(bloodstain_node)
+
+func reclaim_bloodstain() -> void:
+	if not char_data.bloodstain: return
+	char_data.gold += char_data.bloodstain.gold
+	float_text(player.global_position + Vector2(0,-40), "+%d or récupéré" % char_data.bloodstain.gold, Color(1,0.88,0.4))
+	char_data.bloodstain = null
+	if bloodstain_node and is_instance_valid(bloodstain_node):
+		bloodstain_node.queue_free()
+		bloodstain_node = null
+	emit_signal("hud_update", make_hud_data())
+	save_now()
 
 func handle_respawn(delta: float) -> void:
 	if respawn_at < 0:
@@ -627,9 +675,15 @@ func update_near_interactable() -> void:
 	for n in npc_nodes:
 		var d = player.global_position.distance_to(Vector2(n.npc.x, n.npc.y))
 		if d < best_d: best_d = d; nearest = {"type":"npc", "ref": n}
+	if char_data.bloodstain:
+		var b = char_data.bloodstain
+		var d = player.global_position.distance_to(Vector2(b.x, b.y))
+		if d < best_d: best_d = d; nearest = {"type":"bloodstain", "ref": null}
 	near_target = nearest
 	if nearest == null:
 		emit_signal("near_update", "")
+	elif nearest.type == "bloodstain":
+		emit_signal("near_update", "Récupérer %d or" % char_data.bloodstain.gold)
 	elif nearest.type == "npc":
 		emit_signal("near_update", nearest.ref.npc.name)
 	else:
@@ -658,6 +712,8 @@ func try_interact() -> void:
 		emit_signal("hud_update", make_hud_data())
 	elif near_target.type == "npc":
 		emit_signal("open_npc", near_target.ref.npc)
+	elif near_target.type == "bloodstain":
+		reclaim_bloodstain()
 
 # ---------------- Quêtes ----------------
 func update_quest_progress(kind: String, target_id) -> void:

@@ -79,6 +79,8 @@ func _process(delta: float) -> bool:
 			var hud4 = inst.get_node("Hud")
 			hud4.render_travel()
 			hud4.travel_overlay.visible = true
+		elif test_mode == "test_souls":
+			_run_souls_test()
 		elif test_mode == "test_respec":
 			_run_respec_test()
 		elif test_mode == "test_race_quests":
@@ -202,6 +204,41 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_souls_test() -> void:
+	print("TEST_START:souls")
+	var p = inst.player
+	var hp_before = p.hp
+	# un slime_vert (le monstre le plus faible du jeu) doit faire mal
+	var applied1 = p.take_damage(inst.get_node("/root/Data").MONSTER_TYPES.slime_vert.atk)
+	print("TEST_HIT_SLIME hp_before=%.1f applied=%.1f hp_after=%.1f pct_of_maxhp=%.1f%%"
+		% [hp_before, applied1, p.hp, applied1/p.stats.max_hp*100.0])
+	# un boss doit faire très mal (test avec zombie_ancien, le boss le plus fort)
+	p.hp = p.stats.max_hp
+	var boss_atk = inst.get_node("/root/Data").MONSTER_TYPES.zombie_ancien.atk
+	var applied2 = p.take_damage(boss_atk)
+	print("TEST_HIT_BOSS boss_atk=%.0f applied=%.1f pct_of_maxhp=%.1f%%" % [boss_atk, applied2, applied2/p.stats.max_hp*100.0])
+
+	# test tache de sang : mort -> perte de la moitié de l'or, marqueur créé
+	inst.char_data.gold = 100
+	p.hp = 1
+	p.take_damage(9999.0)
+	inst.on_player_died()
+	print("TEST_DEATH_GOLD gold_after=%d bloodstain=%s" % [inst.char_data.gold, inst.char_data.bloodstain])
+	# récupération
+	var gold_before_reclaim = inst.char_data.gold
+	inst.reclaim_bloodstain()
+	print("TEST_RECLAIM gold_before=%d gold_after=%d bloodstain_cleared=%s" % [gold_before_reclaim, inst.char_data.gold, inst.char_data.bloodstain == null])
+
+	# test cooldown de potion
+	inst.char_data.inventory["potion_vie"] = 5
+	p.hp = 10
+	var hud = inst.get_node("Hud")
+	hud.use_item("potion_vie")
+	var hp_after_1st = p.hp
+	hud.use_item("potion_vie") # doit être bloqué par le cooldown
+	print("TEST_POTION_CD hp_after_1st_use=%.1f hp_after_2nd_immediate=%.1f (doit être identique) inv_left=%d"
+		% [hp_after_1st, p.hp, inst.char_data.inventory.potion_vie])
 
 func _run_respec_test() -> void:
 	print("TEST_START:respec")

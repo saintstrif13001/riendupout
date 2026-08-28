@@ -49,6 +49,7 @@ func new_character(cname: String, race: String, cls: String) -> Dictionary:
 		"talents": {}, # "5" -> talent_id, "15" -> talent_id
 		"reputation": {}, # faction_id -> int
 		"unlocked_zones": ["village"], # zones visitées, débloque le voyage rapide
+		"bloodstain": null, # {x, y, gold} — or perdu à la dernière mort, récupérable une fois
 	}
 
 func pending_talent(cd: Dictionary) -> Dictionary:

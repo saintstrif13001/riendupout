@@ -107,7 +107,11 @@ func set_anim(new_dir: String, is_moving: bool) -> void:
 func take_damage(dmg: float) -> float:
 	if dead: return 0.0
 	if Time.get_ticks_msec() / 1000.0 < invuln_until: return 0.0
-	var mitig = max(1.0, dmg - stats.def * 0.5)
+	# Mitigation "souls-like" : la défense réduit les dégâts mais un coup fait toujours
+	# mal (au moins 45% du dégât brut passe, même avec une armure lourde) — pas question
+	# de tanker indéfiniment, il faut esquiver/gérer les affrontements avec prudence.
+	var reduced = dmg - stats.def * 0.35
+	var mitig = max(dmg * 0.45, reduced)
 	hp = max(0.0, hp - mitig)
 	if hp <= 0: die()
 	return mitig

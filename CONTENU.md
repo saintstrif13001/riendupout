@@ -2,6 +2,18 @@
 
 Récapitulatif de ce qui existe actuellement, pour s'y retrouver.
 
+## Difficulté (souls-like)
+
+Le combat est volontairement punitif : la défense atténue les dégâts mais un coup
+fait toujours mal (au moins 45% du dégât brut passe, même blindé). Un monstre de
+base fait déjà 15-25% des PV max en un coup ; un boss peut retirer plus de la
+moitié des PV en un seul coup. Les potions de vie soignent plus (55 PV) mais ont
+un temps de recharge (5s) — impossible de spammer les soins en combat.
+
+**Mort = tache de sang** : à la mort, la moitié de l'or est perdue et laissée sur
+place (marqueur 💀), récupérable une seule fois en revenant dessus (touche F).
+Mourir à nouveau avant de la récupérer la perd définitivement.
+
 ## Personnage
 
 - **6 races** : Humain, Elfe Sylvain, Nain des Forges, Orc des Terres Brisées, Ratkin, Golem de Pierre Vivante

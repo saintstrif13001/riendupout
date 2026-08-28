@@ -619,8 +619,14 @@ func equip_item(id: String) -> void:
 func use_item(id: String) -> void:
 	var cd = world.char_data
 	if cd.inventory.get(id, 0) <= 0: return
-	cd.inventory[id] -= 1
 	var it = Data.ITEMS[id]
+	var now = Time.get_ticks_msec() / 1000.0
+	if it.has("use_cd"):
+		if now < world.player.cooldowns.get("item_" + id, 0.0):
+			world.float_text(world.player.global_position + Vector2(0,-50), "Pas encore prêt...", Color(0.6,0.6,0.9))
+			return
+		world.player.cooldowns["item_" + id] = now + it.use_cd
+	cd.inventory[id] -= 1
 	if it.has("heal"): world.player.heal(it.heal)
 	if it.has("mana"): world.player.mana = min(world.player.stats.max_mana, world.player.mana + it.mana)
 	world.emit_signal("hud_update", world.make_hud_data())

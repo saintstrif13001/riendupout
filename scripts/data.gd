@@ -93,22 +93,22 @@ const WORLD_WIDTH := 9200.0
 const WORLD_HEIGHT := 1200.0
 
 const MONSTER_TYPES := {
-	"slime_vert": {"name":"Slime Vert", "sprite":"slime_green", "hp":24, "atk":4, "def":0, "spd":60, "xp":8, "loot":[{"id":"gelee","chance":0.6}], "zone":"plaine"},
-	"slime_rouge": {"name":"Slime Rouge", "sprite":"slime_red", "hp":36, "atk":7, "def":1, "spd":70, "xp":14, "loot":[{"id":"gelee","chance":0.6},{"id":"minerai","chance":0.15}], "zone":"plaine"},
-	"loup": {"name":"Loup des Plaines", "sprite":"wolf", "fw":64, "fh":85, "hp":45, "atk":9, "def":1, "spd":110, "xp":18, "loot":[{"id":"peau_loup","chance":0.5},{"id":"gelee","chance":0.1}], "zone":"plaine"},
-	"loup_alpha": {"name":"Loup Alpha", "sprite":"wolf", "fw":64, "fh":85, "hp":150, "atk":16, "def":3, "spd":130, "xp":55, "boss":true, "loot":[{"id":"peau_loup","chance":1.0},{"id":"peau_loup","chance":0.6}], "zone":"plaine",
+	"slime_vert": {"name":"Slime Vert", "sprite":"slime_green", "hp":24, "atk":28, "def":0, "spd":60, "xp":8, "loot":[{"id":"gelee","chance":0.6}], "zone":"plaine"},
+	"slime_rouge": {"name":"Slime Rouge", "sprite":"slime_red", "hp":36, "atk":36, "def":1, "spd":70, "xp":14, "loot":[{"id":"gelee","chance":0.6},{"id":"minerai","chance":0.15}], "zone":"plaine"},
+	"loup": {"name":"Loup des Plaines", "sprite":"wolf", "fw":64, "fh":85, "hp":45, "atk":42, "def":1, "spd":110, "xp":18, "loot":[{"id":"peau_loup","chance":0.5},{"id":"gelee","chance":0.1}], "zone":"plaine"},
+	"loup_alpha": {"name":"Loup Alpha", "sprite":"wolf", "fw":64, "fh":85, "hp":150, "atk":68, "def":3, "spd":130, "xp":55, "boss":true, "loot":[{"id":"peau_loup","chance":1.0},{"id":"peau_loup","chance":0.6}], "zone":"plaine",
 		"phases":[{"hp_pct":0.5, "summon":"loup", "count":2}]},
-	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":10, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
-	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":13, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
-	"kobold": {"name":"Kobold Soldat", "sprite":"kobold", "hp":75, "atk":12, "def":3, "spd":95, "xp":30, "loot":[{"id":"minerai","chance":0.3},{"id":"ecaille_kobold","chance":0.45}], "zone":"caverne"},
-	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":20, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne",
+	"gobelin": {"name":"Gobelin", "sprite":"goblin", "hp":60, "atk":44, "def":2, "spd":90, "xp":22, "loot":[{"id":"bois","chance":0.3},{"id":"dent_gobelin","chance":0.5}], "zone":"foret"},
+	"squelette": {"name":"Squelette", "sprite":"skeleton", "hp":90, "atk":50, "def":4, "spd":80, "xp":34, "loot":[{"id":"os","chance":0.6},{"id":"minerai","chance":0.25}], "zone":"caverne"},
+	"kobold": {"name":"Kobold Soldat", "sprite":"kobold", "hp":75, "atk":47, "def":3, "spd":95, "xp":30, "loot":[{"id":"minerai","chance":0.3},{"id":"ecaille_kobold","chance":0.45}], "zone":"caverne"},
+	"squelette_guerrier": {"name":"Squelette Guerrier", "sprite":"skeleton_warrior", "hp":260, "atk":82, "def":8, "spd":70, "xp":120, "boss":true, "loot":[{"id":"os","chance":1.0},{"id":"relique_ossements","chance":1.0}], "zone":"caverne",
 		"phases":[{"hp_pct":0.5, "summon":"squelette", "count":2}]},
-	"orc_guerrier": {"name":"Orc Guerrier", "sprite":"orc_warrior", "hp":80, "atk":14, "def":5, "spd":85, "xp":40, "loot":[{"id":"bois","chance":0.2},{"id":"croc_orc","chance":0.5}], "zone":"foret"},
-	"orc_chef": {"name":"Chef Orc Grondmar", "sprite":"orc_chief", "hp":340, "atk":24, "def":10, "spd":75, "xp":160, "boss":true, "loot":[{"id":"croc_orc","chance":1.0},{"id":"totem_orc","chance":1.0}], "zone":"foret",
+	"orc_guerrier": {"name":"Orc Guerrier", "sprite":"orc_warrior", "hp":80, "atk":54, "def":5, "spd":85, "xp":40, "loot":[{"id":"bois","chance":0.2},{"id":"croc_orc","chance":0.5}], "zone":"foret"},
+	"orc_chef": {"name":"Chef Orc Grondmar", "sprite":"orc_chief", "hp":340, "atk":92, "def":10, "spd":75, "xp":160, "boss":true, "loot":[{"id":"croc_orc","chance":1.0},{"id":"totem_orc","chance":1.0}], "zone":"foret",
 		"phases":[{"hp_pct":0.6, "summon":"orc_guerrier", "count":2}, {"hp_pct":0.25, "summon":"orc_guerrier", "count":2}]},
-	"zombie": {"name":"Zombie", "sprite":"zombie", "hp":110, "atk":15, "def":5, "spd":55, "xp":45, "loot":[{"id":"chair_pourrie","chance":0.6},{"id":"herbe","chance":0.2}], "zone":"marais"},
-	"zombie_pourri": {"name":"Zombie Pourrissant", "sprite":"zombie_rotting", "hp":150, "atk":19, "def":7, "spd":50, "xp":60, "loot":[{"id":"chair_pourrie","chance":0.7},{"id":"ichor_putride","chance":0.35}], "zone":"marais"},
-	"zombie_ancien": {"name":"Zombie Ancestral", "sprite":"zombie_rotting", "hp":420, "atk":28, "def":11, "spd":45, "xp":220, "boss":true, "loot":[{"id":"ichor_putride","chance":1.0},{"id":"coeur_marais","chance":1.0}], "zone":"marais",
+	"zombie": {"name":"Zombie", "sprite":"zombie", "hp":110, "atk":56, "def":5, "spd":55, "xp":45, "loot":[{"id":"chair_pourrie","chance":0.6},{"id":"herbe","chance":0.2}], "zone":"marais"},
+	"zombie_pourri": {"name":"Zombie Pourrissant", "sprite":"zombie_rotting", "hp":150, "atk":64, "def":7, "spd":50, "xp":60, "loot":[{"id":"chair_pourrie","chance":0.7},{"id":"ichor_putride","chance":0.35}], "zone":"marais"},
+	"zombie_ancien": {"name":"Zombie Ancestral", "sprite":"zombie_rotting", "hp":420, "atk":105, "def":11, "spd":45, "xp":220, "boss":true, "loot":[{"id":"ichor_putride","chance":1.0},{"id":"coeur_marais","chance":1.0}], "zone":"marais",
 		"phases":[{"hp_pct":0.66, "summon":"zombie", "count":3}, {"hp_pct":0.33, "summon":"zombie_pourri", "count":2}]},
 }
 
@@ -139,7 +139,7 @@ const ITEMS := {
 	"armure_cuir": {"name":"Armure de Cuir", "type":"armor", "icon":"[", "bonus":{"def":4,"hp":10}},
 	"bottes_loup": {"name":"Bottes en Peau de Loup", "type":"armor", "icon":"[", "bonus":{"spd":12,"def":2}},
 	"armure_plates": {"name":"Armure de Plates", "type":"armor", "icon":"#", "bonus":{"def":8,"hp":20}},
-	"potion_vie": {"name":"Potion de Vie", "type":"consumable", "icon":"+", "heal":40},
+	"potion_vie": {"name":"Potion de Vie", "type":"consumable", "icon":"+", "heal":55, "use_cd":5.0},
 	"potion_mana": {"name":"Potion de Mana", "type":"consumable", "icon":"~", "mana":40},
 }
 

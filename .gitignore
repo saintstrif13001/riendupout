@@ -2,3 +2,4 @@
 *.translation
 export.cfg
 build/
+assets/tiles_raw/

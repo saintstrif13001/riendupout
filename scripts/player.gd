@@ -141,8 +141,11 @@ func heal(amount: float) -> void:
 
 func die() -> void:
 	dead = true
-	body_sprite.modulate = Color(0.3, 0.3, 0.3)
-	head_sprite.modulate = Color(0.3, 0.3, 0.3)
+	var gray = Color(0.3, 0.3, 0.3)
+	body_sprite.modulate = gray
+	head_sprite.modulate = gray
+	vest_sprite.modulate = gray
+	hair_sprite.modulate = gray
 
 func respawn(pos: Vector2) -> void:
 	dead = false
@@ -152,6 +155,9 @@ func respawn(pos: Vector2) -> void:
 	var race = Data.RACES[char_data.race]
 	body_sprite.modulate = race.tint
 	head_sprite.modulate = race.tint
+	var cls = Data.CLASSES[char_data["class"]]
+	vest_sprite.modulate = cls.color
+	hair_sprite.modulate = Color(0.25, 0.16, 0.1)
 
 func gain_xp(amount: int) -> Dictionary:
 	var race = Data.RACES[char_data.race]

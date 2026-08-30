@@ -49,8 +49,15 @@ func _ready() -> void:
 	var tier = GameState.pending_talent(char_data)
 	if not tier.is_empty(): emit_signal("talent_available", tier)
 
+const GROUND_TEXTURES := {
+	"caverne": ["res://assets/tiles/ground/gravel_0.png", "res://assets/tiles/ground/gravel_1.png", "res://assets/tiles/ground/gravel_2.png", "res://assets/tiles/ground/gravel_3.png"],
+	"marais": ["res://assets/tiles/ground/dirt_0.png", "res://assets/tiles/ground/dirt_1.png", "res://assets/tiles/ground/dirt_2.png", "res://assets/tiles/ground/dirt_3.png"],
+	"foret": ["res://assets/tiles/ground/dirt_0.png", "res://assets/tiles/ground/dirt_1.png", "res://assets/tiles/ground/dirt_2.png", "res://assets/tiles/ground/dirt_3.png"],
+}
+
 func draw_world() -> void:
 	var zones_node = $Zones
+	seed(777)
 	for key in Data.ZONES.keys():
 		var z = Data.ZONES[key]
 		var w = z.x1 - z.x0
@@ -60,6 +67,8 @@ func draw_world() -> void:
 		rect.size = Vector2(w, Data.WORLD_HEIGHT)
 		rect.z_index = -10
 		zones_node.add_child(rect)
+		if GROUND_TEXTURES.has(key):
+			_build_ground_mosaic(z)
 		var label = Label.new()
 		label.text = z.name
 		label.position = Vector2(z.x0 + 40, 20)
@@ -232,6 +241,27 @@ func _spawn_chest(x: int, y: int) -> void:
 	lid.position = Vector2(x - 11, y - 12)
 	lid.z_index = int(y) + 1
 	$Decor.add_child(lid)
+
+func _build_ground_mosaic(z: Dictionary) -> void:
+	var paths = GROUND_TEXTURES[z.id]
+	var texs = []
+	for p in paths: texs.append(load(p))
+	var chunk_w = 256
+	var chunk_h = 256
+	var x = z.x0
+	while x < z.x1:
+		var y = 0
+		while y < Data.WORLD_HEIGHT:
+			var tr = TextureRect.new()
+			tr.texture = texs[randi() % texs.size()]
+			tr.stretch_mode = TextureRect.STRETCH_TILE
+			tr.position = Vector2(x, y)
+			tr.size = Vector2(min(chunk_w, z.x1 - x), min(chunk_h, Data.WORLD_HEIGHT - y))
+			tr.modulate = Color(0.8, 0.8, 0.8, 0.85)
+			tr.z_index = -10
+			$Zones.add_child(tr)
+			y += chunk_h
+		x += chunk_w
 
 func get_zone_spawn(zone_id: String) -> Vector2:
 	var z = Data.ZONES[zone_id]

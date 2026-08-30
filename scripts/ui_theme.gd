@@ -4,6 +4,21 @@ extends RefCounted
 
 static var _body_font: Font = null
 static var _title_font: Font = null
+static var _panel_tex: Texture2D = null
+
+static func panel_tex() -> Texture2D:
+	if _panel_tex == null: _panel_tex = load("res://assets/ui/panel_gold.png")
+	return _panel_tex
+
+static func _tex_box(modulate: Color, margin := 8) -> StyleBoxTexture:
+	var sb = StyleBoxTexture.new()
+	sb.texture = panel_tex()
+	sb.texture_margin_left = margin
+	sb.texture_margin_right = margin
+	sb.texture_margin_top = margin
+	sb.texture_margin_bottom = margin
+	sb.modulate_color = modulate
+	return sb
 
 static func body_font() -> Font:
 	if _body_font == null: _body_font = load("res://assets/fonts/pixelifysans.ttf")
@@ -26,34 +41,20 @@ static func build() -> Theme:
 	var col_text = Color(0.92, 0.9, 0.8)
 	var col_gold = Color(0.88, 0.82, 0.56)
 
-	# Panel
-	var panel_box = StyleBoxFlat.new()
-	panel_box.bg_color = col_panel
-	panel_box.border_color = col_border
-	panel_box.set_border_width_all(2)
-	panel_box.set_corner_radius_all(10)
-	panel_box.set_content_margin_all(18)
-	panel_box.shadow_color = Color(0,0,0,0.5)
-	panel_box.shadow_size = 10
+	# Panel — vraie texture parchemin/or (bordure ornée) au lieu d'un rectangle plat
+	var panel_box = _tex_box(Color(0.30, 0.26, 0.15, 0.98), 8)
+	panel_box.set_content_margin_all(20)
 	t.set_stylebox("panel", "PanelContainer", panel_box)
 
-	# Button
-	var btn_normal = StyleBoxFlat.new()
-	btn_normal.bg_color = col_btn
-	btn_normal.border_color = col_border
-	btn_normal.set_border_width_all(2)
-	btn_normal.set_corner_radius_all(6)
+	# Button — même texture, tons plus clairs/dorés au survol et à l'appui
+	var btn_normal = _tex_box(Color(0.34, 0.29, 0.16), 8)
 	btn_normal.set_content_margin_all(10)
-	var btn_hover = btn_normal.duplicate()
-	btn_hover.bg_color = col_btn_hover
-	btn_hover.border_color = col_gold
-	var btn_press = btn_normal.duplicate()
-	btn_press.bg_color = Color(0.22, 0.24, 0.12)
-	btn_press.border_color = col_gold
-	btn_press.set_border_width_all(3)
-	var btn_disabled = btn_normal.duplicate()
-	btn_disabled.bg_color = Color(0.13,0.13,0.13)
-	btn_disabled.border_color = Color(0.25,0.25,0.25)
+	var btn_hover = _tex_box(Color(0.5, 0.42, 0.2), 8)
+	btn_hover.set_content_margin_all(10)
+	var btn_press = _tex_box(Color(0.62, 0.5, 0.22), 8)
+	btn_press.set_content_margin_all(10)
+	var btn_disabled = _tex_box(Color(0.22, 0.22, 0.2, 0.6), 8)
+	btn_disabled.set_content_margin_all(10)
 
 	t.set_stylebox("normal", "Button", btn_normal)
 	t.set_stylebox("hover", "Button", btn_hover)

@@ -72,7 +72,7 @@ func setup(cd: Dictionary, local: bool, pid: int) -> void:
 	vest_sprite.z_index = 2
 	hair_sprite.z_index = 3
 	head_sprite.z_index = 4
-	hair_sprite.modulate = Color(0.25, 0.16, 0.1)
+	hair_sprite.modulate = Color(cd.get("hair_color", "#3f2a1a"))
 	var cls = Data.CLASSES[cd["class"]]
 	vest_sprite.modulate = cls.color
 
@@ -206,7 +206,7 @@ func respawn(pos: Vector2) -> void:
 	head_sprite.modulate = race.tint
 	var cls = Data.CLASSES[char_data["class"]]
 	vest_sprite.modulate = cls.color
-	hair_sprite.modulate = Color(0.25, 0.16, 0.1)
+	hair_sprite.modulate = Color(char_data.get("hair_color", "#3f2a1a"))
 
 func gain_xp(amount: int) -> Dictionary:
 	var race = Data.RACES[char_data.race]

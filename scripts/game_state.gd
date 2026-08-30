@@ -35,9 +35,10 @@ func load_saved_character() -> Dictionary:
 func delete_save() -> void:
 	if has_save(): DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
 
-func new_character(cname: String, race: String, cls: String) -> Dictionary:
+func new_character(cname: String, race: String, cls: String, hair_color: String = "#3f2a1a") -> Dictionary:
 	return {
 		"name": cname, "race": race, "class": cls, "level": 1, "xp": 0, "gold": 20,
+		"hair_color": hair_color, # couleur de cheveux choisie à la création (personnalisation d'apparence)
 		"equipment": {"weapon": "", "armor": ""},
 		"inventory": {},
 		"quests_active": {}, # qid -> progress(int)

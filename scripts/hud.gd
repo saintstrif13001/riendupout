@@ -199,6 +199,13 @@ func _build_hotbar_slot(key_letter: String) -> Dictionary:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	stack.add_child(bg)
+	var icon_rect = TextureRect.new()
+	icon_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	icon_rect.offset_left = 6; icon_rect.offset_top = 6; icon_rect.offset_right = -6; icon_rect.offset_bottom = -6
+	icon_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(icon_rect)
 	var cd_overlay = ColorRect.new()
 	cd_overlay.color = Color(0, 0, 0, 0.75)
 	cd_overlay.size = Vector2(HOTBAR_SLOT_SIZE, 0)
@@ -220,7 +227,7 @@ func _build_hotbar_slot(key_letter: String) -> Dictionary:
 	cd_lbl.visible = false
 	stack.add_child(cd_lbl)
 	hotbar.add_child(panel)
-	return {"panel": panel, "bg": bg, "cd_overlay": cd_overlay, "cd_label": cd_lbl}
+	return {"panel": panel, "bg": bg, "icon": icon_rect, "cd_overlay": cd_overlay, "cd_label": cd_lbl, "loaded_icon_path": ""}
 
 func _process(_delta: float) -> void:
 	if world == null or world.player == null or hotbar_slots.is_empty(): return
@@ -234,6 +241,9 @@ func _process(_delta: float) -> void:
 			continue
 		slot.panel.visible = true
 		var skill = cls.skills[i]
+		if skill.has("icon") and slot.loaded_icon_path != skill.icon:
+			slot.icon.texture = load(Data.ICON_PATH + skill.icon)
+			slot.loaded_icon_path = skill.icon
 		var remain = maxf(0.0, world.player.cooldowns.get("skill%d" % i, 0.0) - now)
 		var frac = clampf(remain / skill.cd, 0.0, 1.0)
 		slot.cd_overlay.size.y = HOTBAR_SLOT_SIZE * frac

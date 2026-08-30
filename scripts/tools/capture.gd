@@ -194,6 +194,8 @@ func _process(delta: float) -> bool:
 			var hud_o = inst.get_node("Hud")
 			hud_o.sync_options()
 			hud_o.options_overlay.visible = true
+		elif test_mode == "test_char_customization":
+			_run_char_customization_test()
 		elif test_mode == "test_quit_to_menu":
 			_run_quit_to_menu_test()
 		elif test_mode == "show_player_hit_flash":
@@ -1680,9 +1682,27 @@ func _run_hotbar_test() -> void:
 	hud._process(0.0)
 	var dimmed_when_cant_afford = hud.hotbar_slots[0].bg.color.r > hud.hotbar_slots[0].bg.color.g + 0.1 # teinte rougeâtre
 
-	var all_ok = slots_built and ready_before_use and cooldown_shown_after_use and other_slot_unaffected and overlay_clears_after_cooldown_expires and dimmed_when_cant_afford
-	print("TEST_RESULT all_ok=%s slots_built=%s ready_before_use=%s cooldown_shown_after_use=%s other_slot_unaffected=%s overlay_clears_after_cooldown_expires=%s dimmed_when_cant_afford=%s"
-		% [all_ok, slots_built, ready_before_use, cooldown_shown_after_use, other_slot_unaffected, overlay_clears_after_cooldown_expires, dimmed_when_cant_afford])
+	var icon_loaded_for_current_class = hud.hotbar_slots[0].icon.texture != null and hud.hotbar_slots[1].icon.texture != null
+
+	# Les emplacements montraient juste un carré de couleur unie, sans aucune
+	# icône reconnaissable pour le sort : verifie que CHAQUE sort de CHAQUE
+	# classe déclare une icône et qu'elle charge réellement (fichier présent).
+	var all_icons_load = true
+	var missing_icons = []
+	for cid in Data.CLASSES.keys():
+		for skill in Data.CLASSES[cid].skills:
+			if not skill.has("icon"):
+				all_icons_load = false
+				missing_icons.append("%s/%s (aucune icone déclarée)" % [cid, skill.id])
+				continue
+			var tex = load(Data.ICON_PATH + skill.icon)
+			if tex == null:
+				all_icons_load = false
+				missing_icons.append("%s/%s -> %s" % [cid, skill.id, skill.icon])
+
+	var all_ok = slots_built and ready_before_use and cooldown_shown_after_use and other_slot_unaffected and overlay_clears_after_cooldown_expires and dimmed_when_cant_afford and icon_loaded_for_current_class and all_icons_load
+	print("TEST_RESULT all_ok=%s slots_built=%s ready_before_use=%s cooldown_shown_after_use=%s other_slot_unaffected=%s overlay_clears_after_cooldown_expires=%s dimmed_when_cant_afford=%s icon_loaded_for_current_class=%s all_icons_load=%s missing_icons=%s"
+		% [all_ok, slots_built, ready_before_use, cooldown_shown_after_use, other_slot_unaffected, overlay_clears_after_cooldown_expires, dimmed_when_cant_afford, icon_loaded_for_current_class, all_icons_load, missing_icons])
 
 func _run_player_hit_flash_test() -> void:
 	print("TEST_START:player_hit_flash")
@@ -1823,6 +1843,35 @@ func _run_quit_to_menu_test() -> void:
 
 	print("TEST_RESULT quit_button_found=%s menu_button_found=%s has_quit_to_menu_method=%s save_now_persists_position=%s"
 		% [quit_button_found, menu_button_found, has_quit_to_menu_method, save_now_persists_position])
+
+func _run_char_customization_test() -> void:
+	print("TEST_START:char_customization")
+	# L'apparence du joueur (couleur de cheveux) etait entierement figee — aucun
+	# choix possible a la creation, toujours le meme brun (0.25,0.16,0.1) code
+	# en dur. Verifie que la couleur choisie est bien persistee dans char_data
+	# et appliquee au sprite, y compris apres une reapparition (respawn()
+	# reinitialise les teintes et avait le meme defaut fige).
+	var gs = root.get_node("/root/GameState")
+	var cd_custom = gs.new_character("Custom", "humain", "guerrier", "#3a6ea5")
+	var hair_color_persisted = cd_custom.hair_color == "#3a6ea5"
+
+	var cd_default = gs.new_character("Default", "humain", "guerrier")
+	var default_hair_color_unchanged = cd_default.hair_color == "#3f2a1a"
+
+	var p = load("res://scenes/Player.tscn").instantiate()
+	inst.get_node("Players").add_child(p)
+	p.setup(cd_custom, false, 998)
+	var hair_applied_on_setup = p.hair_sprite.modulate.is_equal_approx(Color("#3a6ea5"))
+
+	p.dead = true
+	p.respawn(Vector2(100, 100))
+	var hair_applied_on_respawn = p.hair_sprite.modulate.is_equal_approx(Color("#3a6ea5"))
+
+	p.queue_free()
+
+	var all_ok = hair_color_persisted and default_hair_color_unchanged and hair_applied_on_setup and hair_applied_on_respawn
+	print("TEST_RESULT all_ok=%s hair_color_persisted=%s default_hair_color_unchanged=%s hair_applied_on_setup=%s hair_applied_on_respawn=%s"
+		% [all_ok, hair_color_persisted, default_hair_color_unchanged, hair_applied_on_setup, hair_applied_on_respawn])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

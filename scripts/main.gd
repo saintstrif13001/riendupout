@@ -4,6 +4,17 @@ const UiTheme = preload("res://scripts/ui_theme.gd")
 
 var sel_race := "humain"
 var sel_class := "guerrier"
+var sel_hair_color := "#3f2a1a"
+const HAIR_COLORS := [
+	{"name": "Brun", "hex": "#3f2a1a"},
+	{"name": "Noir", "hex": "#1a1a1a"},
+	{"name": "Blond", "hex": "#c9a227"},
+	{"name": "Roux", "hex": "#a34a1f"},
+	{"name": "Blanc", "hex": "#d8d8d8"},
+	{"name": "Bleu", "hex": "#3a6ea5"},
+	{"name": "Vert", "hex": "#4a8a4a"},
+	{"name": "Rose", "hex": "#c96aa8"},
+]
 var name_edit: LineEdit
 var content: VBoxContainer
 var status_label: Label
@@ -219,6 +230,34 @@ func show_char_create() -> void:
 		row2.add_child(b)
 		class_grid.add_child(row2)
 
+	_title("Couleur de cheveux", 17)
+	var hair_row = HBoxContainer.new()
+	hair_row.add_theme_constant_override("separation", 8)
+	content.add_child(hair_row)
+	for hc in HAIR_COLORS:
+		var btn = Button.new()
+		btn.custom_minimum_size = Vector2(38, 38)
+		btn.toggle_mode = true
+		btn.button_pressed = (hc.hex == sel_hair_color)
+		btn.tooltip_text = hc.name
+		var sb = StyleBoxFlat.new()
+		sb.bg_color = Color(hc.hex)
+		sb.set_corner_radius_all(6)
+		sb.border_color = Color(1, 1, 1, 0.5)
+		sb.set_border_width_all(2)
+		var sb_pressed = sb.duplicate()
+		sb_pressed.border_color = Color(1, 0.9, 0.3, 1)
+		sb_pressed.set_border_width_all(3)
+		btn.add_theme_stylebox_override("normal", sb)
+		btn.add_theme_stylebox_override("hover", sb)
+		btn.add_theme_stylebox_override("pressed", sb_pressed)
+		btn.add_theme_stylebox_override("hover_pressed", sb_pressed)
+		btn.pressed.connect(func():
+			sel_hair_color = hc.hex
+			for cc in hair_row.get_children(): cc.button_pressed = false
+			btn.button_pressed = true)
+		hair_row.add_child(btn)
+
 	_button("Confirmer", _on_char_confirmed)
 
 var _portrait_body_tex: Texture2D = null
@@ -260,7 +299,7 @@ func _make_portrait(tint: Color) -> Control:
 func _on_char_confirmed() -> void:
 	var cname = name_edit.text.strip_edges()
 	if cname == "": cname = "Aventurier"
-	GameState.char_data = GameState.new_character(cname, sel_race, sel_class)
+	GameState.char_data = GameState.new_character(cname, sel_race, sel_class, sel_hair_color)
 	match GameState.mode:
 		"solo": launch_world()
 		"host": do_host()

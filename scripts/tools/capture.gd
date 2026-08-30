@@ -108,6 +108,10 @@ func _process(delta: float) -> bool:
 			inst.spawn_enemy({"x": inst.player.global_position.x + 60, "y": inst.player.global_position.y, "type_id": "kobold", "respawn_at": 0.0})
 		elif test_mode == "test_data_integrity":
 			_run_data_integrity_test()
+		elif test_mode == "test_house_collision":
+			_run_house_collision_test()
+		elif test_mode == "test_depth_sort":
+			_run_depth_sort_test()
 		elif test_mode == "test_equip":
 			var hud2 = inst.get_node("Hud")
 			inst.char_data.inventory["armure_plates"] = 1
@@ -486,6 +490,42 @@ func _run_death_test() -> void:
 	p.respawn(village_spawn)
 	print("TEST_RESULT after_respawn dead=%s hp=%.1f max_hp=%.1f pos=%s expected_pos=%s"
 		% [p.dead, p.hp, p.stats.max_hp, p.global_position, village_spawn])
+
+func _run_house_collision_test() -> void:
+	print("TEST_START:house_collision")
+	var decor = inst.get_node("Decor")
+	var bodies = []
+	for c in decor.get_children():
+		if c is StaticBody2D:
+			bodies.append(c)
+	var ok_shapes = 0
+	for b in bodies:
+		for c in b.get_children():
+			if c is CollisionShape2D and c.shape != null and c.shape is RectangleShape2D and c.shape.size.x > 0 and c.shape.size.y > 0:
+				ok_shapes += 1
+	print("TEST_RESULT house_bodies=%d bodies_with_valid_shape=%d" % [bodies.size(), ok_shapes])
+	# Vérifie qu'un déplacement vers le centre d'une maison est bien bloqué par la collision.
+	if bodies.size() > 0:
+		var target_body = bodies[0]
+		var house_center = target_body.global_position
+		inst.player.global_position = house_center + Vector2(0, 120)
+		var start_pos = inst.player.global_position
+		for i in range(30):
+			inst.player.velocity = (house_center - inst.player.global_position).normalized() * 200.0
+			inst.player.move_and_slide()
+		var dist_to_center = inst.player.global_position.distance_to(house_center)
+		var moved = start_pos.distance_to(inst.player.global_position)
+		print("TEST_RESULT2 dist_to_house_center=%.1f moved=%.1f blocked=%s" % [dist_to_center, moved, dist_to_center > 30.0])
+
+func _run_depth_sort_test() -> void:
+	print("TEST_START:depth_sort")
+	inst.player.global_position = Vector2(inst.player.global_position.x, 543.0)
+	inst.player.update_visuals()
+	var player_ok = inst.player.z_index == 543
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": 812.0, "type_id": "slime_vert", "respawn_at": 0.0})
+	e.update_visuals()
+	var enemy_ok = e.z_index == 812
+	print("TEST_RESULT player_z=%d player_ok=%s enemy_z=%d enemy_ok=%s" % [inst.player.z_index, player_ok, e.z_index, enemy_ok])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

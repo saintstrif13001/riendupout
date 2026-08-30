@@ -333,6 +333,19 @@ func _build_village_well(x: int, y: int) -> void:
 	bucket.position = Vector2(x - 4, y - 18)
 	bucket.z_index = int(y) + 2
 	$Decor.add_child(bucket)
+	_add_circle_collision(x, y, 20.0)
+
+# Collision légère et réutilisable pour les props solides (puits, caisses,
+# barils, coffres) : sans ça le joueur les traverse visuellement.
+func _add_circle_collision(x: float, y: float, radius: float) -> void:
+	var body = StaticBody2D.new()
+	body.position = Vector2(x, y)
+	var shape = CollisionShape2D.new()
+	var circle = CircleShape2D.new()
+	circle.radius = radius
+	shape.shape = circle
+	body.add_child(shape)
+	$Decor.add_child(body)
 
 func _build_village_decor(houses: Array) -> void:
 	# Torches près de chaque porte, parterres de fleurs et quelques caisses/barils
@@ -375,6 +388,7 @@ func _spawn_crate(x: int, y: int) -> void:
 	edge.position = Vector2(x - 9, y - 8)
 	edge.z_index = int(y) + 1
 	$Decor.add_child(edge)
+	_add_circle_collision(x, y, 10.0)
 
 func _spawn_barrel(x: int, y: int) -> void:
 	var body = Polygon2D.new()
@@ -390,6 +404,7 @@ func _spawn_barrel(x: int, y: int) -> void:
 		band.position = Vector2(x - 9, y + oy)
 		band.z_index = int(y) + 1
 		$Decor.add_child(band)
+	_add_circle_collision(x, y, 9.0)
 
 func build_props() -> void:
 	# Coffres et torches dans les zones dangereuses, pour l'ambiance et un peu de loot passif.
@@ -482,6 +497,7 @@ func _spawn_chest(x: int, y: int) -> void:
 	$Decor.add_child(lid)
 	var gold = randi_range(5, 20)
 	chest_nodes.append({"x": x, "y": y, "lid": lid, "base": base, "opened": false, "gold": gold})
+	_add_circle_collision(x, y, 10.0)
 
 func open_chest(c: Dictionary) -> void:
 	if c.opened: return
@@ -616,6 +632,17 @@ func build_npcs() -> void:
 		node.add_child(icon)
 		$NPCs.add_child(node)
 		npc_nodes.append({"npc": npc, "node": node})
+		# Collision légère pour que le joueur ne marche pas littéralement à travers/
+		# par-dessus le PNJ. Corps séparé (pas enfant du node qui oscille pour
+		# l'idle) pour rester parfaitement fixe malgré l'animation de respiration.
+		var npc_body = StaticBody2D.new()
+		npc_body.position = Vector2(npc.x, npc.y)
+		var npc_shape = CollisionShape2D.new()
+		var circle = CircleShape2D.new()
+		circle.radius = 12.0
+		npc_shape.shape = circle
+		npc_body.add_child(npc_shape)
+		$NPCs.add_child(npc_body)
 
 func build_gather_nodes() -> void:
 	for n in Data.GATHER_NODES:

@@ -142,6 +142,10 @@ func _process(delta: float) -> bool:
 			_run_village_decor_test()
 		elif test_mode == "test_plaine_decor":
 			_run_plaine_decor_test()
+		elif test_mode == "test_npc_collision":
+			_run_npc_collision_test()
+		elif test_mode == "test_prop_collision":
+			_run_prop_collision_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -978,6 +982,39 @@ func _run_plaine_decor_test() -> void:
 			flower_patches_in_plaine += 1
 	print("TEST_RESULT hay_bales_and_rocks_in_plaine=%d (attendu >= 20) flower_patches_in_plaine=%d (attendu >= 40)"
 		% [polygons_in_plaine, flower_patches_in_plaine])
+
+func _run_npc_collision_test() -> void:
+	print("TEST_START:npc_collision")
+	var n = inst.npc_nodes[0]
+	var npc_pos = Vector2(n.npc.x, n.npc.y)
+	inst.player.global_position = npc_pos + Vector2(0, 100)
+	var start_pos = inst.player.global_position
+	for i in range(30):
+		inst.player.velocity = (npc_pos - inst.player.global_position).normalized() * 200.0
+		inst.player.move_and_slide()
+	var dist = inst.player.global_position.distance_to(npc_pos)
+	var moved = start_pos.distance_to(inst.player.global_position)
+	# le joueur doit être bloqué avant d'atteindre le centre du PNJ, mais rester
+	# assez proche pour interagir (portée F = 70px)
+	print("TEST_RESULT blocked=%s dist_to_npc=%.1f moved=%.1f still_within_interact_range=%s"
+		% [dist > 8.0, dist, moved, dist < 70.0])
+
+func _run_prop_collision_test() -> void:
+	print("TEST_START:prop_collision")
+	var well_pos = Vector2(700, 480)
+	inst.player.global_position = well_pos + Vector2(0, 100)
+	for i in range(30):
+		inst.player.velocity = (well_pos - inst.player.global_position).normalized() * 200.0
+		inst.player.move_and_slide()
+	var dist_well = inst.player.global_position.distance_to(well_pos)
+	var crate_pos = Vector2(560, 700)
+	inst.player.global_position = crate_pos + Vector2(0, 100)
+	for i in range(30):
+		inst.player.velocity = (crate_pos - inst.player.global_position).normalized() * 200.0
+		inst.player.move_and_slide()
+	var dist_crate = inst.player.global_position.distance_to(crate_pos)
+	print("TEST_RESULT well_blocked=%s dist_well=%.1f crate_blocked=%s dist_crate=%.1f"
+		% [dist_well > 10.0, dist_well, dist_crate > 5.0, dist_crate])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

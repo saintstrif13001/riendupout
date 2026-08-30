@@ -36,6 +36,7 @@ var economy_tick_accum: float = 0.0
 var village_economy := {
 	"herbe_stock": 12, "potion_stock": 6, "potion_price": 15,
 	"minerai_stock": 10, "arme_stock": 3, "arme_price": 40,
+	"monsters_culled": 0,
 }
 var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
@@ -69,6 +70,30 @@ func update_village_economy(delta: float) -> void:
 		e.minerai_stock -= 6
 		e.arme_stock += 1 # Grondar forge une arme de plus
 	e.arme_price = clampi(70 - e.arme_stock * 5, 25, 70) # plus de stock = moins cher
+	_cull_plaine_monsters()
+
+# Dernier maillon de l'économie vivante : Garde Ren patrouille la plaine et
+# abat de temps en temps un monstre, réduisant la pression sur les cueilleurs
+# qui y récoltent (le lien "un guerrier réduit la population de monstres pour
+# les cueilleurs" mentionné à l'origine, laissé de côté dans les premières
+# versions car le joueur tenait déjà ce rôle en jeu réel).
+func _cull_plaine_monsters() -> void:
+	if not is_sim: return
+	if randf() > 0.35: return # patrouille pas systématique, sinon la plaine se viderait trop vite
+	var candidates = []
+	for uid in enemies.keys():
+		var e = enemies[uid]
+		if not is_instance_valid(e) or e.dead or e.mdef.get("boss", false): continue
+		if e.mdef.zone != "plaine": continue
+		candidates.append(e)
+	if candidates.is_empty(): return
+	var target = candidates[randi() % candidates.size()]
+	var pos = target.global_position
+	target.die()
+	village_economy.monsters_culled = village_economy.get("monsters_culled", 0) + 1
+	on_enemy_killed(target, 0) # killer_id 0 : personne ne touche l'xp/le loot, juste le respawn programmé
+	if player.global_position.distance_to(pos) < 500.0:
+		float_text(pos + Vector2(0, -30), "Garde Ren a repoussé un monstre", Color(0.6, 0.8, 1.0))
 
 func update_zone_lighting(zid: String) -> void:
 	if zid == current_zone_light_id: return

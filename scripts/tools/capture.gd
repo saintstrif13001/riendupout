@@ -170,6 +170,8 @@ func _process(delta: float) -> bool:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
 		elif test_mode == "test_forge_economy":
 			_run_forge_economy_test()
+		elif test_mode == "test_plaine_cull":
+			_run_plaine_cull_test()
 		elif test_mode == "test_network_disconnect_guard":
 			_run_network_disconnect_guard_test()
 		elif test_mode == "test_save_zone_change":
@@ -1336,6 +1338,32 @@ func _run_network_disconnect_guard_test() -> void:
 	var uptime_unchanged = inst.network_uptime == uptime_before
 	inst.multiplayer.multiplayer_peer = original_peer
 	print("TEST_RESULT network_tick_returns_early_with_no_peer=%s no_crash=true" % uptime_unchanged)
+
+func _run_plaine_cull_test() -> void:
+	print("TEST_START:plaine_cull")
+	var data = root.get_node("/root/Data")
+	# ajoute un ennemi de plaine tout frais (dont on est sûr qu'il est vivant)
+	# et un boss de plaine, pour vérifier que seul le premier peut être fauché.
+	var e_normal = inst.spawn_enemy({"x": data.ZONES.plaine.x0 + 100, "y": 300, "type_id": "slime_vert", "respawn_at": 0.0})
+	var boss_type = ""
+	for tid in data.MONSTER_TYPES.keys():
+		if data.MONSTER_TYPES[tid].zone == "plaine" and data.MONSTER_TYPES[tid].get("boss", false):
+			boss_type = tid
+			break
+	var e_boss = inst.spawn_enemy({"x": data.ZONES.plaine.x0 + 120, "y": 300, "type_id": boss_type, "respawn_at": 0.0}) if boss_type != "" else null
+
+	var gold_before = inst.char_data.gold
+	var xp_before = inst.char_data.xp
+	var culled_before = inst.village_economy.get("monsters_culled", 0)
+	var any_culled = false
+	for i in range(40): # la fonction est probabiliste (35%) : répéter pour fiabiliser le test
+		inst._cull_plaine_monsters()
+		if inst.village_economy.get("monsters_culled", 0) > culled_before:
+			any_culled = true
+			break
+	print("TEST_RESULT monster_got_culled=%s normal_enemy_died=%s boss_survived=%s"
+		% [any_culled, e_normal.dead, (e_boss == null or not e_boss.dead)])
+	print("TEST_RESULT2 no_reward_given_to_player=%s" % [inst.char_data.gold == gold_before and inst.char_data.xp == xp_before])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

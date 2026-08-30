@@ -877,6 +877,8 @@ func use_skill(idx: int) -> void:
 				var dmg = roll_damage(player.stats.atk, skill.dmg_mult, skill.get("crit_bonus", 0.0))
 				deal_damage_to_enemy(t.e, dmg)
 				spawn_hit_particles(t.e.global_position, fx_color)
+				if skill.has("immobilize") and not t.e.dead: t.e.apply_immobilize(skill.immobilize)
+				if skill.has("slow_pct") and not t.e.dead: t.e.apply_slow(1.0 - skill.slow_pct, skill.slow_duration)
 		if skill.get("projectile", false) and hits.size() > 0:
 			# L'orbe voyage visiblement jusqu'à la cible avant que les dégâts s'appliquent.
 			spawn_projectile_fx(player.global_position, hits[0].e.global_position, fx_color, apply_hits)
@@ -1147,10 +1149,10 @@ func update_enemies(delta: float) -> void:
 		if best_d < aggro_range and not target.dead:
 			var diff = target.global_position - e.global_position
 			if best_d > 34:
-				var v = diff.normalized() * e.spd
+				var v = diff.normalized() * e.effective_speed()
 				e.velocity = v
 				e.move_and_slide()
-				e.set_anim("right" if diff.x>0 else "left" if abs(diff.x)>abs(diff.y) else ("down" if diff.y>0 else "up"), true)
+				e.set_anim("right" if diff.x>0 else "left" if abs(diff.x)>abs(diff.y) else ("down" if diff.y>0 else "up"), v != Vector2.ZERO)
 			else:
 				e.velocity = Vector2.ZERO
 				var now = Time.get_ticks_msec()/1000.0

@@ -18,6 +18,9 @@ var atk: float
 var edef: float
 var spd: float
 var dead: bool = false
+var cc_until: float = 0.0    # immobilisé (racine) jusqu'à ce timestamp
+var slow_until: float = 0.0
+var slow_factor: float = 1.0
 var dir: String = "down"
 var last_attack: float = 0.0
 var spawn_pos: Vector2
@@ -101,6 +104,19 @@ func set_anim(new_dir: String, moving: bool) -> void:
 	if moving:
 		frame = int(Time.get_ticks_msec() / 150) % 3
 	sprite.region_rect = Rect2(frame * fw, row * fh, fw, fh)
+
+func apply_immobilize(duration: float) -> void:
+	cc_until = max(cc_until, Time.get_ticks_msec() / 1000.0 + duration)
+
+func apply_slow(factor: float, duration: float) -> void:
+	slow_factor = factor
+	slow_until = Time.get_ticks_msec() / 1000.0 + duration
+
+func effective_speed() -> float:
+	var now = Time.get_ticks_msec() / 1000.0
+	if now < cc_until: return 0.0
+	if now < slow_until: return spd * slow_factor
+	return spd
 
 func take_damage(dmg: float) -> float:
 	if dead: return 0.0

@@ -31,7 +31,7 @@ const CLASSES := {
 		"color":Color(0.29,0.56,0.85),
 		"skills":[
 			{"id":"boule_feu","name":"Boule de Feu","key":"skill_q","cd":2.5,"cost":14,"dmg_mult":2.6,"range":260,"projectile":true,"fx_color":Color(1,0.5,0.1),"desc":"Projectile de feu."},
-			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"fx_color":Color(0.5,0.85,1.0),"desc":"Dégâts de zone + ralentit."},
+			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"fx_color":Color(0.5,0.85,1.0),"slow_pct":0.5,"slow_duration":3.0,"desc":"Dégâts de zone + ralentit."},
 		]},
 	"pretre": {"name":"Soigneur/Prêtre", "role":"heal", "desc":"Soigne et protège le groupe.",
 		"base":{"hp":90,"mana":100,"atk":8,"def":5,"spd":150},
@@ -47,7 +47,7 @@ const CLASSES := {
 		"color":Color(0.29,0.85,0.56),
 		"skills":[
 			{"id":"tir_rapide","name":"Tir Rapide","key":"skill_q","cd":1.8,"cost":8,"dmg_mult":1.5,"range":220,"projectile":true,"fx_color":Color(0.55,0.85,0.35),"desc":"Flèche rapide."},
-			{"id":"piege","name":"Piège à Ours","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"fx_color":Color(0.6,0.45,0.2),"desc":"Immobilise un ennemi."},
+			{"id":"piege","name":"Piège à Ours","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"fx_color":Color(0.6,0.45,0.2),"immobilize":2.0,"desc":"Immobilise un ennemi."},
 		]},
 	"voleur": {"name":"Voleur/Assassin", "role":"dps_burst", "desc":"Burst de dégâts et crochetage.",
 		"base":{"hp":95,"mana":40,"atk":12,"def":4,"spd":195},

@@ -156,6 +156,8 @@ func _process(delta: float) -> bool:
 			_run_projectile_target_freed_test()
 		elif test_mode == "test_shield_skill":
 			_run_shield_skill_test()
+		elif test_mode == "test_cc_effects":
+			_run_cc_effects_test()
 		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
 			inst.show_char_create()
 			if test_mode == "test_char_portraits":
@@ -1168,6 +1170,35 @@ func _run_shield_skill_test() -> void:
 	await create_timer(0.6).timeout
 	print("TEST_RESULT3 shield_set_immediately=%s shield_expired_after_duration=%s"
 		% [shield_right_after == 40.0, inst.player.shield == 0.0])
+
+func _run_cc_effects_test() -> void:
+	print("TEST_START:cc_effects")
+	var gs = root.get_node("/root/GameState")
+	# Piège à Ours (archer, skill 1) : promettait d'immobiliser mais ne faisait
+	# que des degats avant ce fix — verifie l'immobilisation reelle.
+	inst.char_data["class"] = "archer"
+	inst.char_data.level = 10
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	inst.player.mana = 999
+	inst.player.cooldowns.clear()
+	var e1 = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": inst.player.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	var spd_before = e1.effective_speed()
+	inst.use_skill(1) # piege
+	var spd_during = e1.effective_speed()
+	print("TEST_RESULT trap_normal_speed_before=%s trap_immobilized_after=%s"
+		% [spd_before > 0.0, spd_during == 0.0])
+
+	# Nova de Glace (mage, skill 1) : degats de zone + ralentissement.
+	inst.char_data["class"] = "mage"
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	inst.player.mana = 999
+	inst.player.cooldowns.clear()
+	var e2 = inst.spawn_enemy({"x": inst.player.global_position.x + 30, "y": inst.player.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	var base_spd = e2.spd
+	inst.use_skill(1) # nova_glace
+	var spd_slowed = e2.effective_speed()
+	print("TEST_RESULT2 nova_slows_target=%s (base=%.1f effectif=%.1f, attendu ~50%%)"
+		% [absf(spd_slowed - base_spd * 0.5) < 0.5, base_spd, spd_slowed])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

@@ -146,6 +146,8 @@ func _process(delta: float) -> bool:
 			_run_npc_collision_test()
 		elif test_mode == "test_prop_collision":
 			_run_prop_collision_test()
+		elif test_mode == "test_enemy_collision":
+			_run_enemy_collision_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -1015,6 +1017,20 @@ func _run_prop_collision_test() -> void:
 	var dist_crate = inst.player.global_position.distance_to(crate_pos)
 	print("TEST_RESULT well_blocked=%s dist_well=%.1f crate_blocked=%s dist_crate=%.1f"
 		% [dist_well > 10.0, dist_well, dist_crate > 5.0, dist_crate])
+
+func _run_enemy_collision_test() -> void:
+	print("TEST_START:enemy_collision")
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 200, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	await create_timer(0.2).timeout # laisse le temps au corps physique fraîchement créé de s'enregistrer
+	var enemy_pos = e.global_position
+	inst.player.global_position = enemy_pos + Vector2(0, 60)
+	var start_pos = inst.player.global_position
+	for i in range(30):
+		inst.player.velocity = (enemy_pos - inst.player.global_position).normalized() * 200.0
+		inst.player.move_and_slide()
+	var dist = inst.player.global_position.distance_to(enemy_pos)
+	var moved = start_pos.distance_to(inst.player.global_position)
+	print("TEST_RESULT enemy_blocks_player=%s dist_to_enemy=%.1f moved=%.1f" % [dist > 5.0, dist, moved])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

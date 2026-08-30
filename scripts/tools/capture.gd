@@ -186,6 +186,8 @@ func _process(delta: float) -> bool:
 			_run_hotbar_test()
 		elif test_mode == "test_player_hit_flash":
 			_run_player_hit_flash_test()
+		elif test_mode == "test_client_enemy_visuals":
+			_run_client_enemy_visuals_test()
 		elif test_mode == "show_player_hit_flash":
 			inst.player.take_damage(30.0)
 		elif test_mode == "show_hotbar":
@@ -1708,6 +1710,46 @@ func _run_player_hit_flash_test() -> void:
 
 	print("TEST_RESULT flashes_on_real_damage=%s restores_original_tint=%s no_flash_while_invulnerable=%s no_flash_when_shield_absorbs_all=%s"
 		% [flashes_on_real_damage, restores_original_tint, no_flash_while_invulnerable, no_flash_when_shield_absorbs_all])
+
+func _run_client_enemy_visuals_test() -> void:
+	print("TEST_START:client_enemy_visuals")
+	# Un client (is_sim=false) ne recevait ni l'anim de deplacement (le
+	# receveur de net_enemy_snapshot forcait "moving=false" en dur) ni
+	# l'anim d'attaque (jamais declenchee que cote hote) : les ennemis
+	# semblaient figes puis infligeaient des degats sans aucun signal visuel
+	# pour quiconque n'etait pas l'hote. Verifie la logique de detection
+	# d'une nouvelle attaque via le timestamp atk_t (play_attack_anim reset
+	# sprite.position a zero de facon synchrone, c'est le signal verifie ici).
+	var was_sim = inst.is_sim
+	inst.is_sim = false
+	var uid = "test_client_enemy_1"
+
+	var snap1 = [{"uid": uid, "type_id": "slime_vert", "x": inst.player.global_position.x + 40, "y": inst.player.global_position.y, "hp": 20.0, "max_hp": 24.0, "dead": false, "dir": "down", "moving": true, "atk_t": 5.0}]
+	inst.net_enemy_snapshot(snap1)
+	var e = inst.enemies.get(uid, null)
+	var enemy_created = e != null
+	var baseline_atk_t_recorded = enemy_created and e.last_seen_atk_t == 5.0
+
+	var no_attack_on_unchanged_atk_t = true
+	var attack_played_on_newer_atk_t = false
+	if enemy_created:
+		e.sprite.position = Vector2(9, 9)
+		var snap_same = [{"uid": uid, "type_id": "slime_vert", "x": e.global_position.x, "y": e.global_position.y, "hp": 20.0, "max_hp": 24.0, "dead": false, "dir": "down", "moving": false, "atk_t": 5.0}]
+		inst.net_enemy_snapshot(snap_same)
+		no_attack_on_unchanged_atk_t = e.sprite.position == Vector2(9, 9)
+
+		var snap_newer = [{"uid": uid, "type_id": "slime_vert", "x": e.global_position.x, "y": e.global_position.y, "hp": 20.0, "max_hp": 24.0, "dead": false, "dir": "down", "moving": false, "atk_t": 6.0}]
+		inst.net_enemy_snapshot(snap_newer)
+		attack_played_on_newer_atk_t = e.sprite.position == Vector2.ZERO and e.last_seen_atk_t == 6.0
+
+	inst.is_sim = was_sim
+	if enemy_created:
+		inst.enemies.erase(uid)
+		e.queue_free()
+
+	var all_ok = enemy_created and baseline_atk_t_recorded and no_attack_on_unchanged_atk_t and attack_played_on_newer_atk_t
+	print("TEST_RESULT all_ok=%s enemy_created=%s baseline_atk_t_recorded=%s no_attack_on_unchanged_atk_t=%s attack_played_on_newer_atk_t=%s"
+		% [all_ok, enemy_created, baseline_atk_t_recorded, no_attack_on_unchanged_atk_t, attack_played_on_newer_atk_t])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

@@ -23,6 +23,7 @@ var slow_until: float = 0.0
 var slow_factor: float = 1.0
 var dir: String = "down"
 var last_attack: float = 0.0
+var last_seen_atk_t: float = 0.0 # côté client réseau : détecte une nouvelle attaque via net_enemy_snapshot
 var spawn_pos: Vector2
 var triggered_phases: Dictionary = {}
 

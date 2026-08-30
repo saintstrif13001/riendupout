@@ -1474,7 +1474,7 @@ func network_tick(delta: float) -> void:
 				for pp in player_positions:
 					if e.global_position.distance_to(pp) < relevance_range: near = true; break
 				if not near: continue
-				snap.append({"uid": uid, "type_id": e.type_id, "x": e.global_position.x, "y": e.global_position.y, "hp": e.hp, "max_hp": e.max_hp, "dead": e.dead, "dir": e.dir})
+				snap.append({"uid": uid, "type_id": e.type_id, "x": e.global_position.x, "y": e.global_position.y, "hp": e.hp, "max_hp": e.max_hp, "dead": e.dead, "dir": e.dir, "moving": e.velocity.length() > 5.0, "atk_t": e.last_attack})
 			if not snap.is_empty():
 				rpc("net_enemy_snapshot", snap)
 
@@ -1492,15 +1492,24 @@ func net_enemy_snapshot(snap: Array) -> void:
 	if is_sim: return
 	for s in snap:
 		var e: Enemy = enemies.get(s.uid, null)
-		if e == null:
+		# Un client ne recevait ni l'anim de déplacement (toujours "moving=false"
+		# ci-dessous) ni l'anim d'attaque (jamais déclenchée que côté hôte) :
+		# les ennemis semblaient figés puis infligeaient des dégâts sans aucun
+		# signal visuel pour quiconque n'était pas l'hôte.
+		var just_spawned = e == null
+		if just_spawned:
 			e = EnemyScene.instantiate()
 			$Enemies.add_child(e)
 			e.setup(s.type_id, s.uid, 1)
 			enemies[s.uid] = e
 		e.global_position = Vector2(s.x, s.y)
 		e.hp = s.hp; e.max_hp = s.max_hp
-		e.set_anim(s.dir, false)
+		e.set_anim(s.dir, s.get("moving", false))
 		e.update_visuals()
+		var atk_t = s.get("atk_t", 0.0)
+		if not just_spawned and atk_t > e.last_seen_atk_t:
+			e.play_attack_anim()
+		e.last_seen_atk_t = atk_t
 		if s.dead and not e.dead: e.die()
 
 func ensure_remote_player(pid: int) -> Player:

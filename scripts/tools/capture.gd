@@ -144,6 +144,8 @@ func _process(delta: float) -> bool:
 			_run_foret_decor_test()
 		elif test_mode == "test_caverne_decor":
 			_run_caverne_decor_test()
+		elif test_mode == "test_marais_decor":
+			_run_marais_decor_test()
 		elif test_mode == "test_plaine_decor":
 			_run_plaine_decor_test()
 		elif test_mode == "test_npc_collision":
@@ -1292,6 +1294,25 @@ func _run_caverne_decor_test() -> void:
 		elif c is ColorRect and c.size.y < 3: bone_colorrects += 1 # ossements : fins et courts, contrairement aux torches
 	print("TEST_RESULT rock_and_crystal_polygons_in_caverne=%d (attendu >= 110, dont 70 rochers génériques + cristaux) crystal_and_torch_lights_in_caverne=%d (attendu >= 30) bone_colorrects_in_caverne=%d (attendu >= 55)"
 		% [rock_and_crystal_polygons, lights_in_caverne, bone_colorrects])
+
+func _run_marais_decor_test() -> void:
+	print("TEST_START:marais_decor")
+	# Le marais n'avait que les arbres/touffes génériques : ni eau stagnante,
+	# ni roseaux, ni feux follets — rien qui évoque un bourbier hanté.
+	var data = root.get_node("/root/Data")
+	var decor = inst.get_node("Decor")
+	var marais = data.ZONES.marais
+	var reed_blades = 0
+	var puddles = 0
+	var lights = 0 # feux follets + torches génériques de build_props() dans cette zone dangereuse
+	for c in decor.get_children():
+		if c.position.x < marais.x0 or c.position.x > marais.x1: continue
+		if c is Polygon2D:
+			if c.polygon.size() == 3: reed_blades += 1 # roseaux : triangles fins
+			else: puddles += 1 # mares : polygones à 10 sommets
+		elif c is PointLight2D: lights += 1
+	print("TEST_RESULT reed_blades_in_marais=%d (attendu >= 100) puddles_in_marais=%d (attendu >= 18) wisp_and_torch_lights_in_marais=%d (attendu >= 20)"
+		% [reed_blades, puddles, lights])
 
 func _run_npc_collision_test() -> void:
 	print("TEST_START:npc_collision")

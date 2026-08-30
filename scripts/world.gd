@@ -218,6 +218,7 @@ func draw_world() -> void:
 	build_plaine_decor()
 	build_foret_decor()
 	build_caverne_decor()
+	build_marais_decor()
 
 func build_plaine_decor() -> void:
 	# La plaine était restée plate/verte alors que le village a été détaillé —
@@ -391,6 +392,77 @@ func _spawn_bone_pile(x: int, y: int) -> void:
 		bone.rotation = randf_range(0, PI)
 		bone.z_index = int(y)
 		$Decor.add_child(bone)
+
+func build_marais_decor() -> void:
+	# Le marais n'avait que les arbres/touffes génériques : aucune eau stagnante,
+	# aucun roseau, aucun feu follet pour évoquer un bourbier hanté par les
+	# zombies, contrairement aux trois autres zones déjà détaillées.
+	var marais = Data.ZONES.marais
+	seed(6633)
+	for i in range(34):
+		var x = randi_range(int(marais.x0) + 60, int(marais.x1) - 60)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		_spawn_reed_cluster(x, y)
+	for i in range(22):
+		var x = randi_range(int(marais.x0) + 60, int(marais.x1) - 60)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		_spawn_murky_puddle(x, y)
+	for i in range(16):
+		var x = randi_range(int(marais.x0) + 80, int(marais.x1) - 80)
+		var y = randi_range(100, int(Data.WORLD_HEIGHT) - 20)
+		_spawn_will_o_wisp(x, y)
+
+func _spawn_reed_cluster(x: int, y: int) -> void:
+	var count = randi_range(3, 5)
+	for i in range(count):
+		var ox = randf_range(-10, 10)
+		var h = randf_range(14, 24)
+		var blade = Polygon2D.new()
+		blade.polygon = PackedVector2Array([Vector2(-1.5, 0), Vector2(1.5, 0), Vector2(0.5, -h)])
+		blade.color = Color(0.35, 0.42, 0.22) if randf() < 0.6 else Color(0.45, 0.36, 0.2)
+		blade.position = Vector2(x + ox, y)
+		blade.z_index = int(y)
+		$Decor.add_child(blade)
+		var sway = create_tween().set_loops()
+		sway.tween_property(blade, "rotation", randf_range(0.08, 0.16), randf_range(1.2, 1.8)).set_trans(Tween.TRANS_SINE).set_delay(randf())
+		sway.tween_property(blade, "rotation", -randf_range(0.08, 0.16), randf_range(1.2, 1.8)).set_trans(Tween.TRANS_SINE)
+
+func _spawn_murky_puddle(x: int, y: int) -> void:
+	var puddle = Polygon2D.new()
+	var w = randf_range(18, 34)
+	var h = w * randf_range(0.4, 0.55)
+	var pts = PackedVector2Array()
+	for i in range(10):
+		var a = i / 10.0 * TAU
+		var jitter = randf_range(0.85, 1.15)
+		pts.append(Vector2(cos(a) * w / 2.0, sin(a) * h / 2.0) * jitter)
+	puddle.polygon = pts
+	puddle.color = Color(0.16, 0.2, 0.12, 0.65)
+	puddle.position = Vector2(x, y)
+	puddle.z_index = -6
+	$Decor.add_child(puddle)
+	# Bulles de gaz occasionnelles : le marais a l'air vivant, pas juste peint au sol.
+	var ripple = create_tween().set_loops()
+	ripple.tween_property(puddle, "scale", Vector2(1.06, 1.06), randf_range(1.5, 2.2)).set_trans(Tween.TRANS_SINE).set_delay(randf() * 2.0)
+	ripple.tween_property(puddle, "scale", Vector2(1.0, 1.0), randf_range(1.5, 2.2)).set_trans(Tween.TRANS_SINE)
+
+func _spawn_will_o_wisp(x: int, y: int) -> void:
+	var glow = PointLight2D.new()
+	glow.texture = _radial_light_texture()
+	glow.position = Vector2(x, y)
+	glow.color = Color(0.55, 0.95, 0.75)
+	glow.energy = 0.55
+	glow.texture_scale = 0.45
+	glow.z_index = int(y) + 3
+	$Decor.add_child(glow)
+	var dx = randf_range(-20, 20)
+	var dy = randf_range(-16, 16)
+	var drift = create_tween().set_loops()
+	drift.tween_property(glow, "position", Vector2(x + dx, y + dy), randf_range(3.0, 5.0)).set_trans(Tween.TRANS_SINE)
+	drift.tween_property(glow, "position", Vector2(x, y), randf_range(3.0, 5.0)).set_trans(Tween.TRANS_SINE)
+	var pulse = create_tween().set_loops()
+	pulse.tween_property(glow, "energy", 1.0, 0.7).set_trans(Tween.TRANS_SINE).set_delay(randf())
+	pulse.tween_property(glow, "energy", 0.2, 0.9).set_trans(Tween.TRANS_SINE)
 
 func _spawn_hay_bale(x: int, y: int) -> void:
 	var bale = Polygon2D.new()

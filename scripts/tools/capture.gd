@@ -172,6 +172,8 @@ func _process(delta: float) -> bool:
 			_run_forge_economy_test()
 		elif test_mode == "test_plaine_cull":
 			_run_plaine_cull_test()
+		elif test_mode == "test_audio_system":
+			_run_audio_system_test()
 		elif test_mode == "test_progression_stats_display":
 			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
@@ -1417,6 +1419,51 @@ func _run_progression_stats_display_test() -> void:
 	print("TEST_RESULT progression_shown=%s text=%s" % [lbl != null, lbl.text if lbl else ""])
 	var counts_correct = lbl != null and "3 quêtes" in lbl.text and "1 prime" in lbl.text
 	print("TEST_RESULT2 counts_and_plurals_correct=%s" % counts_correct)
+
+func _any_pool_player_playing_stream(audio, path: String) -> bool:
+	for p in audio._pool:
+		if p.playing and p.stream != null and p.stream.resource_path == path:
+			return true
+	return false
+
+func _run_audio_system_test() -> void:
+	print("TEST_START:audio_system")
+	var audio = root.get_node("/root/Audio")
+	# Le jeu etait totalement silencieux avant cette iteration (aucun
+	# AudioStreamPlayer nulle part) - verifie que chaque effet sonore declare
+	# charge correctement (fichier present, pas corrompu) et que les vrais
+	# points d'accroche en jeu declenchent bien la lecture.
+	var all_load_ok = true
+	for key in audio.SFX.keys():
+		if audio._load(key) == null:
+			all_load_ok = false
+			print("TEST_MISSING_SFX key=%s path=%s" % [key, audio.SFX[key]])
+	print("TEST_STATE all_%d_sfx_load_ok=%s" % [audio.SFX.size(), all_load_ok])
+
+	audio.play("attack_hit")
+	var attack_sound_played = _any_pool_player_playing_stream(audio, audio.SFX.attack_hit)
+
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 30, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	inst.basic_attack()
+	var hit_sound_played = _any_pool_player_playing_stream(audio, audio.SFX.attack_hit)
+
+	var gs = root.get_node("/root/GameState")
+	inst.char_data["class"] = "guerrier"
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	inst.player.mana = 999
+	inst.player.cooldowns.clear()
+	inst.use_skill(0)
+	var skill_sound_played = _any_pool_player_playing_stream(audio, audio.SFX.skill_cast)
+
+	if not inst.gather_nodes.is_empty():
+		var g = inst.gather_nodes[0]
+		g.depleted = false
+		inst.near_target = {"type": "gather", "ref": g}
+		inst.try_interact()
+	var gather_sound_played = _any_pool_player_playing_stream(audio, audio.SFX.item_pickup)
+
+	print("TEST_RESULT attack_sound_played=%s hit_sound_played=%s skill_sound_played=%s gather_sound_played=%s"
+		% [attack_sound_played, hit_sound_played, skill_sound_played, gather_sound_played])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

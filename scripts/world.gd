@@ -543,6 +543,8 @@ func open_chest(c: Dictionary) -> void:
 	c.lid.color = Color(0.3, 0.22, 0.12) # intérieur du coffre, plus sombre une fois ouvert
 	char_data.gold += c.gold
 	float_text(Vector2(c.x, c.y - 24), "+%d or" % c.gold, Color(1.0, 0.85, 0.3))
+	Audio.play("chest_open")
+	Audio.play("gold_pickup", -6.0)
 	emit_signal("hud_update", make_hud_data())
 
 func _build_ground_mosaic(z: Dictionary) -> void:
@@ -841,6 +843,7 @@ func basic_attack() -> void:
 	var dmg = roll_damage(player.stats.atk, 1.0, 0.0)
 	deal_damage_to_enemy(targets[0].e, dmg)
 	spawn_hit_particles(targets[0].e.global_position, Color(1, 0.9, 0.7), 6)
+	Audio.play("attack_hit", -4.0, 0.1)
 
 func use_skill(idx: int) -> void:
 	var cls = Data.CLASSES[char_data["class"]]
@@ -854,6 +857,7 @@ func use_skill(idx: int) -> void:
 		return
 	player.cooldowns[cd_key] = now + skill.cd
 	player.mana -= skill.cost
+	Audio.play("skill_cast", -3.0, 0.06)
 
 	if skill.has("heal"):
 		var heal_range = skill.get("range", 180.0)
@@ -1148,6 +1152,7 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 	if res.leveled:
 		float_text(p.global_position + Vector2(0,-80), "NIVEAU %d !" % p.char_data.level, Color(1,0.4,1))
 		if p == player:
+			Audio.play("level_up", -2.0)
 			save_now()
 			var tier = GameState.pending_talent(p.char_data)
 			if not tier.is_empty(): emit_signal("talent_available", tier)
@@ -1202,6 +1207,7 @@ func update_enemies(delta: float) -> void:
 						emit_signal("hud_update", make_hud_data())
 						if player.dead:
 							float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
+							Audio.play("death")
 							on_player_died()
 							if hud: hud.fade_out(0.5)
 		else:
@@ -1318,6 +1324,7 @@ func try_interact() -> void:
 		float_text(Vector2(g.node.x, g.node.y - 20), "+1 " + Data.ITEMS[mat].name, Color(0.75,1,0.75))
 		char_data.gather_counts[mat] = char_data.gather_counts.get(mat, 0) + 1
 		update_quest_progress("gather", mat)
+		Audio.play("item_pickup", 0.0, 0.08)
 		emit_signal("hud_update", make_hud_data())
 	elif near_target.type == "npc":
 		emit_signal("open_npc", near_target.ref.npc)

@@ -340,7 +340,7 @@ func _add_button(box, text: String, cb: Callable) -> Button:
 	var b = Button.new()
 	b.text = text
 	b.custom_minimum_size = Vector2(0, 36)
-	b.pressed.connect(cb)
+	b.pressed.connect(func(): Audio.play("ui_click", -10.0); cb.call())
 	box.add_child(b)
 	return b
 
@@ -426,7 +426,7 @@ func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.flat = true
 		b.tooltip_text = item_tooltip_text(item_id)
-		b.pressed.connect(cb)
+		b.pressed.connect(func(): Audio.play("ui_click", -10.0); cb.call())
 		row.add_child(b)
 		return b
 
@@ -438,6 +438,7 @@ func _on_open_npc(npc: Dictionary) -> void:
 	# Sans ça, les quêtes de type "talk" (dont q_intro, la toute première quête)
 	# ne pouvaient jamais être complétées : parler au PNJ n'incrémentait rien.
 	world.update_quest_progress("talk", npc.id)
+	Audio.play("dialogue_open", -6.0)
 	render_npc_dialogue()
 	dialogue_overlay.visible = true
 
@@ -616,6 +617,8 @@ func turn_in_quest(qid: String) -> void:
 		cd.reputation[faction] = cd.reputation.get(faction, 0) + rep_gain
 		world.float_text(world.player.global_position + Vector2(0,-100), "+%d réputation (%s)" % [rep_gain, Data.FACTIONS[faction].name], Color(0.6,0.85,1))
 	world.float_text(world.player.global_position + Vector2(0,-60), "Quete terminee: " + q.name, Color(1,0.88,0.4))
+	Audio.play("quest_complete")
+	if res.leveled: Audio.play("level_up", -2.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	world.save_now()
 	_render_quests()
@@ -630,6 +633,7 @@ func buy_item(key: String) -> void:
 	eco.potion_stock -= 1
 	eco.potion_price = clampi(25 - eco.potion_stock, 8, 25)
 	cd.inventory[key] = cd.inventory.get(key, 0) + 1
+	Audio.play("gold_pickup", -8.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()
 
@@ -642,6 +646,7 @@ func buy_forged_weapon() -> void:
 	eco.arme_stock -= 1
 	eco.arme_price = clampi(70 - eco.arme_stock * 5, 25, 70)
 	cd.inventory["epee_fer"] = cd.inventory.get("epee_fer", 0) + 1
+	Audio.play("gold_pickup", -8.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()
 
@@ -653,6 +658,7 @@ func buy_faction_item(key: String) -> void:
 	if cd.gold < it.price: return
 	cd.gold -= it.price
 	cd.inventory[key] = cd.inventory.get(key, 0) + 1
+	Audio.play("gold_pickup", -8.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	world.save_now()
 	render_npc_dialogue()
@@ -836,5 +842,6 @@ func use_item(id: String) -> void:
 	cd.inventory[id] -= 1
 	if it.has("heal"): world.player.heal(it.heal)
 	if it.has("mana"): world.player.mana = min(world.player.stats.max_mana, world.player.mana + it.mana)
+	Audio.play("potion_drink")
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_inventory()

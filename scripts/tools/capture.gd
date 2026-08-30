@@ -104,8 +104,8 @@ func _process(delta: float) -> bool:
 			var hud2 = inst.get_node("Hud")
 			inst.char_data.inventory["armure_plates"] = 1
 			hud2.equip_item("armure_plates")
-			print("TEST_RESULT armor_equipped=%s legs_modulate=%s equip_label=%s"
-				% [inst.char_data.equipment.armor, inst.player.legs_sprite.modulate, inst.player.equip_label.text])
+			print("TEST_RESULT armor_equipped=%s legs_modulate=%s armor_icon_visible=%s"
+				% [inst.char_data.equipment.armor, inst.player.legs_sprite.modulate, inst.player.equip_icon_armor.visible])
 		elif test_mode == "show_inventory_search":
 			var hud3 = inst.get_node("Hud")
 			inst.char_data.inventory = {"minerai":5,"bois":2,"epee_fer":1,"potion_vie":3}

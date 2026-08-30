@@ -258,23 +258,54 @@ func spawn_local_player() -> void:
 func build_npcs() -> void:
 	var npc_body_tex = load("res://assets/sprites/player/body_walk.png")
 	var npc_head_tex = load("res://assets/sprites/player/head_walk.png")
+	var npc_legs_tex = load("res://assets/sprites/player/legs_walk.png")
+	var npc_hair_tex = load("res://assets/sprites/player/hair_walk.png")
+	var vest_texs = [
+		load("res://assets/sprites/player/vest_tan_walk.png"),
+		load("res://assets/sprites/player/vest_navy_walk.png"),
+		load("res://assets/sprites/player/vest_maroon_walk.png"),
+		load("res://assets/sprites/player/vest_forest_walk.png"),
+	]
+	var region = Rect2(2*64, 2*64, 64, 64)
+	var idx = 0
 	for npc in Data.NPCS:
 		var node = Node2D.new()
 		node.position = Vector2(npc.x, npc.y)
+		var legs = Sprite2D.new()
+		legs.texture = npc_legs_tex
+		legs.region_enabled = true; legs.region_rect = region
+		legs.z_index = 0
+		node.add_child(legs)
 		var spr = Sprite2D.new()
 		spr.texture = npc_body_tex
 		spr.region_enabled = true
-		spr.region_rect = Rect2(2*64, 2*64, 64, 64)
+		spr.region_rect = region
 		spr.modulate = npc.tint
 		spr.z_index = 1
 		node.add_child(spr)
+		var vest = Sprite2D.new()
+		vest.texture = vest_texs[idx % vest_texs.size()]
+		vest.region_enabled = true; vest.region_rect = region
+		vest.z_index = 2
+		node.add_child(vest)
+		var hair = Sprite2D.new()
+		hair.texture = npc_hair_tex
+		hair.region_enabled = true; hair.region_rect = region
+		hair.modulate = Color(0.25, 0.16, 0.1)
+		hair.z_index = 3
+		node.add_child(hair)
 		var head = Sprite2D.new()
 		head.texture = npc_head_tex
 		head.region_enabled = true
-		head.region_rect = Rect2(2*64, 2*64, 64, 64)
+		head.region_rect = region
 		head.modulate = npc.tint
-		head.z_index = 2
+		head.z_index = 3
 		node.add_child(head)
+		idx += 1
+		# petite animation d'idle (respiration) pour que les PNJ ne soient pas figés
+		var tw = create_tween().set_loops()
+		tw.tween_property(node, "position:y", npc.y - 2.0, 1.1).set_trans(Tween.TRANS_SINE).set_delay(randf()*1.0)
+		tw.tween_property(node, "position:y", npc.y, 1.1).set_trans(Tween.TRANS_SINE)
 		var label = Label.new()
 		label.text = npc.name
 		label.position = Vector2(-50, -54)

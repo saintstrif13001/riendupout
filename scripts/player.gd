@@ -25,6 +25,8 @@ var head_tex: Texture2D
 
 @onready var legs_sprite: Sprite2D = $Legs
 @onready var body_sprite: Sprite2D = $Body
+@onready var vest_sprite: Sprite2D = $Vest
+@onready var hair_sprite: Sprite2D = $Hair
 @onready var head_sprite: Sprite2D = $Head
 @onready var name_label: Label = $NameLabel
 @onready var equip_icon_weapon: Sprite2D = $EquipIconWeapon
@@ -46,17 +48,26 @@ func setup(cd: Dictionary, local: bool, pid: int) -> void:
 	body_tex = load("res://assets/sprites/player/body_walk.png")
 	legs_tex = load("res://assets/sprites/player/legs_walk.png")
 	head_tex = load("res://assets/sprites/player/head_walk.png")
+	var vest_tex = load("res://assets/sprites/player/vest_tan_walk.png")
+	var hair_tex = load("res://assets/sprites/player/hair_walk.png")
 
 	body_sprite.texture = body_tex
 	legs_sprite.texture = legs_tex
 	head_sprite.texture = head_tex
-	for spr in [body_sprite, legs_sprite, head_sprite]:
+	vest_sprite.texture = vest_tex
+	hair_sprite.texture = hair_tex
+	for spr in [body_sprite, legs_sprite, head_sprite, vest_sprite, hair_sprite]:
 		spr.region_enabled = true
 		spr.region_rect = Rect2(0, 2*FH, FW, FH)
 		spr.centered = true
-	body_sprite.z_index = 1
-	head_sprite.z_index = 2
 	legs_sprite.z_index = 0
+	body_sprite.z_index = 1
+	vest_sprite.z_index = 2
+	hair_sprite.z_index = 3
+	head_sprite.z_index = 4
+	hair_sprite.modulate = Color(0.25, 0.16, 0.1)
+	var cls = Data.CLASSES[cd["class"]]
+	vest_sprite.modulate = cls.color
 
 	var race = Data.RACES[cd.race]
 	body_sprite.modulate = race.tint
@@ -110,6 +121,8 @@ func set_anim(new_dir: String, is_moving: bool) -> void:
 	body_sprite.region_rect = rect
 	legs_sprite.region_rect = rect
 	head_sprite.region_rect = rect
+	vest_sprite.region_rect = rect
+	hair_sprite.region_rect = rect
 
 func take_damage(dmg: float) -> float:
 	if dead: return 0.0

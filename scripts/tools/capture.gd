@@ -168,6 +168,8 @@ func _process(delta: float) -> bool:
 			for c in decor2.get_children():
 				if c is ColorRect and c.size.x > 60 and c.size.x < 130 and c.size.y > 50 and c.size.y < 90:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
+		elif test_mode == "test_forge_economy":
+			_run_forge_economy_test()
 		elif test_mode == "show_village_center":
 			inst.player.global_position = Vector2(600, 480)
 			var cam2 = inst.player.get_node_or_null("Camera2D")
@@ -1216,6 +1218,37 @@ func _run_cc_effects_test() -> void:
 	var spd_slowed = e2.effective_speed()
 	print("TEST_RESULT2 nova_slows_target=%s (base=%.1f effectif=%.1f, attendu ~50%%)"
 		% [absf(spd_slowed - base_spd * 0.5) < 0.5, base_spd, spd_slowed])
+
+func _run_forge_economy_test() -> void:
+	print("TEST_START:forge_economy")
+	var hud = inst.get_node("Hud")
+	var eco = inst.village_economy
+	eco.minerai_stock = 0
+	eco.arme_stock = 0
+	eco.arme_price = 70
+	for i in range(3):
+		inst.update_village_economy(inst.ECONOMY_TICK_INTERVAL + 0.1)
+	print("TEST_STATE minerai_stock=%d arme_stock=%d arme_price=%d" % [eco.minerai_stock, eco.arme_stock, eco.arme_price])
+	var stock_grew = eco.arme_stock > 0
+	var price_tracks_stock = eco.arme_price == clampi(70 - eco.arme_stock * 5, 25, 70)
+
+	inst.char_data.gold = 500
+	var stock_before = eco.arme_stock
+	var price_before = eco.arme_price
+	var gold_before = inst.char_data.gold
+	var inv_before = inst.char_data.inventory.get("epee_fer", 0)
+	hud.buy_forged_weapon()
+	var stock_consumed = eco.arme_stock == stock_before - 1
+	var paid_dynamic_price = (gold_before - inst.char_data.gold) == price_before
+	var item_received = inst.char_data.inventory.get("epee_fer", 0) == inv_before + 1
+
+	eco.arme_stock = 0
+	var inv2_before = inst.char_data.inventory.get("epee_fer", 0)
+	hud.buy_forged_weapon()
+	var blocked_when_out_of_stock = inst.char_data.inventory.get("epee_fer", 0) == inv2_before
+
+	print("TEST_RESULT stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s item_received=%s blocked_when_out_of_stock=%s"
+		% [stock_grew, price_tracks_stock, stock_consumed, paid_dynamic_price, item_received, blocked_when_out_of_stock])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

@@ -33,7 +33,10 @@ var economy_tick_accum: float = 0.0
 # même quand le joueur n'interagit avec personne. Première version volontairement
 # simple — le maillon "un guerrier réduit la population de monstres pour les
 # cueilleurs" n'est pas encore simulé (le joueur en tient déjà ce rôle en jeu réel).
-var village_economy := {"herbe_stock": 12, "potion_stock": 6, "potion_price": 15}
+var village_economy := {
+	"herbe_stock": 12, "potion_stock": 6, "potion_price": 15,
+	"minerai_stock": 10, "arme_stock": 3, "arme_price": 40,
+}
 var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
 var death_zone_id: String = "village"
@@ -61,6 +64,11 @@ func update_village_economy(delta: float) -> void:
 		e.herbe_stock -= 4
 		e.potion_stock += 1 # l'alchimiste transforme les herbes en potions
 	e.potion_price = clampi(25 - e.potion_stock, 8, 25) # plus de stock = moins cher
+	e.minerai_stock += randi_range(1, 2) # un mineur ramène du minerai
+	while e.minerai_stock >= 6 and e.arme_stock < 10:
+		e.minerai_stock -= 6
+		e.arme_stock += 1 # Grondar forge une arme de plus
+	e.arme_price = clampi(70 - e.arme_stock * 5, 25, 70) # plus de stock = moins cher
 
 func update_zone_lighting(zid: String) -> void:
 	if zid == current_zone_light_id: return

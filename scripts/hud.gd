@@ -482,6 +482,17 @@ func render_npc_dialogue() -> void:
 			var btn = _add_item_row(dialogue_box, key, label, func(): buy_faction_item(key))
 			btn.disabled = not unlocked
 
+	if npc.id == "forgeron_pnj":
+		var eco2 = world.village_economy
+		_add_title(dialogue_box, "Armurerie", 14)
+		var arme_lbl = Label.new()
+		arme_lbl.text = "Grondar a %d épées de fer en stock (prix ajusté selon la demande)." % eco2.arme_stock
+		arme_lbl.add_theme_font_size_override("font_size", 12)
+		arme_lbl.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
+		dialogue_box.add_child(arme_lbl)
+		var arme_btn = _add_item_row(dialogue_box, "epee_fer", "Épée de Fer - %d or" % eco2.arme_price, func(): buy_forged_weapon())
+		arme_btn.disabled = eco2.arme_stock <= 0
+
 	if npc.role == "profession":
 		var prof = Data.PROFESSIONS[npc.profession]
 		_add_title(dialogue_box, "Metier: " + prof.name, 15)
@@ -577,6 +588,18 @@ func buy_item(key: String) -> void:
 	eco.potion_stock -= 1
 	eco.potion_price = clampi(25 - eco.potion_stock, 8, 25)
 	cd.inventory[key] = cd.inventory.get(key, 0) + 1
+	world.emit_signal("hud_update", world.make_hud_data())
+	render_npc_dialogue()
+
+func buy_forged_weapon() -> void:
+	var cd = world.char_data
+	var eco = world.village_economy
+	if eco.arme_stock <= 0: return # Grondar n'a plus rien en stock pour l'instant
+	if cd.gold < eco.arme_price: return
+	cd.gold -= eco.arme_price
+	eco.arme_stock -= 1
+	eco.arme_price = clampi(70 - eco.arme_stock * 5, 25, 70)
+	cd.inventory["epee_fer"] = cd.inventory.get("epee_fer", 0) + 1
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()
 

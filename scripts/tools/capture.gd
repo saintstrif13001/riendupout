@@ -196,6 +196,10 @@ func _process(delta: float) -> bool:
 			hud_o.options_overlay.visible = true
 		elif test_mode == "test_char_customization":
 			_run_char_customization_test()
+		elif test_mode == "test_teleporter":
+			_run_teleporter_test()
+		elif test_mode == "test_camera_zoom":
+			_run_camera_zoom_test()
 		elif test_mode == "test_quit_to_menu":
 			_run_quit_to_menu_test()
 		elif test_mode == "show_player_hit_flash":
@@ -1872,6 +1876,62 @@ func _run_char_customization_test() -> void:
 	var all_ok = hair_color_persisted and default_hair_color_unchanged and hair_applied_on_setup and hair_applied_on_respawn
 	print("TEST_RESULT all_ok=%s hair_color_persisted=%s default_hair_color_unchanged=%s hair_applied_on_setup=%s hair_applied_on_respawn=%s"
 		% [all_ok, hair_color_persisted, default_hair_color_unchanged, hair_applied_on_setup, hair_applied_on_respawn])
+
+func _run_teleporter_test() -> void:
+	print("TEST_START:teleporter")
+	# Le voyage rapide n'existait que via un menu abstrait (touche M), sans
+	# aucun repère visible dans le monde. Vérifie qu'un portail existe par
+	# zone, qu'il est bien détecté comme interactible (near_target) une fois
+	# le joueur à proximité, et que F ouvre le même menu de voyage que M.
+	var data = root.get_node("/root/Data")
+	var one_per_zone = inst.teleporter_nodes.size() == data.ZONES.size()
+
+	var tp = inst.teleporter_nodes[0]
+	inst.player.global_position = Vector2(tp.x, tp.y)
+	inst.update_near_interactable()
+	var detected_as_nearest = inst.near_target != null and inst.near_target.type == "teleporter"
+
+	var hud = inst.get_node("Hud")
+	hud.travel_overlay.visible = false
+	inst.try_interact()
+	var opens_travel_menu = hud.travel_overlay.visible == true
+
+	print("TEST_RESULT one_per_zone=%s detected_as_nearest=%s opens_travel_menu=%s"
+		% [one_per_zone, detected_as_nearest, opens_travel_menu])
+
+func _run_camera_zoom_test() -> void:
+	print("TEST_START:camera_zoom")
+	# Le niveau de zoom de la camera etait totalement fige (1.6 code en dur,
+	# aucune entree utilisateur geree) : verifie que la molette de souris
+	# zoome/dezoome et que les bornes min/max sont respectees.
+	var cam = inst.player_camera
+	var camera_found = cam != null
+	cam.zoom = Vector2(1.6, 1.6)
+
+	var ev_up = InputEventMouseButton.new()
+	ev_up.button_index = MOUSE_BUTTON_WHEEL_UP
+	ev_up.pressed = true
+	inst._unhandled_input(ev_up)
+	var zoomed_in_on_wheel_up = cam.zoom.x > 1.6
+
+	var ev_down = InputEventMouseButton.new()
+	ev_down.button_index = MOUSE_BUTTON_WHEEL_DOWN
+	ev_down.pressed = true
+	inst._unhandled_input(ev_down)
+	inst._unhandled_input(ev_down)
+	var zoomed_out_on_wheel_down = cam.zoom.x < 1.6
+
+	cam.zoom = Vector2(inst.CAMERA_ZOOM_MAX, inst.CAMERA_ZOOM_MAX)
+	inst._unhandled_input(ev_up)
+	var clamped_at_max = absf(cam.zoom.x - inst.CAMERA_ZOOM_MAX) < 0.001 # Vector2 est en float32, comparaison exacte peu fiable
+
+	cam.zoom = Vector2(inst.CAMERA_ZOOM_MIN, inst.CAMERA_ZOOM_MIN)
+	inst._unhandled_input(ev_down)
+	var clamped_at_min = absf(cam.zoom.x - inst.CAMERA_ZOOM_MIN) < 0.001
+
+	var all_ok = camera_found and zoomed_in_on_wheel_up and zoomed_out_on_wheel_down and clamped_at_max and clamped_at_min
+	print("TEST_RESULT all_ok=%s camera_found=%s zoomed_in_on_wheel_up=%s zoomed_out_on_wheel_down=%s clamped_at_max=%s clamped_at_min=%s"
+		% [all_ok, camera_found, zoomed_in_on_wheel_up, zoomed_out_on_wheel_down, clamped_at_max, clamped_at_min])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

@@ -26,6 +26,11 @@ var net_enemy_accum: float = 0.0
 var npc_nodes: Array = []
 var gather_nodes: Array = []
 var chest_nodes: Array = []
+var teleporter_nodes: Array = []
+var player_camera: Camera2D = null
+const CAMERA_ZOOM_MIN := 0.9
+const CAMERA_ZOOM_MAX := 2.6
+const CAMERA_ZOOM_STEP := 0.15
 var economy_tick_accum: float = 0.0
 # Économie villageoise simulée : une cueilleuse récolte des herbes, l'alchimiste
 # les transforme en potions en arrière-plan, et le prix en boutique varie selon
@@ -116,6 +121,7 @@ func _ready() -> void:
 	canvas_modulate.color = ZONE_LIGHT.get(start_zid, Color(1, 1, 1))
 	build_npcs()
 	refresh_quest_icons()
+	build_teleporters()
 	build_gather_nodes()
 	if char_data.bloodstain: spawn_bloodstain_marker()
 	if is_sim:
@@ -590,6 +596,7 @@ func spawn_local_player() -> void:
 	cam.position_smoothing_enabled = true
 	player.add_child(cam)
 	cam.make_current()
+	player_camera = cam
 
 const NPC_HAIR_COLORS := [
 	Color(0.25, 0.16, 0.1),  # brun
@@ -599,6 +606,37 @@ const NPC_HAIR_COLORS := [
 	Color(0.4, 0.12, 0.06),  # roux
 	Color(0.6, 0.6, 0.63),   # gris
 ]
+
+func build_teleporters() -> void:
+	# Le voyage rapide n'existait que via un menu abstrait (touche M) : ajoute
+	# un vrai portail visible et interactif dans chaque zone (façon "Zaap"),
+	# repère de navigation en plus de l'option de menu qui reste disponible.
+	for zid in Data.ZONES.keys():
+		var z = Data.ZONES[zid]
+		var pos = Vector2(z.x0 + 200, Data.WORLD_HEIGHT / 2.0 + 90)
+		var node = Node2D.new()
+		node.position = pos
+		node.z_index = int(pos.y)
+		var ring = Polygon2D.new()
+		ring.polygon = _ring_points(26.0)
+		ring.color = Color(0.55, 0.35, 0.95, 0.8)
+		node.add_child(ring)
+		var inner = Polygon2D.new()
+		inner.polygon = _ring_points(14.0)
+		inner.color = Color(0.85, 0.7, 1.0, 0.9)
+		node.add_child(inner)
+		var tw = create_tween().set_loops()
+		tw.tween_property(ring, "scale", Vector2(1.15, 1.15), 1.0).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(ring, "scale", Vector2(1.0, 1.0), 1.0).set_trans(Tween.TRANS_SINE)
+		var label = Label.new()
+		label.text = "Téléporteur"
+		label.position = Vector2(-45, -52)
+		label.size = Vector2(90, 20)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_color_override("font_color", Color(0.85, 0.7, 1.0))
+		node.add_child(label)
+		$Decor.add_child(node)
+		teleporter_nodes.append({"zone": zid, "x": pos.x, "y": pos.y})
 
 func build_npcs() -> void:
 	var npc_body_tex = load("res://assets/sprites/player/body_walk.png")
@@ -834,6 +872,21 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_Q: use_skill(0)
 		KEY_E: use_skill(1)
 		KEY_F: try_interact()
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Aucun moyen de zoomer/dézoomer n'existait : le niveau de zoom de la
+	# caméra était figé, aucune adaptation possible aux préférences du joueur
+	# ou à la situation (combat rapproché vs vue d'ensemble).
+	if event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_adjust_camera_zoom(CAMERA_ZOOM_STEP)
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_adjust_camera_zoom(-CAMERA_ZOOM_STEP)
+
+func _adjust_camera_zoom(delta: float) -> void:
+	if player_camera == null: return
+	var z = clampf(player_camera.zoom.x + delta, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
+	player_camera.zoom = Vector2(z, z)
 
 # ---------------- Combat ----------------
 func find_enemies_in_range(range_px: float) -> Array:
@@ -1366,6 +1419,9 @@ func update_near_interactable() -> void:
 		var b = char_data.bloodstain
 		var d = player.global_position.distance_to(Vector2(b.x, b.y))
 		if d < best_d: best_d = d; nearest = {"type":"bloodstain", "ref": null}
+	for t in teleporter_nodes:
+		var d = player.global_position.distance_to(Vector2(t.x, t.y))
+		if d < best_d: best_d = d; nearest = {"type":"teleporter", "ref": null}
 	near_target = nearest
 	if nearest == null:
 		emit_signal("near_update", "")
@@ -1375,6 +1431,8 @@ func update_near_interactable() -> void:
 		emit_signal("near_update", nearest.ref.npc.name)
 	elif nearest.type == "chest":
 		emit_signal("near_update", "Ouvrir le coffre")
+	elif nearest.type == "teleporter":
+		emit_signal("near_update", "Voyager")
 	else:
 		emit_signal("near_update", "Récolter")
 
@@ -1406,6 +1464,10 @@ func try_interact() -> void:
 		open_chest(near_target.ref)
 	elif near_target.type == "bloodstain":
 		reclaim_bloodstain()
+	elif near_target.type == "teleporter":
+		if hud:
+			hud.render_travel()
+			hud.travel_overlay.visible = true
 
 # ---------------- Quêtes ----------------
 func update_quest_progress(kind: String, target_id) -> void:

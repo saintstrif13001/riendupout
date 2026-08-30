@@ -138,6 +138,8 @@ func _process(delta: float) -> bool:
 			_run_faction_shop_ui_test()
 		elif test_mode == "test_village_economy":
 			_run_village_economy_test()
+		elif test_mode == "test_village_decor":
+			_run_village_decor_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -943,6 +945,22 @@ func _run_village_economy_test() -> void:
 
 	print("TEST_RESULT stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s blocked_when_out_of_stock=%s"
 		% [stock_grew, price_dropped_with_stock, stock_consumed, paid_dynamic_price, blocked_when_out_of_stock])
+
+func _run_village_decor_test() -> void:
+	print("TEST_START:village_decor")
+	var decor = inst.get_node("Decor")
+	var polygons = 0
+	var lights = 0
+	var house_bodies = 0
+	for c in decor.get_children():
+		if c is Polygon2D: polygons += 1
+		elif c is PointLight2D: lights += 1
+		elif c is StaticBody2D: house_bodies += 1
+	# le puits ajoute 3 Polygon2D (anneau, intérieur, toit) ; les torches (5 aux
+	# portes + celles des zones dangereuses) ajoutent chacune un PointLight2D ;
+	# les caisses/barils ajoutent 2 Polygon2D (barils) en plus du puits
+	print("TEST_RESULT well_and_props_polygons=%d (attendu >= 3) house_torches_present=%s house_bodies_unchanged=%d"
+		% [polygons, lights >= 5, house_bodies])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

@@ -233,13 +233,114 @@ func build_village_structures() -> void:
 		door.position = Vector2(h.x - 9, h.y + h.h/2.0 - 28)
 		door.z_index = int(h.y) + 3
 		$Decor.add_child(door)
-	# Puits central comme point de repère
-	var well_base = ColorRect.new()
-	well_base.color = Color(0.5, 0.5, 0.52)
-	well_base.size = Vector2(40, 40)
-	well_base.position = Vector2(700 - 20, 480 - 20)
-	well_base.z_index = 470
-	$Decor.add_child(well_base)
+	_build_village_well(700, 480)
+	_build_village_decor(houses)
+
+func _build_village_well(x: int, y: int) -> void:
+	# Puits central comme point de repère : anneau de pierre + toit en bois +
+	# corde/seau, plutôt qu'un simple carré gris plat.
+	var shadow = ColorRect.new()
+	shadow.color = Color(0, 0, 0, 0.18)
+	shadow.size = Vector2(56, 16)
+	shadow.position = Vector2(x - 28, y + 16)
+	shadow.z_index = int(y) - 1
+	$Decor.add_child(shadow)
+	var ring = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(16):
+		var a = i / 16.0 * TAU
+		pts.append(Vector2(cos(a), sin(a)) * 22)
+	ring.polygon = pts
+	ring.color = Color(0.55, 0.53, 0.5)
+	ring.position = Vector2(x, y)
+	ring.z_index = int(y)
+	$Decor.add_child(ring)
+	var inner = Polygon2D.new()
+	var pts2 = PackedVector2Array()
+	for i in range(16):
+		var a = i / 16.0 * TAU
+		pts2.append(Vector2(cos(a), sin(a)) * 14)
+	inner.polygon = pts2
+	inner.color = Color(0.15, 0.22, 0.3)
+	inner.position = Vector2(x, y - 3)
+	inner.z_index = int(y) + 1
+	$Decor.add_child(inner)
+	for side in [-1, 1]:
+		var post = ColorRect.new()
+		post.color = Color(0.35, 0.24, 0.14)
+		post.size = Vector2(5, 26)
+		post.position = Vector2(x + side * 20 - 2, y - 34)
+		post.z_index = int(y) + 2
+		$Decor.add_child(post)
+	var roof = Polygon2D.new()
+	roof.polygon = PackedVector2Array([Vector2(-30,0), Vector2(30,0), Vector2(0,-16)])
+	roof.color = Color(0.5, 0.3, 0.16)
+	roof.position = Vector2(x, y - 34)
+	roof.z_index = int(y) + 3
+	$Decor.add_child(roof)
+	var bucket = ColorRect.new()
+	bucket.color = Color(0.4, 0.28, 0.15)
+	bucket.size = Vector2(8, 7)
+	bucket.position = Vector2(x - 4, y - 18)
+	bucket.z_index = int(y) + 2
+	$Decor.add_child(bucket)
+
+func _build_village_decor(houses: Array) -> void:
+	# Torches près de chaque porte, parterres de fleurs et quelques caisses/barils
+	# de commerce — le village était trop nu comparé aux zones sauvages.
+	for h in houses:
+		_spawn_torch(int(h.x - h.w/2.0 - 6), int(h.y + h.h/2.0 - 10))
+	seed(9911)
+	var flower_colors = [Color(0.85,0.25,0.3), Color(0.9,0.75,0.2), Color(0.8,0.4,0.75), Color(0.95,0.55,0.15)]
+	for i in range(45):
+		var x = randi_range(80, 1320)
+		var y = randi_range(150, int(Data.WORLD_HEIGHT) - 40)
+		var patch = Node2D.new()
+		patch.position = Vector2(x, y)
+		patch.z_index = -7
+		for j in range(4):
+			var dot = ColorRect.new()
+			dot.color = flower_colors[randi() % flower_colors.size()]
+			dot.size = Vector2(3, 3)
+			dot.position = Vector2(randf_range(-6,6), randf_range(-4,4))
+			patch.add_child(dot)
+		$Decor.add_child(patch)
+	var crate_spots = [Vector2(560, 700), Vector2(440, 720), Vector2(650, 560), Vector2(560, 560)]
+	for i in range(crate_spots.size()):
+		var pos = crate_spots[i]
+		if i % 2 == 0:
+			_spawn_crate(int(pos.x), int(pos.y))
+		else:
+			_spawn_barrel(int(pos.x), int(pos.y))
+
+func _spawn_crate(x: int, y: int) -> void:
+	var box = ColorRect.new()
+	box.color = Color(0.5, 0.36, 0.2)
+	box.size = Vector2(18, 16)
+	box.position = Vector2(x - 9, y - 8)
+	box.z_index = int(y)
+	$Decor.add_child(box)
+	var edge = ColorRect.new()
+	edge.color = Color(0.35, 0.24, 0.12)
+	edge.size = Vector2(18, 3)
+	edge.position = Vector2(x - 9, y - 8)
+	edge.z_index = int(y) + 1
+	$Decor.add_child(edge)
+
+func _spawn_barrel(x: int, y: int) -> void:
+	var body = Polygon2D.new()
+	body.polygon = PackedVector2Array([Vector2(-8,-10), Vector2(8,-10), Vector2(9,10), Vector2(-9,10)])
+	body.color = Color(0.45, 0.32, 0.18)
+	body.position = Vector2(x, y)
+	body.z_index = int(y)
+	$Decor.add_child(body)
+	for oy in [-6, 6]:
+		var band = ColorRect.new()
+		band.color = Color(0.25, 0.17, 0.09)
+		band.size = Vector2(18, 2)
+		band.position = Vector2(x - 9, y + oy)
+		band.z_index = int(y) + 1
+		$Decor.add_child(band)
 
 func build_props() -> void:
 	# Coffres et torches dans les zones dangereuses, pour l'ambiance et un peu de loot passif.

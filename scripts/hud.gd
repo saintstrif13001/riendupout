@@ -472,11 +472,17 @@ func render_npc_dialogue() -> void:
 	if not available.is_empty():
 		_add_title(dialogue_box, "Quetes disponibles", 15)
 		for q in available:
+			var qbox = VBoxContainer.new()
+			var title = Label.new()
+			title.text = q.name
+			title.add_theme_color_override("font_color", Color(1,0.88,0.4))
+			qbox.add_child(title)
 			var desc = Label.new()
-			desc.text = q.desc + "\nRecompense: %d XP, %d or" % [q.reward.xp, q.reward.get("gold", 0)]
+			desc.text = q.desc + "\nRécompense : %d XP, %d or" % [q.reward.xp, q.reward.get("gold", 0)]
 			desc.autowrap_mode = TextServer.AUTOWRAP_WORD
-			dialogue_box.add_child(desc)
-			_add_button(dialogue_box, "Accepter: " + q.name, func(): accept_quest(q.id))
+			qbox.add_child(desc)
+			_wrap_card(dialogue_box, qbox)
+			_add_button(dialogue_box, "Accepter : " + q.name, func(): accept_quest(q.id))
 
 	if to_turnin.is_empty() and available.is_empty():
 		var has_active = false
@@ -485,7 +491,7 @@ func render_npc_dialogue() -> void:
 			if not q.is_empty() and q.giver == npc.id: has_active = true
 		var msg = Label.new()
 		msg.text = "\"Reviens me voir plus tard.\"" if has_active else "\"Je n'ai rien pour toi.\""
-		dialogue_box.add_child(msg)
+		_wrap_card(dialogue_box, msg)
 
 	if npc.role == "shop":
 		var eco = world.village_economy

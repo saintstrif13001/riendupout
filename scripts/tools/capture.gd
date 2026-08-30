@@ -170,6 +170,15 @@ func _process(delta: float) -> bool:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
 		elif test_mode == "test_forge_economy":
 			_run_forge_economy_test()
+		elif test_mode == "show_quest_dialogue" or test_mode == "test_quest_dialogue_card":
+			var hud8 = inst.get_node("Hud")
+			var data8 = root.get_node("/root/Data")
+			hud8._on_open_npc(data8.get_npc("ancien"))
+			if test_mode == "test_quest_dialogue_card":
+				var cards = 0
+				for c in hud8.dialogue_box.get_children():
+					if c is PanelContainer: cards += 1
+				print("TEST_RESULT quest_cards_found=%d (attendu >= 1)" % cards)
 		elif test_mode == "test_bounty_card_ui":
 			var hud7 = inst.get_node("Hud")
 			var data7 = root.get_node("/root/Data")
@@ -536,7 +545,7 @@ func _run_race_quest_test() -> void:
 		var visible_race_quest_names = []
 		for qid in ["q_race_humain","q_race_elfe","q_race_nain","q_race_orc","q_race_ratkin","q_race_golem"]:
 			var q = data.get_quest(qid)
-			var btn = _find_button_with_text(hud.dialogue_box, "Accepter: " + q.name)
+			var btn = _find_button_with_text(hud.dialogue_box, "Accepter : " + q.name)
 			if btn: visible_race_quest_names.append(qid)
 		print("TEST_RACE=%s hud_shows=%s" % [race, visible_race_quest_names])
 

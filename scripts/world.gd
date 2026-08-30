@@ -216,6 +216,7 @@ func draw_world() -> void:
 	build_village_structures()
 	build_props()
 	build_plaine_decor()
+	build_foret_decor()
 
 func build_plaine_decor() -> void:
 	# La plaine était restée plate/verte alors que le village a été détaillé —
@@ -246,6 +247,88 @@ func build_plaine_decor() -> void:
 		var x = randi_range(int(plaine.x0) + 80, int(plaine.x1) - 80)
 		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
 		_spawn_rock(x, y)
+
+func build_foret_decor() -> void:
+	# La forêt n'avait que les mêmes arbres génériques que toutes les autres
+	# zones (juste plus denses) : aucun décor qui lui soit propre, contrairement
+	# au village et à la plaine. Champignons, troncs abattus et lucioles pour
+	# un sous-bois reconnaissable, cohérent avec l'éclairage tamisé déjà en place.
+	var foret = Data.ZONES.foret
+	seed(9911)
+	for i in range(45):
+		var x = randi_range(int(foret.x0) + 60, int(foret.x1) - 60)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		_spawn_mushroom_cluster(x, y)
+	for i in range(16):
+		var x = randi_range(int(foret.x0) + 80, int(foret.x1) - 80)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		_spawn_fallen_log(x, y)
+	for i in range(28):
+		var x = randi_range(int(foret.x0) + 40, int(foret.x1) - 40)
+		var y = randi_range(100, int(Data.WORLD_HEIGHT) - 20)
+		_spawn_firefly(x, y)
+
+func _spawn_mushroom_cluster(x: int, y: int) -> void:
+	var count = randi_range(2, 4)
+	var cap_color = Color(0.85, 0.25, 0.2) if randf() < 0.5 else Color(0.7, 0.55, 0.35)
+	for i in range(count):
+		var ox = randf_range(-8, 8)
+		var oy = randf_range(-4, 4)
+		var stem = ColorRect.new()
+		stem.color = Color(0.9, 0.85, 0.75)
+		stem.size = Vector2(2, 4)
+		stem.position = Vector2(x + ox - 1, y + oy)
+		stem.z_index = int(y)
+		$Decor.add_child(stem)
+		var cap = Polygon2D.new()
+		var r = randf_range(3, 5)
+		var pts = PackedVector2Array()
+		for j in range(8):
+			var a = j / 8.0 * PI # demi-cercle : un chapeau, pas un disque complet
+			pts.append(Vector2(cos(a), -sin(a)) * r)
+		cap.polygon = pts
+		cap.color = cap_color
+		cap.position = Vector2(x + ox, y + oy - 3)
+		cap.z_index = int(y) + 1
+		$Decor.add_child(cap)
+
+func _spawn_fallen_log(x: int, y: int) -> void:
+	var log_len = randf_range(28, 44)
+	var body = ColorRect.new()
+	body.color = Color(0.35, 0.24, 0.14)
+	body.size = Vector2(log_len, 8)
+	body.position = Vector2(x - log_len / 2.0, y - 4)
+	body.rotation = randf_range(-0.15, 0.15)
+	body.z_index = int(y)
+	$Decor.add_child(body)
+	var end_cap = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(10):
+		var a = i / 10.0 * TAU
+		pts.append(Vector2(cos(a), sin(a)) * 4)
+	end_cap.polygon = pts
+	end_cap.color = Color(0.55, 0.42, 0.28)
+	end_cap.position = Vector2(x - log_len / 2.0, y)
+	end_cap.z_index = int(y) + 1
+	$Decor.add_child(end_cap)
+
+func _spawn_firefly(x: int, y: int) -> void:
+	var glow = PointLight2D.new()
+	glow.texture = _radial_light_texture()
+	glow.position = Vector2(x, y)
+	glow.color = Color(0.75, 1.0, 0.55)
+	glow.energy = 0.5
+	glow.texture_scale = 0.35
+	glow.z_index = int(y) + 3
+	$Decor.add_child(glow)
+	var dx = randf_range(-14, 14)
+	var dy = randf_range(-10, 10)
+	var drift = create_tween().set_loops()
+	drift.tween_property(glow, "position", Vector2(x + dx, y + dy), randf_range(2.5, 4.0)).set_trans(Tween.TRANS_SINE)
+	drift.tween_property(glow, "position", Vector2(x, y), randf_range(2.5, 4.0)).set_trans(Tween.TRANS_SINE)
+	var pulse = create_tween().set_loops()
+	pulse.tween_property(glow, "energy", 0.9, 0.6).set_trans(Tween.TRANS_SINE).set_delay(randf())
+	pulse.tween_property(glow, "energy", 0.15, 0.8).set_trans(Tween.TRANS_SINE)
 
 func _spawn_hay_bale(x: int, y: int) -> void:
 	var bale = Polygon2D.new()

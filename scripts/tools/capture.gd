@@ -140,6 +140,8 @@ func _process(delta: float) -> bool:
 			_run_village_economy_test()
 		elif test_mode == "test_village_decor":
 			_run_village_decor_test()
+		elif test_mode == "test_foret_decor":
+			_run_foret_decor_test()
 		elif test_mode == "test_plaine_decor":
 			_run_plaine_decor_test()
 		elif test_mode == "test_npc_collision":
@@ -1252,6 +1254,24 @@ func _run_plaine_decor_test() -> void:
 			flower_patches_in_plaine += 1
 	print("TEST_RESULT hay_bales_and_rocks_in_plaine=%d (attendu >= 20) flower_patches_in_plaine=%d (attendu >= 40)"
 		% [polygons_in_plaine, flower_patches_in_plaine])
+
+func _run_foret_decor_test() -> void:
+	print("TEST_START:foret_decor")
+	# La forêt n'avait que les mêmes arbres génériques que toutes les autres
+	# zones, aucun décor propre (contrairement au village et à la plaine).
+	var data = root.get_node("/root/Data")
+	var decor = inst.get_node("Decor")
+	var foret = data.ZONES.foret
+	var polygons_in_foret = 0
+	var lights_in_foret = 0
+	var logs_in_foret = 0
+	for c in decor.get_children():
+		if c.position.x < foret.x0 or c.position.x > foret.x1: continue
+		if c is Polygon2D: polygons_in_foret += 1
+		elif c is PointLight2D: lights_in_foret += 1
+		elif c is ColorRect and c.size.x > 25 and c.size.y < 10: logs_in_foret += 1 # troncs abattus : larges et fins
+	print("TEST_RESULT mushroom_and_log_polygons_in_foret=%d (attendu >= 40) fireflies_in_foret=%d (attendu >= 25) fallen_logs_in_foret=%d (attendu >= 14)"
+		% [polygons_in_foret, lights_in_foret, logs_in_foret])
 
 func _run_npc_collision_test() -> void:
 	print("TEST_START:npc_collision")

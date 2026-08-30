@@ -116,6 +116,8 @@ func _process(delta: float) -> bool:
 			_run_fade_test()
 		elif test_mode == "test_bar_tween":
 			_run_bar_tween_test()
+		elif test_mode == "test_gather":
+			_run_gather_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -595,6 +597,33 @@ func _run_bar_tween_test() -> void:
 	await create_timer(0.5).timeout
 	var final_val = hud.hp_bar.value
 	print("TEST_RESULT final_value=%.1f expected=70.0 converged=%s" % [final_val, absf(final_val - 70.0) < 1.0])
+
+func _run_gather_test() -> void:
+	print("TEST_START:gather")
+	if inst.gather_nodes.is_empty():
+		print("TEST_RESULT no_gather_nodes=true")
+		return
+	var g = inst.gather_nodes[0]
+	var mat = g.node.type
+	var before_qty = inst.char_data.inventory.get(mat, 0)
+	inst.near_target = {"type": "gather", "ref": g}
+	inst.try_interact()
+	var after_qty = inst.char_data.inventory.get(mat, 0)
+	print("TEST_STATE depleted=%s label_alpha=%.2f respawn_at_set=%s inv_before=%d inv_after=%d"
+		% [g.depleted, g.label.modulate.a, g.respawn_at > 0.0, before_qty, after_qty])
+	# tenter de récolter un nœud déjà épuisé ne doit rien donner de plus
+	inst.try_interact()
+	var after_second_try = inst.char_data.inventory.get(mat, 0)
+	print("TEST_RESULT depleted_blocks_double_gather=%s (avant=%d apres_2e_essai=%d)"
+		% [after_second_try == after_qty, after_qty, after_second_try])
+	# simule le passage du temps : le nœud doit redevenir récoltable après son délai
+	g.respawn_at = (Time.get_ticks_msec()/1000.0) - 1.0
+	inst.update_gather_respawns(0.0)
+	print("TEST_RESULT2 respawned=%s label_alpha_restored=%.2f" % [not g.depleted, g.label.modulate.a])
+	# une fois respawné, la récolte doit fonctionner à nouveau normalement
+	inst.try_interact()
+	var after_respawn_gather = inst.char_data.inventory.get(mat, 0)
+	print("TEST_RESULT3 gather_works_after_respawn=%s inv_after_respawn_gather=%d" % [after_respawn_gather == after_second_try + 1, after_respawn_gather])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

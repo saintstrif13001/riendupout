@@ -745,6 +745,17 @@ func render_inventory() -> void:
 			lbl2.text = "%s : %d (%s)" % [Data.FACTIONS[fid].name, rep, Data.rep_tier_name(rep)]
 			inventory_box.add_child(lbl2)
 
+		if not cd.gather_counts.is_empty():
+			_add_title(inventory_box, "Récolte totale", 15)
+			var stats_lbl = Label.new()
+			var parts = []
+			for mat in cd.gather_counts.keys():
+				if cd.gather_counts[mat] > 0:
+					parts.append("%d %s" % [cd.gather_counts[mat], Data.ITEMS[mat].name])
+			stats_lbl.text = ", ".join(parts) if not parts.is_empty() else "(rien récolté pour l'instant)"
+			stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+			inventory_box.add_child(stats_lbl)
+
 		_add_title(inventory_box, "Equipement", 15)
 		for slot in ["weapon", "armor"]:
 			var item_id = cd.equipment.get(slot, "")

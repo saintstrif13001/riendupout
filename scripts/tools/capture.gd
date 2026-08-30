@@ -172,6 +172,8 @@ func _process(delta: float) -> bool:
 			_run_forge_economy_test()
 		elif test_mode == "test_plaine_cull":
 			_run_plaine_cull_test()
+		elif test_mode == "test_gather_stats_display":
+			_run_gather_stats_display_test()
 		elif test_mode == "test_garde_patrol_dialogue":
 			_run_garde_patrol_dialogue_test()
 		elif test_mode == "test_network_disconnect_guard":
@@ -1387,6 +1389,21 @@ func _run_garde_patrol_dialogue_test() -> void:
 	var lbl = _find_label_with_text(hud.dialogue_box, "patrouilles ont repoussé")
 	print("TEST_RESULT hidden_when_zero=%s shown_when_nonzero=%s text=%s"
 		% [label_absent, lbl != null, lbl.text if lbl else ""])
+
+func _run_gather_stats_display_test() -> void:
+	print("TEST_START:gather_stats_display")
+	var hud = inst.get_node("Hud")
+	inst.char_data.gather_counts = {}
+	hud.inv_search_text = ""
+	hud.render_inventory()
+	var section_absent = _find_label_with_text(hud.inventory_box, "Récolte totale") == null
+	for c in hud.inventory_box.get_children(): c.free() # nettoyage immédiat (queue_free différé fausserait le re-rendu)
+	inst.char_data.gather_counts = {"minerai": 12, "bois": 0, "herbe": 5}
+	hud.render_inventory()
+	var stats_lbl = _find_label_with_text(hud.inventory_box, "Minerai")
+	var shows_nonzero_only = stats_lbl != null and "12" in stats_lbl.text and "5" in stats_lbl.text and not ("Bois" in stats_lbl.text)
+	print("TEST_RESULT section_hidden_when_empty=%s section_shown_with_data=%s zero_counts_excluded=%s text=%s"
+		% [section_absent, stats_lbl != null, shows_nonzero_only, stats_lbl.text if stats_lbl else ""])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

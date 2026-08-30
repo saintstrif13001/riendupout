@@ -130,6 +130,8 @@ func _process(delta: float) -> bool:
 			_run_zone_lighting_test()
 		elif test_mode == "test_quest_chain":
 			_run_quest_chain_test()
+		elif test_mode == "test_deliver_quest":
+			_run_deliver_quest_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -239,6 +241,14 @@ func _run_bounty_test() -> void:
 		inst.grant_kill_rewards(inst.player, e, false)
 	print("TEST_RESULT bounty_progress=%d/%d gold_before=%d gold_after=%d bounty_cleared=%s"
 		% [inst.char_data.bounty.progress if inst.char_data.bounty else -1, b.count, gold_before, inst.char_data.gold, inst.char_data.bounty == null])
+	# la progression seule ne paie rien : il faut encaisser via collect_bounty() (bouton PNJ "Chasseur")
+	var hud = inst.get_node("Hud")
+	var xp_before = inst.char_data.xp
+	var bounties_done_before = inst.char_data.bounties_done
+	hud.collect_bounty()
+	print("TEST_RESULT2 collected=%s gold_gained=%d xp_gained=%d bounties_done_incremented=%s bounty_now_null=%s"
+		% [true, inst.char_data.gold - gold_before, inst.char_data.xp - xp_before,
+			inst.char_data.bounties_done == bounties_done_before + 1, inst.char_data.bounty == null])
 
 func _run_save_test() -> void:
 	print("TEST_START:save")
@@ -818,6 +828,25 @@ func _run_quest_chain_test() -> void:
 	for k in results.keys():
 		if not results[k]: all_ok = false
 	print("TEST_RESULT all_ok=%s details=%s" % [all_ok, results])
+
+func _run_deliver_quest_test() -> void:
+	print("TEST_START:deliver_quest")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	hud.accept_quest("q_relique")
+	# tenter de rendre sans avoir l'objet requis : ne doit ni terminer la quête
+	# ni consommer quoi que ce soit (rien à consommer de toute façon)
+	hud.turn_in_quest("q_relique")
+	var blocked_without_item = not cd.quests_completed.has("q_relique") and cd.quests_active.has("q_relique")
+	# donne l'objet et rend la quête : doit consommer exactement la quantité requise
+	cd.inventory["relique_ossements"] = 1
+	var gold_before = cd.gold
+	hud.turn_in_quest("q_relique")
+	var completed = cd.quests_completed.has("q_relique")
+	var item_consumed = cd.inventory.get("relique_ossements", 0) == 0
+	var gold_gained = (cd.gold - gold_before) == 250
+	print("TEST_RESULT blocked_without_item=%s completed_with_item=%s item_consumed=%s gold_gained_correct=%s"
+		% [blocked_without_item, completed, item_consumed, gold_gained])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

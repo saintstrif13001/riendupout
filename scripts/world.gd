@@ -31,6 +31,8 @@ var player_camera: Camera2D = null
 const CAMERA_ZOOM_MIN := 0.9
 const CAMERA_ZOOM_MAX := 2.6
 const CAMERA_ZOOM_STEP := 0.15
+const NPC_WANDER_RADIUS := 45.0
+const NPC_WANDER_SPEED := 26.0
 var economy_tick_accum: float = 0.0
 # Économie villageoise simulée : une cueilleuse récolte des herbes, l'alchimiste
 # les transforme en potions en arrière-plan, et le prix en boutique varie selon
@@ -652,26 +654,33 @@ func build_npcs() -> void:
 	var region = Rect2(2*64, 2*64, 64, 64)
 	var idx = 0
 	for npc in Data.NPCS:
+		# `node` est l'ancre de déplacement (sa position = l'emplacement réel du
+		# PNJ dans le monde, bougée par le vagabondage ci-dessous) ; `visual` est
+		# un enfant purement local qui porte l'animation de respiration, pour que
+		# les deux mouvements (vagabondage + respiration) ne se marchent pas dessus
+		# en se disputant la même propriété "position".
 		var node = Node2D.new()
 		node.position = Vector2(npc.x, npc.y)
 		node.z_index = int(npc.y) # sinon le PNJ reste toujours derrière les maisons (z_index en centaines)
+		var visual = Node2D.new()
+		node.add_child(visual)
 		var legs = Sprite2D.new()
 		legs.texture = npc_legs_tex
 		legs.region_enabled = true; legs.region_rect = region
 		legs.z_index = 0
-		node.add_child(legs)
+		visual.add_child(legs)
 		var spr = Sprite2D.new()
 		spr.texture = npc_body_tex
 		spr.region_enabled = true
 		spr.region_rect = region
 		spr.modulate = npc.tint
 		spr.z_index = 1
-		node.add_child(spr)
+		visual.add_child(spr)
 		var vest = Sprite2D.new()
 		vest.texture = vest_texs[idx % vest_texs.size()]
 		vest.region_enabled = true; vest.region_rect = region
 		vest.z_index = 2
-		node.add_child(vest)
+		visual.add_child(vest)
 		# Coiffure et calvitie déterminées par hash de l'id du PNJ (stable d'une
 		# partie à l'autre) plutôt que la même chevelure brune pour tout le monde.
 		var h = hash(npc.id)
@@ -682,45 +691,74 @@ func build_npcs() -> void:
 		hair.modulate = NPC_HAIR_COLORS[h % NPC_HAIR_COLORS.size()]
 		hair.visible = not is_bald
 		hair.z_index = 3
-		node.add_child(hair)
+		visual.add_child(hair)
 		var head = Sprite2D.new()
 		head.texture = npc_head_tex
 		head.region_enabled = true
 		head.region_rect = region
 		head.modulate = npc.tint
 		head.z_index = 3
-		node.add_child(head)
+		visual.add_child(head)
 		idx += 1
-		# petite animation d'idle (respiration) pour que les PNJ ne soient pas figés
+		# petite animation d'idle (respiration) — locale à `visual`, ne bouge plus
+		# jamais `node` (qui appartient désormais au vagabondage).
 		var tw = create_tween().set_loops()
-		tw.tween_property(node, "position:y", npc.y - 2.0, 1.1).set_trans(Tween.TRANS_SINE).set_delay(randf()*1.0)
-		tw.tween_property(node, "position:y", npc.y, 1.1).set_trans(Tween.TRANS_SINE)
+		tw.tween_property(visual, "position:y", -2.0, 1.1).set_trans(Tween.TRANS_SINE).set_delay(randf()*1.0)
+		tw.tween_property(visual, "position:y", 0.0, 1.1).set_trans(Tween.TRANS_SINE)
 		var label = Label.new()
 		label.text = npc.name
 		label.position = Vector2(-50, -54)
 		label.size = Vector2(100, 20)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		label.add_theme_color_override("font_color", Color(1, 0.88, 0.4))
-		node.add_child(label)
+		visual.add_child(label)
 		var icon = Label.new()
 		icon.text = "$" if npc.role == "shop" else ("*" if npc.role == "profession" else "!")
 		icon.position = Vector2(-8, -72)
 		icon.add_theme_font_size_override("font_size", 18)
 		icon.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
-		node.add_child(icon)
+		visual.add_child(icon)
 		$NPCs.add_child(node)
-		npc_nodes.append({"npc": npc, "node": node, "icon": icon})
 		# Collision légère pour que le joueur ne marche pas littéralement à travers/
-		# par-dessus le PNJ. Corps séparé (pas enfant du node qui oscille pour
-		# l'idle) pour rester parfaitement fixe malgré l'animation de respiration.
+		# par-dessus le PNJ. Enfant de `node` (pas de `visual`) : suit le
+		# vagabondage mais ignore la respiration, qui reste purement cosmétique.
 		var npc_body = StaticBody2D.new()
-		npc_body.position = Vector2(npc.x, npc.y)
 		var npc_shape = CollisionShape2D.new()
 		var circle = CircleShape2D.new()
 		circle.radius = 12.0
 		npc_shape.shape = circle
 		npc_body.add_child(npc_shape)
-		$NPCs.add_child(npc_body)
+		node.add_child(npc_body)
+		npc_nodes.append({
+			"npc": npc, "node": node, "icon": icon,
+			"home": Vector2(npc.x, npc.y), "wander_state": "idle",
+			"wander_target": Vector2(npc.x, npc.y),
+			"wander_next_at": Time.get_ticks_msec() / 1000.0 + randf_range(1.0, 6.0),
+		})
+
+func update_npc_wander(delta: float) -> void:
+	# Les PNJ restaient figés en permanence sur un seul point (hors la petite
+	# respiration verticale) : ils vagabondent maintenant sur un rayon modeste
+	# autour de leur poste, pour rester facilement trouvables (nom/icône les
+	# suivent) tout en donnant l'impression d'un village vivant.
+	var now = Time.get_ticks_msec() / 1000.0
+	for entry in npc_nodes:
+		match entry.wander_state:
+			"idle":
+				if now > entry.wander_next_at:
+					var angle = randf() * TAU
+					var dist = randf_range(20.0, NPC_WANDER_RADIUS)
+					entry.wander_target = entry.home + Vector2(cos(angle), sin(angle)) * dist
+					entry.wander_state = "walking"
+			"walking":
+				var to_target = entry.wander_target - entry.node.position
+				var step = NPC_WANDER_SPEED * delta
+				if to_target.length() <= step:
+					entry.node.position = entry.wander_target
+					entry.wander_state = "idle"
+					entry.wander_next_at = now + randf_range(3.0, 8.0)
+				else:
+					entry.node.position += to_target.normalized() * step
 
 func build_gather_nodes() -> void:
 	for n in Data.GATHER_NODES:
@@ -787,6 +825,12 @@ func _physics_process(delta: float) -> void:
 	player.update_visuals()
 	update_near_interactable()
 	update_gather_respawns(delta)
+	# Purement cosmétique et non synchronisé sur le réseau (comme l'idle bob
+	# déjà existant) : deux joueurs peuvent voir un PNJ à une position
+	# légèrement différente dans son rayon de vagabondage. Accepté comme
+	# compromis simple — contrairement aux ennemis, l'interaction PNJ reste
+	# correcte cote local puisque near_target suit la position réelle du nœud.
+	update_npc_wander(delta)
 
 	if is_sim:
 		update_enemies(delta)
@@ -1409,7 +1453,9 @@ func update_near_interactable() -> void:
 		var d = player.global_position.distance_to(Vector2(g.node.x, g.node.y))
 		if d < best_d: best_d = d; nearest = {"type":"gather", "ref": g}
 	for n in npc_nodes:
-		var d = player.global_position.distance_to(Vector2(n.npc.x, n.npc.y))
+		# Position réelle du nœud (n.node.position), pas la position de spawn
+		# figée dans Data.NPCS : les PNJ vagabondent désormais autour d'elle.
+		var d = player.global_position.distance_to(n.node.position)
 		if d < best_d: best_d = d; nearest = {"type":"npc", "ref": n}
 	for c in chest_nodes:
 		if c.opened: continue

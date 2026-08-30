@@ -200,6 +200,8 @@ func _process(delta: float) -> bool:
 			_run_teleporter_test()
 		elif test_mode == "test_camera_zoom":
 			_run_camera_zoom_test()
+		elif test_mode == "test_npc_wander":
+			_run_npc_wander_test()
 		elif test_mode == "test_quit_to_menu":
 			_run_quit_to_menu_test()
 		elif test_mode == "show_player_hit_flash":
@@ -797,7 +799,8 @@ func _run_npc_variety_test() -> void:
 	var colors := {}
 	var bald_count = 0
 	for n in inst.npc_nodes:
-		var hair = n.node.get_child(3) # ordre : legs, body, vest, hair, head
+		var visual = n.node.get_child(0) # node = ancre de vagabondage, visual = enfant qui porte les sprites
+		var hair = visual.get_child(3) # ordre dans visual : legs, body, vest, hair, head
 		colors[hair.modulate] = true
 		if not hair.visible: bald_count += 1
 	print("TEST_RESULT total_npcs=%d distinct_hair_colors=%d bald_count=%d"
@@ -1159,7 +1162,7 @@ func _run_plaine_decor_test() -> void:
 func _run_npc_collision_test() -> void:
 	print("TEST_START:npc_collision")
 	var n = inst.npc_nodes[0]
-	var npc_pos = Vector2(n.npc.x, n.npc.y)
+	var npc_pos = n.node.position # position réelle (les PNJ vagabondent désormais), pas le point de spawn figé
 	inst.player.global_position = npc_pos + Vector2(0, 100)
 	var start_pos = inst.player.global_position
 	for i in range(30):
@@ -1932,6 +1935,36 @@ func _run_camera_zoom_test() -> void:
 	var all_ok = camera_found and zoomed_in_on_wheel_up and zoomed_out_on_wheel_down and clamped_at_max and clamped_at_min
 	print("TEST_RESULT all_ok=%s camera_found=%s zoomed_in_on_wheel_up=%s zoomed_out_on_wheel_down=%s clamped_at_max=%s clamped_at_min=%s"
 		% [all_ok, camera_found, zoomed_in_on_wheel_up, zoomed_out_on_wheel_down, clamped_at_max, clamped_at_min])
+
+func _run_npc_wander_test() -> void:
+	print("TEST_START:npc_wander")
+	# Les PNJ etaient completement figes (seule une respiration verticale de
+	# quelques pixels, jamais de vrai deplacement). Verifie qu'ils se
+	# deplacent reellement autour de leur poste, restent dans un rayon
+	# raisonnable, reviennent a l'etat idle, et que le corps de collision
+	# (enfant de node, pas de visual) suit bien le vagabondage.
+	var entry = inst.npc_nodes[0]
+	entry.wander_state = "idle"
+	entry.node.position = entry.home
+	entry.wander_next_at = Time.get_ticks_msec() / 1000.0 - 1.0 # force le declenchement immediat
+
+	inst.update_npc_wander(0.016)
+	var starts_walking = entry.wander_state == "walking"
+	var target_within_radius = entry.home.distance_to(entry.wander_target) <= inst.NPC_WANDER_RADIUS + 0.01
+
+	var moved_toward_target = false
+	var reached_idle_again = false
+	for i in range(400):
+		var before = entry.node.position
+		inst.update_npc_wander(0.1)
+		if i == 0: moved_toward_target = entry.node.position != before
+		if entry.wander_state == "idle": reached_idle_again = true; break
+
+	var collision_follows = entry.node.get_child(1).global_position.is_equal_approx(entry.node.global_position)
+
+	var all_ok = starts_walking and target_within_radius and moved_toward_target and reached_idle_again and collision_follows
+	print("TEST_RESULT all_ok=%s starts_walking=%s target_within_radius=%s moved_toward_target=%s reached_idle_again=%s collision_follows=%s"
+		% [all_ok, starts_walking, target_within_radius, moved_toward_target, reached_idle_again, collision_follows])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

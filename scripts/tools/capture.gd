@@ -190,6 +190,12 @@ func _process(delta: float) -> bool:
 			_run_stats_screen_test()
 		elif test_mode == "test_music_system":
 			_run_music_system_test()
+		elif test_mode == "test_chat":
+			_run_chat_test()
+		elif test_mode == "show_chat":
+			var hud_c = inst.get_node("Hud")
+			hud_c.add_chat_message("Testeur", "Bonjour le groupe !")
+			hud_c.open_chat()
 		elif test_mode == "test_progression_stats_display":
 			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
@@ -1659,6 +1665,40 @@ func _run_music_system_test() -> void:
 
 	print("TEST_RESULT music_bus_exists=%s music_bus_routed_to_master=%s music_volume_persisted=%s calm_dominant_in_village=%s mood_switched_to_tension=%s tension_gain_rising=%s (tension_gain=%.2f)"
 		% [music_bus_exists, music_bus_routed_to_master, music_volume_persisted, calm_dominant_in_village, mood_switched_to_tension, tension_gain_rising, audio._tension_gain])
+
+func _run_chat_test() -> void:
+	print("TEST_START:chat")
+	# C'est un jeu coop jusqu'à 4 joueurs et il n'existait aucun moyen de
+	# communiquer en jeu. Verifie la validation des messages (vide/espaces
+	# ignorés, troncature à 140 caractères, journal plafonné), et que le
+	# garde anti-déplacement dans handle_movement() fonctionne bien quand le
+	# chat a le focus (sans ce garde, taper "s"/"d" déplace aussi le perso).
+	var hud = inst.get_node("Hud")
+
+	inst.send_chat_message("   ")
+	var empty_ignored = hud.chat_messages.is_empty()
+
+	inst.send_chat_message("  Salut le groupe !  ")
+	var trimmed_correctly = not hud.chat_messages.is_empty() and hud.chat_messages[-1].text == "Salut le groupe !"
+	var sender_correct = not hud.chat_messages.is_empty() and hud.chat_messages[-1].sender == inst.char_data.name
+
+	var long_text = "a".repeat(200)
+	inst.send_chat_message(long_text)
+	var truncated_correctly = hud.chat_messages[-1].text.length() == 140
+
+	for i in range(10):
+		inst.send_chat_message("msg%d" % i)
+	var capped_correctly = hud.chat_messages.size() == hud.CHAT_MAX_MESSAGES
+
+	hud.open_chat()
+	var chat_reports_focused = hud.is_chat_focused()
+	inst.player.velocity = Vector2(999, 999) # valeur sentinelle
+	inst.handle_movement(0.1)
+	var movement_blocked_while_focused = (inst.player.velocity == Vector2.ZERO) if chat_reports_focused else true
+	hud.chat_input.visible = false
+
+	print("TEST_RESULT empty_ignored=%s trimmed_correctly=%s sender_correct=%s truncated_correctly=%s capped_correctly=%s chat_reports_focused=%s movement_blocked_while_focused=%s"
+		% [empty_ignored, trimmed_correctly, sender_correct, truncated_correctly, capped_correctly, chat_reports_focused, movement_blocked_while_focused])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

@@ -789,6 +789,13 @@ func save_now() -> void:
 	GameState.save_character()
 
 func handle_movement(delta: float) -> void:
+	# is_physical_key_pressed() lit l'état brut du clavier, sans passer par le
+	# système de focus GUI : sans ce garde, taper "s"/"d" dans le chat déplace
+	# aussi le personnage.
+	if hud and hud.is_chat_focused():
+		player.velocity = Vector2.ZERO
+		player.set_anim(player.dir, false)
+		return
 	var vx := 0.0
 	var vy := 0.0
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): vy = -1
@@ -893,8 +900,9 @@ func use_skill(idx: int) -> void:
 			var buff_range = skill.get("range", 0.0)
 			if buff_range <= 0: buff_range = 220.0 # 0 = "portée illimitée locale" -> zone raisonnable autour du lanceur
 			for pid in remote_players.keys():
+				if not is_instance_valid(remote_players[pid]): continue
 				var rp: Player = remote_players[pid]
-				if not is_instance_valid(rp) or rp.dead: continue
+				if rp.dead: continue
 				if player.global_position.distance_to(rp.global_position) <= buff_range:
 					rpc_id(pid, "net_apply_buff", b)
 					spawn_buff_fx(rp)
@@ -931,8 +939,9 @@ func find_nearest_ally_in_range(range_px: float):
 	var best = null
 	var best_d = range_px
 	for pid in remote_players.keys():
+		if not is_instance_valid(remote_players[pid]): continue
 		var rp: Player = remote_players[pid]
-		if not is_instance_valid(rp) or rp.dead: continue
+		if rp.dead: continue
 		var d = player.global_position.distance_to(rp.global_position)
 		if d <= best_d:
 			best_d = d
@@ -1147,6 +1156,35 @@ func net_xp_grant(uid: String) -> void:
 	if d < 400:
 		grant_kill_rewards(player, e, true)
 
+
+# ---------------- Chat ----------------
+# Aucun moyen de communiquer en jeu n'existait alors que c'est un jeu coop
+# jusqu'à 4 joueurs : seul l'hôte a des connexions directes à tous les clients
+# (topologie étoile via ENet), donc un client relaie son message via l'hôte
+# (net_chat_request) qui le rediffuse ensuite à tout le monde (net_chat_receive).
+func send_chat_message(text: String) -> void:
+	text = text.strip_edges()
+	if text == "": return
+	if text.length() > 140: text = text.substr(0, 140)
+	if is_sim:
+		_broadcast_chat(char_data.name, text)
+	else:
+		rpc_id(1, "net_chat_request", char_data.name, text)
+
+@rpc("any_peer", "reliable")
+func net_chat_request(sender_name: String, text: String) -> void:
+	if not is_sim: return
+	_broadcast_chat(sender_name, text)
+
+func _broadcast_chat(sender_name: String, text: String) -> void:
+	if hud: hud.add_chat_message(sender_name, text)
+	if Net.is_online:
+		rpc("net_chat_receive", sender_name, text)
+
+@rpc("authority", "reliable")
+func net_chat_receive(sender_name: String, text: String) -> void:
+	if hud: hud.add_chat_message(sender_name, text)
+
 func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 	var xp_amount = int(e.mdef.xp * 0.5) if partial else e.mdef.xp
 	var res = p.gain_xp(xp_amount)
@@ -1184,8 +1222,9 @@ func update_enemies(delta: float) -> void:
 		var target: Player = player
 		var best_d = e.global_position.distance_to(player.global_position)
 		for pid in remote_players.keys():
+			if not is_instance_valid(remote_players[pid]): continue
 			var rp: Player = remote_players[pid]
-			if not is_instance_valid(rp) or rp.dead: continue
+			if rp.dead: continue
 			var d = e.global_position.distance_to(rp.global_position)
 			if d < best_d: best_d = d; target = rp
 		var aggro_range = 260.0 if e.mdef.get("boss", false) else 150.0

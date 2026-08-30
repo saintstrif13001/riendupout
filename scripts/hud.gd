@@ -29,6 +29,11 @@ var options_music_pct_label: Label
 var minimap: Control
 var stats_overlay: Control
 var stats_box: VBoxContainer
+var chat_overlay: Control
+var chat_log_box: VBoxContainer
+var chat_input: LineEdit
+var chat_messages: Array = []
+const CHAT_MAX_MESSAGES := 8
 var fade_rect: ColorRect
 
 func bind(w) -> void:
@@ -51,6 +56,7 @@ func _ready() -> void:
 	_build_travel_overlay()
 	_build_options_overlay()
 	_build_stats_overlay()
+	_build_chat()
 	_build_fade_overlay()
 
 func _build_fade_overlay() -> void:
@@ -119,7 +125,7 @@ func _build_bars() -> void:
 	root.add_child(quest_label)
 
 	var help = Label.new()
-	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · C: stats · M: voyage rapide · O: options"
+	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · C: stats · M: voyage rapide · O: options · Entrée: discuter"
 	help.add_theme_font_size_override("font_size", 11)
 	help.add_theme_color_override("font_color", Color(1,1,1,0.6))
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -407,6 +413,66 @@ func render_stats() -> void:
 
 	_add_button(stats_box, "Fermer (C)", func(): stats_overlay.visible = false)
 
+func _build_chat() -> void:
+	# C'est un jeu coop jusqu'à 4 joueurs et il n'existait aucun moyen de
+	# communiquer en jeu (ni chat, ni pings). Journal discret en bas à gauche
+	# (au-dessus de l'aide clavier) + une ligne de saisie ouverte avec Entrée.
+	chat_overlay = VBoxContainer.new()
+	chat_overlay.theme = UiTheme.build()
+	chat_overlay.add_theme_constant_override("separation", 1)
+	chat_overlay.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	chat_overlay.grow_vertical = Control.GROW_DIRECTION_BEGIN # s'étend vers le haut quand des messages s'ajoutent
+	chat_overlay.position = Vector2(16, -70)
+	chat_overlay.custom_minimum_size = Vector2(340, 0)
+	chat_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(chat_overlay)
+
+	chat_log_box = VBoxContainer.new()
+	chat_log_box.add_theme_constant_override("separation", 1)
+	chat_log_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chat_overlay.add_child(chat_log_box)
+
+	chat_input = LineEdit.new()
+	chat_input.visible = false
+	chat_input.custom_minimum_size = Vector2(340, 28)
+	chat_input.placeholder_text = "Message... (Entrée: envoyer, Échap: annuler)"
+	chat_input.max_length = 140
+	chat_overlay.add_child(chat_input)
+	chat_input.text_submitted.connect(_on_chat_submitted)
+	chat_input.gui_input.connect(_on_chat_gui_input)
+
+func is_chat_focused() -> bool:
+	return chat_input.visible and chat_input.has_focus()
+
+func open_chat() -> void:
+	chat_input.text = ""
+	chat_input.visible = true
+	chat_input.grab_focus()
+
+func _on_chat_submitted(text: String) -> void:
+	world.send_chat_message(text)
+	chat_input.text = ""
+	chat_input.visible = false
+
+func _on_chat_gui_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.physical_keycode == KEY_ESCAPE:
+		chat_input.text = ""
+		chat_input.visible = false
+		get_viewport().set_input_as_handled()
+
+func add_chat_message(sender_name: String, text: String) -> void:
+	chat_messages.append({"sender": sender_name, "text": text})
+	if chat_messages.size() > CHAT_MAX_MESSAGES:
+		chat_messages.pop_front()
+	_clear_box(chat_log_box)
+	for m in chat_messages:
+		var l = Label.new()
+		l.text = "%s: %s" % [m.sender, m.text]
+		l.add_theme_font_size_override("font_size", 13)
+		l.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD
+		chat_log_box.add_child(l)
+
 func render_travel() -> void:
 	var cd = world.char_data
 	_clear_box(travel_box)
@@ -438,6 +504,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif event.physical_keycode == KEY_C:
 		if stats_overlay.visible: stats_overlay.visible = false
 		else: render_stats(); stats_overlay.visible = true
+	elif event.physical_keycode == KEY_ENTER or event.physical_keycode == KEY_KP_ENTER:
+		open_chat()
 	elif event.physical_keycode == KEY_ESCAPE:
 		close_all()
 		travel_overlay.visible = false

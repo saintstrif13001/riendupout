@@ -522,18 +522,28 @@ func use_skill(idx: int) -> void:
 	player.mana -= skill.cost
 
 	if skill.has("heal"):
-		player.heal(skill.heal)
-		float_text(player.global_position + Vector2(0,-50), "+%d PV" % skill.heal, Color(0.4,1,0.53))
+		var heal_range = skill.get("range", 180.0)
+		var ally = find_nearest_ally_in_range(heal_range) if skill.get("party", false) else null
+		if ally != null:
+			rpc_id(ally.pid, "net_apply_heal", skill.heal)
+			float_text(ally.p.global_position + Vector2(0,-50), "+%d PV" % skill.heal, Color(0.4,1,0.53))
+			float_text(player.global_position + Vector2(0,-50), "Soin envoyé à %s" % ally.p.char_data.name, Color(0.6,0.85,1))
+		else:
+			player.heal(skill.heal)
+			float_text(player.global_position + Vector2(0,-50), "+%d PV" % skill.heal, Color(0.4,1,0.53))
 	if skill.has("buff"):
 		var b = skill.buff
-		player.stats.atk += b.get("atk", 0)
-		player.stats.def += b.get("def", 0)
-		player.stats.spd += b.get("spd", 0)
-		get_tree().create_timer(b.duration).timeout.connect(func():
-			player.stats.atk -= b.get("atk", 0)
-			player.stats.def -= b.get("def", 0)
-			player.stats.spd -= b.get("spd", 0))
+		_apply_buff_to(player, b)
 		float_text(player.global_position + Vector2(0,-50), skill.name + " !", Color(1,0.88,0.4))
+		if skill.get("party", false):
+			var buff_range = skill.get("range", 0.0)
+			if buff_range <= 0: buff_range = 220.0 # 0 = "portée illimitée locale" -> zone raisonnable autour du lanceur
+			for pid in remote_players.keys():
+				var rp: Player = remote_players[pid]
+				if rp.dead: continue
+				if player.global_position.distance_to(rp.global_position) <= buff_range:
+					rpc_id(pid, "net_apply_buff", b)
+					float_text(rp.global_position + Vector2(0,-50), skill.name + " !", Color(1,0.88,0.4))
 	if skill.has("dash"):
 		var v = DIR_VEC[player.dir] * skill.dash
 		player.global_position.x = clamp(player.global_position.x + v.x, 20, Data.WORLD_WIDTH-20)
@@ -547,6 +557,39 @@ func use_skill(idx: int) -> void:
 		for t in hits:
 			var dmg = roll_damage(player.stats.atk, skill.dmg_mult, skill.get("crit_bonus", 0.0))
 			deal_damage_to_enemy(t.e, dmg)
+
+func find_nearest_ally_in_range(range_px: float):
+	var best = null
+	var best_d = range_px
+	for pid in remote_players.keys():
+		var rp: Player = remote_players[pid]
+		if rp.dead: continue
+		var d = player.global_position.distance_to(rp.global_position)
+		if d <= best_d:
+			best_d = d
+			best = {"pid": pid, "p": rp}
+	return best
+
+func _apply_buff_to(p: Player, b: Dictionary) -> void:
+	p.stats.atk += b.get("atk", 0)
+	p.stats.def += b.get("def", 0)
+	p.stats.spd += b.get("spd", 0)
+	get_tree().create_timer(b.duration).timeout.connect(func():
+		if not is_instance_valid(p): return
+		p.stats.atk -= b.get("atk", 0)
+		p.stats.def -= b.get("def", 0)
+		p.stats.spd -= b.get("spd", 0))
+
+@rpc("any_peer", "reliable")
+func net_apply_heal(amount: float) -> void:
+	player.heal(amount)
+	float_text(player.global_position + Vector2(0,-50), "+%d PV (soin reçu)" % amount, Color(0.4,1,0.53))
+	emit_signal("hud_update", make_hud_data())
+
+@rpc("any_peer", "reliable")
+func net_apply_buff(b: Dictionary) -> void:
+	_apply_buff_to(player, b)
+	emit_signal("hud_update", make_hud_data())
 
 func roll_damage(atk: float, mult: float, extra_crit: float) -> float:
 	var race = Data.RACES[char_data.race]

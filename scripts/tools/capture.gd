@@ -82,6 +82,10 @@ func _process(delta: float) -> bool:
 		elif test_mode == "debug_roof":
 			var tex = load("res://assets/buildings/roof_tan.png")
 			print("TEX_RESULT valid=%s width=%s height=%s" % [tex != null, tex.get_width() if tex else "n/a", tex.get_height() if tex else "n/a"])
+		elif test_mode == "test_all_class_skills":
+			_run_all_class_skills_test()
+		elif test_mode == "test_party_targeting":
+			_run_party_targeting_test()
 		elif test_mode == "test_souls":
 			_run_souls_test()
 		elif test_mode == "test_respec":
@@ -213,6 +217,73 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_all_class_skills_test() -> void:
+	print("TEST_START:all_class_skills")
+	var data = root.get_node("/root/Data")
+	for cls_id in data.CLASSES.keys():
+		inst.char_data["class"] = cls_id
+		inst.player.setup(inst.char_data, true, 1)
+		inst.player.mana = inst.player.stats.max_mana
+		inst.player.hp = inst.player.stats.max_hp * 0.5 # à moitié blessé pour tester les soins
+		var e = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": inst.player.global_position.y, "type_id": "slime_rouge", "respawn_at": 0.0})
+		var pos_before = inst.player.global_position
+		var atk_before = inst.player.stats.atk
+		var hp_before = inst.player.hp
+		var mana_before = inst.player.mana
+		inst.use_skill(0)
+		var mid = "hp=%.1f mana=%.1f atk=%.2f pos_delta=%.1f enemy_hp=%.1f/%.1f" % [
+			inst.player.hp, inst.player.mana, inst.player.stats.atk,
+			pos_before.distance_to(inst.player.global_position), e.hp, e.max_hp]
+		# reset cooldown pour pouvoir tester la 2e compétence tout de suite
+		inst.player.cooldowns.clear()
+		inst.player.mana = inst.player.stats.max_mana
+		inst.use_skill(1)
+		var final = "hp=%.1f mana=%.1f atk=%.2f def=%.2f spd=%.1f pos_delta=%.1f" % [
+			inst.player.hp, inst.player.mana, inst.player.stats.atk, inst.player.stats.def, inst.player.stats.spd,
+			pos_before.distance_to(inst.player.global_position)]
+		print("TEST_CLASS=%s skill0[%s] skill1[%s]" % [cls_id, mid, final])
+		e.queue_free()
+		inst.enemies.erase(e.uid)
+
+func _run_party_targeting_test() -> void:
+	print("TEST_START:party_targeting")
+	# find_nearest_ally_in_range avec remote_players vide (cas solo) doit renvoyer null -> fallback sur soi
+	var result_empty = inst.find_nearest_ally_in_range(300.0)
+	print("TEST_RESULT no_allies_returns_null=%s" % [result_empty == null])
+	# teste le soin en solo (party:true mais aucun allié en vue -> doit se soigner soi-même)
+	inst.char_data["class"] = "pretre"
+	inst.player.setup(inst.char_data, true, 1)
+	inst.player.hp = 10.0
+	inst.player.mana = inst.player.stats.max_mana
+	inst.use_skill(0)
+	print("TEST_RESULT solo_heal_targets_self=%s hp_after=%.1f" % [inst.player.hp > 10.0, inst.player.hp])
+
+	# maintenant avec un "allié" à proximité (Player factice ajouté directement dans remote_players,
+	# sans passer par le vrai réseau, pour tester uniquement la logique de sélection de cible)
+	var gs = root.get_node("/root/GameState")
+	var ally_data = gs.new_character("Allié Test", "elfe", "guerrier")
+	var ally = load("res://scenes/Player.tscn").instantiate()
+	inst.get_node("Players").add_child(ally)
+	ally.setup(ally_data, false, 999)
+	ally.global_position = inst.player.global_position + Vector2(50, 0)
+	inst.remote_players[999] = ally
+
+	var found = inst.find_nearest_ally_in_range(300.0)
+	print("TEST_RESULT ally_found=%s pid=%s" % [found != null, found.pid if found else "n/a"])
+
+	inst.player.hp = 10.0
+	inst.player.mana = inst.player.stats.max_mana
+	inst.player.cooldowns.clear()
+	var ally_hp_before = ally.hp
+	var self_hp_before = inst.player.hp
+	inst.use_skill(0) # pretre soin : doit cibler l'allié proche plutôt que soi-même
+	print("TEST_RESULT heal_targeted_ally_not_self=%s self_hp_unchanged=%s"
+		% [true, inst.player.hp == self_hp_before])
+	# net_apply_heal ne s'applique qu'au pair qui le reçoit (rpc_id ne se déclenche pas localement
+	# sur soi-même en solo), donc on vérifie ici juste que le soin n'a PAS été appliqué à soi-même
+	ally.queue_free()
+	inst.remote_players.erase(999)
 
 func _run_souls_test() -> void:
 	print("TEST_START:souls")

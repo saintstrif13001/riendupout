@@ -204,6 +204,8 @@ func _process(delta: float) -> bool:
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
 			_run_zone_event_test()
+		elif test_mode == "test_death_screen":
+			_run_death_screen_test()
 		elif test_mode == "test_quit_to_menu":
 			_run_quit_to_menu_test()
 		elif test_mode == "show_player_hit_flash":
@@ -239,6 +241,11 @@ func _process(delta: float) -> bool:
 			_run_garde_patrol_dialogue_test()
 		elif test_mode == "test_network_disconnect_guard":
 			_run_network_disconnect_guard_test()
+		elif test_mode == "show_death_screen":
+			inst.player.take_damage(999999.0)
+			inst.on_player_died()
+			inst.respawn_at = -1.0
+			inst.handle_respawn(0.0)
 		elif test_mode == "test_save_zone_change":
 			_run_save_zone_change_test()
 		elif test_mode == "show_respec_dialogue":
@@ -2011,6 +2018,33 @@ func _run_zone_event_test() -> void:
 	var all_ok = no_invasion_in_village and count_in_range and all_within_zone_bounds and none_will_respawn and found_invasion_enemies and timer_gate_respected
 	print("TEST_RESULT all_ok=%s no_invasion_in_village=%s count_in_range=%s all_within_zone_bounds=%s none_will_respawn=%s found_invasion_enemies=%s timer_gate_respected=%s"
 		% [all_ok, no_invasion_in_village, count_in_range, all_within_zone_bounds, none_will_respawn, found_invasion_enemies, timer_gate_respected])
+
+func _run_death_screen_test() -> void:
+	print("TEST_START:death_screen")
+	# L'ecran restait noir et completement vide pendant les ~2.5s d'attente de
+	# reapparition (fade_out puis plus rien jusqu'au fade_in) : aucune info,
+	# pas meme une confirmation qu'on est mort ni un decompte. Verifie que
+	# l'ecran de mort affiche le decompte + l'or perdu, et se cache bien a
+	# la reapparition.
+	var hud = inst.get_node("Hud")
+	var hidden_before_death = not hud.death_overlay.visible
+
+	inst.player.take_damage(999999.0)
+	inst.on_player_died()
+	inst.respawn_at = -1.0
+	inst.handle_respawn(0.0)
+	var shown_after_death = hud.death_overlay.visible
+	var shows_countdown = "3" in hud.death_countdown_label.text
+	var shows_gold_lost = "or" in hud.death_countdown_label.text and inst.char_data.bloodstain.gold > 0
+
+	inst.respawn_at = Time.get_ticks_msec() / 1000.0 - 1.0 # force l'expiration du minuteur
+	inst.handle_respawn(0.0)
+	var hidden_after_respawn = not hud.death_overlay.visible
+	var player_alive_again = not inst.player.dead
+
+	var all_ok = hidden_before_death and shown_after_death and shows_countdown and shows_gold_lost and hidden_after_respawn and player_alive_again
+	print("TEST_RESULT all_ok=%s hidden_before_death=%s shown_after_death=%s shows_countdown=%s shows_gold_lost=%s hidden_after_respawn=%s player_alive_again=%s"
+		% [all_ok, hidden_before_death, shown_after_death, shows_countdown, shows_gold_lost, hidden_after_respawn, player_alive_again])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

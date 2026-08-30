@@ -1491,13 +1491,20 @@ func handle_respawn(delta: float) -> void:
 	if respawn_at < 0:
 		respawn_at = Time.get_ticks_msec()/1000.0 + 3.0
 		float_text(player.global_position + Vector2(0,-40), "Réapparition...", Color(1,1,1))
-	if Time.get_ticks_msec()/1000.0 > respawn_at:
+	var now = Time.get_ticks_msec()/1000.0
+	if now > respawn_at:
 		respawn_at = -1.0
 		# Réapparaît à l'entrée de la zone où le joueur est mort (pas toujours au village),
 		# pour éviter d'avoir à retraverser toute la carte après une mort en zone avancée.
 		player.respawn(get_zone_spawn(death_zone_id))
 		emit_signal("hud_update", make_hud_data())
-		if hud: hud.fade_in(0.5)
+		if hud:
+			hud.hide_death_screen()
+			hud.fade_in(0.5)
+	elif hud:
+		# L'écran restait noir et vide pendant toute l'attente : affiche un
+		# décompte et l'or perdu au lieu de ne rien montrer du tout.
+		hud.show_death_screen(respawn_at - now, char_data.bloodstain.gold if char_data.bloodstain else 0)
 
 # ---------------- Récolte & PNJ ----------------
 func update_near_interactable() -> void:

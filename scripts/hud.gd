@@ -37,6 +37,9 @@ var chat_input: LineEdit
 var chat_messages: Array = []
 const CHAT_MAX_MESSAGES := 8
 var fade_rect: ColorRect
+var death_overlay: Control
+var death_title_label: Label
+var death_countdown_label: Label
 
 func bind(w) -> void:
 	world = w
@@ -61,6 +64,7 @@ func _ready() -> void:
 	_build_stats_overlay()
 	_build_chat()
 	_build_fade_overlay()
+	_build_death_overlay()
 
 func _build_fade_overlay() -> void:
 	# Écran noir plein cadre pour adoucir les changements de zone et la mort,
@@ -70,6 +74,41 @@ func _build_fade_overlay() -> void:
 	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(fade_rect)
+
+func _build_death_overlay() -> void:
+	# L'écran restait noir et totalement vide pendant les ~2.5s d'attente de
+	# réapparition (fade_out puis rien jusqu'au fade_in) : aucune information,
+	# pas même une confirmation qu'on est bien mort ni un décompte.
+	death_overlay = Control.new()
+	death_overlay.theme = UiTheme.build()
+	death_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	death_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	death_overlay.visible = false
+	var box = VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_CENTER)
+	box.add_theme_constant_override("separation", 8)
+	death_overlay.add_child(box)
+	death_title_label = Label.new()
+	death_title_label.text = "VOUS ÊTES MORT"
+	death_title_label.add_theme_font_size_override("font_size", 32)
+	death_title_label.add_theme_color_override("font_color", Color(0.85, 0.15, 0.15))
+	death_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(death_title_label)
+	death_countdown_label = Label.new()
+	death_countdown_label.add_theme_font_size_override("font_size", 18)
+	death_countdown_label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	death_countdown_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	box.add_child(death_countdown_label)
+	add_child(death_overlay)
+
+func show_death_screen(seconds_left: float, gold_lost: int) -> void:
+	death_overlay.visible = true
+	var secs = maxi(0, ceili(seconds_left))
+	var gold_line = " · -%d or laissé sur place" % gold_lost if gold_lost > 0 else ""
+	death_countdown_label.text = "Réapparition dans %d...%s" % [secs, gold_line]
+
+func hide_death_screen() -> void:
+	death_overlay.visible = false
 
 func fade_out(duration: float = 0.35) -> void:
 	var tw = create_tween()

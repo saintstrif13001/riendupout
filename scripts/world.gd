@@ -33,6 +33,10 @@ const CAMERA_ZOOM_MAX := 2.6
 const CAMERA_ZOOM_STEP := 0.15
 const NPC_WANDER_RADIUS := 45.0
 const NPC_WANDER_SPEED := 26.0
+var event_accum: float = 0.0
+var next_event_at: float = 0.0
+const ZONE_EVENT_INTERVAL_MIN := 90.0
+const ZONE_EVENT_INTERVAL_MAX := 180.0
 var economy_tick_accum: float = 0.0
 # Économie villageoise simulée : une cueilleuse récolte des herbes, l'alchimiste
 # les transforme en potions en arrière-plan, et le prix en boutique varie selon
@@ -113,6 +117,7 @@ func _ready() -> void:
 	char_data = GameState.char_data
 	is_sim = multiplayer.is_server()
 	randomize()
+	next_event_at = randf_range(ZONE_EVENT_INTERVAL_MIN, ZONE_EVENT_INTERVAL_MAX)
 	draw_world()
 	canvas_modulate = CanvasModulate.new()
 	canvas_modulate.color = Color(1, 1, 1)
@@ -807,6 +812,50 @@ func spawn_enemy(sd: Dictionary) -> Enemy:
 		e.phase_triggered.connect(func(phase): _on_boss_phase(e, phase))
 	return e
 
+# ---------------- Événements de zone ----------------
+# Le monde n'avait aucun événement dynamique : rien ne se passait jamais en
+# dehors des actions du joueur. Toutes les quelques minutes, une horde
+# surgit près du joueur dans la zone dangereuse où il se trouve, avec une
+# annonce diffusée à tout le groupe. Cote hote uniquement (comme le reste
+# de l'IA ennemie) ; les clients voient les nouveaux ennemis apparaître
+# naturellement via le mécanisme de snapshot déjà existant.
+func update_zone_events(delta: float) -> void:
+	event_accum += delta
+	if event_accum < next_event_at: return
+	event_accum = 0.0
+	next_event_at = randf_range(ZONE_EVENT_INTERVAL_MIN, ZONE_EVENT_INTERVAL_MAX)
+	trigger_zone_event()
+
+func trigger_zone_event() -> void:
+	var zid = Data.zone_at(player.global_position.x).id
+	if zid == "village": return # zone sûre, pas d'invasion
+	var z = Data.ZONES[zid]
+	var types = []
+	for tid in Data.MONSTER_TYPES.keys():
+		var m = Data.MONSTER_TYPES[tid]
+		if m.zone == zid and not m.get("boss", false): types.append(tid)
+	if types.is_empty(): return
+	var chosen_type = types[randi() % types.size()]
+	var count = randi_range(4, 6)
+	var cx = clampf(player.global_position.x + randf_range(-350.0, 350.0), z.x0 + 60, z.x1 - 60)
+	for i in range(count):
+		var x = clampf(cx + randf_range(-150.0, 150.0), z.x0 + 40, z.x1 - 40)
+		var y = randf_range(120.0, Data.WORLD_HEIGHT - 60.0)
+		var sd = {"x": x, "y": y, "type_id": chosen_type, "respawn_at": 0.0}
+		var e = spawn_enemy(sd)
+		e.set_meta("spawn_def", null) # pas de réapparition après la mort : évite une croissance sans fin de la population
+	var msg = "Une horde de %s envahit %s !" % [Data.MONSTER_TYPES[chosen_type].name, z.name]
+	announce_zone_event(msg)
+
+func announce_zone_event(msg: String) -> void:
+	float_text(player.global_position + Vector2(0, -140), msg, Color(1, 0.35, 0.2))
+	if Net.is_online:
+		rpc("net_zone_event_announce", msg)
+
+@rpc("authority", "reliable")
+func net_zone_event_announce(msg: String) -> void:
+	float_text(player.global_position + Vector2(0, -140), msg, Color(1, 0.35, 0.2))
+
 func _on_boss_phase(boss: Enemy, phase: Dictionary) -> void:
 	float_text(boss.global_position + Vector2(0,-70), "%s invoque des renforts !" % boss.mdef.name, Color(1,0.4,0.2))
 	for i in range(phase.get("count", 1)):
@@ -834,6 +883,7 @@ func _physics_process(delta: float) -> void:
 
 	if is_sim:
 		update_enemies(delta)
+		update_zone_events(delta)
 
 	for pid in remote_players.keys():
 		if is_instance_valid(remote_players[pid]):
@@ -1254,7 +1304,12 @@ func on_enemy_killed(e: Enemy, killer_id: int) -> void:
 		rpc("net_xp_grant", e.uid)
 	if Net.is_online:
 		rpc("net_enemy_died", e.uid)
-	var sd = e.get_meta("spawn_def", null)
+	# set_meta(key, null) EFFACE la clé plutôt que d'y stocker null (comportement
+	# Godot) : get_meta("spawn_def", null) déclenchait donc une erreur console
+	# ("no meta values with the key") à chaque mort d'un renfort de boss ou d'un
+	# ennemi d'invasion (voir trigger_zone_event), qui effacent tous deux cette
+	# clé pour empêcher leur réapparition.
+	var sd = e.get_meta("spawn_def") if e.has_meta("spawn_def") else null
 	var respawn_delay = 120.0 if e.mdef.get("boss", false) else 20.0
 	var uid = e.uid
 	get_tree().create_timer(respawn_delay).timeout.connect(func():

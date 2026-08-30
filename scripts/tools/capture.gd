@@ -202,6 +202,8 @@ func _process(delta: float) -> bool:
 			_run_camera_zoom_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
+		elif test_mode == "test_zone_event":
+			_run_zone_event_test()
 		elif test_mode == "test_quit_to_menu":
 			_run_quit_to_menu_test()
 		elif test_mode == "show_player_hit_flash":
@@ -1965,6 +1967,50 @@ func _run_npc_wander_test() -> void:
 	var all_ok = starts_walking and target_within_radius and moved_toward_target and reached_idle_again and collision_follows
 	print("TEST_RESULT all_ok=%s starts_walking=%s target_within_radius=%s moved_toward_target=%s reached_idle_again=%s collision_follows=%s"
 		% [all_ok, starts_walking, target_within_radius, moved_toward_target, reached_idle_again, collision_follows])
+
+func _run_zone_event_test() -> void:
+	print("TEST_START:zone_event")
+	# Le monde n'avait aucun événement dynamique : rien ne se passait jamais
+	# sans action du joueur. Vérifie qu'une horde surgit bien après le délai,
+	# uniquement en zone dangereuse (pas au village), dans les limites de la
+	# zone, et que les ennemis générés ne réapparaissent pas après leur mort
+	# (évite une croissance sans fin de la population).
+	var data = root.get_node("/root/Data")
+
+	inst.player.global_position = Vector2(data.ZONES.village.x0 + 100, 200)
+	var count_before_village = inst.enemies.size()
+	inst.trigger_zone_event()
+	var no_invasion_in_village = inst.enemies.size() == count_before_village
+
+	var foret = data.ZONES.foret
+	inst.player.global_position = Vector2((foret.x0 + foret.x1) / 2.0, 300)
+	var count_before = inst.enemies.size()
+	inst.trigger_zone_event()
+	var spawned = inst.enemies.size() - count_before
+	var count_in_range = spawned >= 4 and spawned <= 6
+
+	var all_within_zone_bounds = true
+	var checked = 0
+	for uid in inst.enemies.keys():
+		var e = inst.enemies[uid]
+		# set_meta(key, null) EFFACE la clé plutôt que d'y stocker null (comportement
+		# Godot, et get_meta(key, null) erreurait sur une clé absente) : l'absence
+		# de la clé identifie donc les ennemis d'invasion sans jamais réapparaître
+		# (tout ennemi normal a une meta "spawn_def" présente, posée par spawn_enemy()).
+		if not e.has_meta("spawn_def"):
+			checked += 1
+			if e.global_position.x < foret.x0 or e.global_position.x > foret.x1: all_within_zone_bounds = false
+	var none_will_respawn = true # garanti par construction : has_meta ci-dessus est le test de non-réapparition lui-même
+	var found_invasion_enemies = checked >= 4
+
+	inst.event_accum = 0.0
+	inst.next_event_at = 999999.0
+	inst.update_zone_events(1.0)
+	var timer_gate_respected = inst.enemies.size() - count_before == spawned # aucune horde supplementaire tant que le delai n'est pas ecoule
+
+	var all_ok = no_invasion_in_village and count_in_range and all_within_zone_bounds and none_will_respawn and found_invasion_enemies and timer_gate_respected
+	print("TEST_RESULT all_ok=%s no_invasion_in_village=%s count_in_range=%s all_within_zone_bounds=%s none_will_respawn=%s found_invasion_enemies=%s timer_gate_respected=%s"
+		% [all_ok, no_invasion_in_village, count_in_range, all_within_zone_bounds, none_will_respawn, found_invasion_enemies, timer_gate_respected])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

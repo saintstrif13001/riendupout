@@ -126,6 +126,8 @@ func _process(delta: float) -> bool:
 			_run_save_roundtrip_test()
 		elif test_mode == "test_gold_guards":
 			_run_gold_guards_test()
+		elif test_mode == "test_zone_lighting":
+			_run_zone_lighting_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -733,6 +735,31 @@ func _run_gold_guards_test() -> void:
 	print("TEST_RESULT3 respec_blocked=%s gold_unchanged=%s"
 		% [inst.char_data.talents.has("5"), inst.char_data.gold == 3])
 	print("TEST_RESULT4 gold_never_negative=%s" % [inst.char_data.gold >= 0])
+
+func _run_zone_lighting_test() -> void:
+	print("TEST_START:zone_lighting")
+	var has_modulate = inst.canvas_modulate != null and inst.canvas_modulate is CanvasModulate
+	print("TEST_STATE has_canvas_modulate=%s initial_zone=%s initial_color=%s"
+		% [has_modulate, inst.current_zone_light_id, inst.canvas_modulate.color if has_modulate else "N/A"])
+	# le tick périodique de world.gd (toutes les 0.4s) rappelle update_zone_lighting()
+	# avec la vraie zone du joueur — on le téléporte donc dans la zone testée pour que
+	# ce tick concorde avec l'appel manuel au lieu de le contrer.
+	var data = root.get_node("/root/Data")
+	inst.player.global_position = Vector2(data.ZONES.caverne.x0 + 300, data.WORLD_HEIGHT/2.0)
+	inst.update_zone_lighting("caverne")
+	var zone_switched = inst.current_zone_light_id == "caverne"
+	# appeler deux fois avec le même zone_id ne doit pas relancer un tween inutilement
+	var color_right_after = inst.canvas_modulate.color
+	inst.update_zone_lighting("caverne")
+	var color_unchanged_on_repeat = inst.canvas_modulate.color == color_right_after
+	await create_timer(0.3).timeout
+	print("TEST_DEBUG color_after_0.3s=%s" % [inst.canvas_modulate.color])
+	await create_timer(1.5).timeout
+	var final_color = inst.canvas_modulate.color
+	var expected = inst.ZONE_LIGHT["caverne"]
+	var converged = final_color.is_equal_approx(expected)
+	print("TEST_RESULT zone_switched=%s no_duplicate_retrigger=%s converged_to_caverne_tint=%s final_color=%s expected=%s"
+		% [zone_switched, color_unchanged_on_repeat, converged, final_color, expected])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

@@ -30,13 +30,36 @@ var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
 var death_zone_id: String = "village"
 var hud = null
+var canvas_modulate: CanvasModulate = null
+var current_zone_light_id: String = ""
+
+const ZONE_LIGHT := {
+	"village": Color(1, 1, 1),
+	"plaine": Color(1, 1, 1),
+	"foret": Color(0.78, 0.86, 0.72),   # sous-bois, lumière tamisée par les frondaisons
+	"caverne": Color(0.5, 0.55, 0.68),  # pénombre froide et bleutée des grottes
+	"marais": Color(0.72, 0.78, 0.62),  # brume verdâtre et humide
+}
+
+func update_zone_lighting(zid: String) -> void:
+	if zid == current_zone_light_id: return
+	current_zone_light_id = zid
+	var target = ZONE_LIGHT.get(zid, Color(1, 1, 1))
+	var tw = create_tween()
+	tw.tween_property(canvas_modulate, "color", target, 1.2).set_trans(Tween.TRANS_SINE)
 
 func _ready() -> void:
 	char_data = GameState.char_data
 	is_sim = multiplayer.is_server()
 	randomize()
 	draw_world()
+	canvas_modulate = CanvasModulate.new()
+	canvas_modulate.color = Color(1, 1, 1)
+	add_child(canvas_modulate)
 	spawn_local_player()
+	var start_zid = Data.zone_at(player.global_position.x).id
+	current_zone_light_id = start_zid
+	canvas_modulate.color = ZONE_LIGHT.get(start_zid, Color(1, 1, 1))
 	build_npcs()
 	build_gather_nodes()
 	if char_data.bloodstain: spawn_bloodstain_marker()
@@ -504,6 +527,7 @@ func _physics_process(delta: float) -> void:
 		emit_signal("hud_update", make_hud_data())
 		var zid = Data.zone_at(player.global_position.x).id
 		death_zone_id = zid
+		update_zone_lighting(zid)
 		if not char_data.unlocked_zones.has(zid):
 			char_data.unlocked_zones.append(zid)
 			float_text(player.global_position + Vector2(0,-90), "Zone découverte : voyage rapide débloqué", Color(0.7,1,0.85))

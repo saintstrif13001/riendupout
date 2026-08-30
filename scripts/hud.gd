@@ -213,7 +213,6 @@ func _on_talent_available(tier: Dictionary) -> void:
 	sub.text = "Choisis une voie pour ton personnage (définitif) :"
 	talent_box.add_child(sub)
 	for opt in tier.options:
-		var card = VBoxContainer.new()
 		var b = _add_button(talent_box, "%s\n%s" % [opt.name, opt.desc], func(): _choose_talent(tier, opt.id))
 		b.custom_minimum_size = Vector2(0, 60)
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD
@@ -344,6 +343,16 @@ func _add_button(box, text: String, cb: Callable) -> Button:
 	b.pressed.connect(cb)
 	box.add_child(b)
 	return b
+
+# Enveloppe n'importe quel contenu (texte de prime, options de talent...) dans
+# la même carte bordée que les lignes d'objets, pour une apparence cohérente
+# sur tous les panneaux au lieu d'un simple empilement de Label nus.
+func _wrap_card(box, content: Control) -> PanelContainer:
+	var card = PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _item_card_style())
+	card.add_child(content)
+	box.add_child(card)
+	return card
 
 func _icon_tex(item_id: String) -> TextureRect:
 	var t = TextureRect.new()
@@ -549,20 +558,22 @@ func render_npc_dialogue() -> void:
 		if b == null:
 			var doneLbl = Label.new()
 			doneLbl.text = "Primes complétées : %d" % cd.bounties_done
-			dialogue_box.add_child(doneLbl)
+			_wrap_card(dialogue_box, doneLbl)
 			_add_button(dialogue_box, "Demander une prime", func(): request_bounty())
 		elif b.progress >= b.count:
 			var lbl = Label.new()
 			lbl.text = "Prime terminée : %s (%d/%d) !" % [b.target_name, b.progress, b.count]
-			dialogue_box.add_child(lbl)
+			_wrap_card(dialogue_box, lbl)
 			_add_button(dialogue_box, "Encaisser : %d or, %d XP" % [b.reward_gold, b.reward_xp], func(): collect_bounty())
 		else:
+			var box2 = VBoxContainer.new()
 			var lbl = Label.new()
 			lbl.text = "Prime en cours : élimine %d %s (%d/%d)" % [b.count, b.target_name, b.progress, b.count]
-			dialogue_box.add_child(lbl)
+			box2.add_child(lbl)
 			var rew = Label.new()
 			rew.text = "Récompense : %d or, %d XP" % [b.reward_gold, b.reward_xp]
-			dialogue_box.add_child(rew)
+			box2.add_child(rew)
+			_wrap_card(dialogue_box, box2)
 
 	_add_button(dialogue_box, "Fermer (ESC)", func(): close_all())
 

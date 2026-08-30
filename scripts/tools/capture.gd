@@ -170,6 +170,15 @@ func _process(delta: float) -> bool:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
 		elif test_mode == "test_forge_economy":
 			_run_forge_economy_test()
+		elif test_mode == "test_bounty_card_ui":
+			var hud7 = inst.get_node("Hud")
+			var data7 = root.get_node("/root/Data")
+			inst.char_data.bounty = data7.random_bounty(inst.char_data.level)
+			hud7._on_open_npc(data7.get_npc("chasseur"))
+			var has_card = false
+			for c in hud7.dialogue_box.get_children():
+				if c is PanelContainer: has_card = true
+			print("TEST_RESULT bounty_status_wrapped_in_card=%s" % has_card)
 		elif test_mode == "show_forge_dialogue":
 			var hud6 = inst.get_node("Hud")
 			var data6 = root.get_node("/root/Data")

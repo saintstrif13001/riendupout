@@ -342,6 +342,15 @@ func spawn_local_player() -> void:
 	player.add_child(cam)
 	cam.make_current()
 
+const NPC_HAIR_COLORS := [
+	Color(0.25, 0.16, 0.1),  # brun
+	Color(0.07, 0.06, 0.06), # noir
+	Color(0.55, 0.4, 0.15),  # blond fonce
+	Color(0.78, 0.65, 0.3),  # blond
+	Color(0.4, 0.12, 0.06),  # roux
+	Color(0.6, 0.6, 0.63),   # gris
+]
+
 func build_npcs() -> void:
 	var npc_body_tex = load("res://assets/sprites/player/body_walk.png")
 	var npc_head_tex = load("res://assets/sprites/player/head_walk.png")
@@ -376,10 +385,15 @@ func build_npcs() -> void:
 		vest.region_enabled = true; vest.region_rect = region
 		vest.z_index = 2
 		node.add_child(vest)
+		# Coiffure et calvitie déterminées par hash de l'id du PNJ (stable d'une
+		# partie à l'autre) plutôt que la même chevelure brune pour tout le monde.
+		var h = hash(npc.id)
+		var is_bald = (h % 5) == 0 # ~20%
 		var hair = Sprite2D.new()
 		hair.texture = npc_hair_tex
 		hair.region_enabled = true; hair.region_rect = region
-		hair.modulate = Color(0.25, 0.16, 0.1)
+		hair.modulate = NPC_HAIR_COLORS[h % NPC_HAIR_COLORS.size()]
+		hair.visible = not is_bald
 		hair.z_index = 3
 		node.add_child(hair)
 		var head = Sprite2D.new()

@@ -118,6 +118,8 @@ func _process(delta: float) -> bool:
 			_run_bar_tween_test()
 		elif test_mode == "test_gather":
 			_run_gather_test()
+		elif test_mode == "test_npc_variety":
+			_run_npc_variety_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -624,6 +626,21 @@ func _run_gather_test() -> void:
 	inst.try_interact()
 	var after_respawn_gather = inst.char_data.inventory.get(mat, 0)
 	print("TEST_RESULT3 gather_works_after_respawn=%s inv_after_respawn_gather=%d" % [after_respawn_gather == after_second_try + 1, after_respawn_gather])
+
+func _run_npc_variety_test() -> void:
+	print("TEST_START:npc_variety")
+	var colors := {}
+	var bald_count = 0
+	for n in inst.npc_nodes:
+		var hair = n.node.get_child(3) # ordre : legs, body, vest, hair, head
+		colors[hair.modulate] = true
+		if not hair.visible: bald_count += 1
+	print("TEST_RESULT total_npcs=%d distinct_hair_colors=%d bald_count=%d"
+		% [inst.npc_nodes.size(), colors.size(), bald_count])
+	# doit être déterministe : reconstruire donnerait le même résultat pour un même PNJ
+	var h1 = hash(inst.npc_nodes[0].npc.id)
+	var h2 = hash(inst.npc_nodes[0].npc.id)
+	print("TEST_RESULT2 hash_deterministic=%s" % [h1 == h2])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

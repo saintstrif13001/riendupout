@@ -688,8 +688,16 @@ func render_npc_dialogue() -> void:
 	var to_turnin = []
 	for qid in cd.quests_active.keys():
 		var q = Data.get_quest(qid)
-		if not q.is_empty() and q.giver == npc.id and cd.quests_active[qid] >= q.obj.count:
-			to_turnin.append(qid)
+		if q.is_empty(): continue
+		# Les quêtes "deliver" se rendent au PNJ cible (obj.target), pas forcément
+		# au donneur (ex: q_relique est donnée par le prêtre mais se rend à
+		# l'Ancien) ; leur progression suit l'inventaire, pas un compteur d'events
+		# (rien n'incrémente quests_active[qid] pour ce type, donc l'ancienne
+		# condition >= count restait bloquée à 0 pour toujours).
+		var turnin_npc = q.obj.target if q.obj.type == "deliver" else q.giver
+		if turnin_npc != npc.id: continue
+		var ready = cd.inventory.get(q.obj.item, 0) >= q.obj.count if q.obj.type == "deliver" else cd.quests_active[qid] >= q.obj.count
+		if ready: to_turnin.append(qid)
 	var available = []
 	for q in Data.QUESTS:
 		if q.giver != npc.id: continue
@@ -833,6 +841,7 @@ func accept_quest(qid: String) -> void:
 	world.char_data.quests_active[qid] = 0
 	close_all()
 	_render_quests()
+	world.refresh_quest_icons()
 
 func turn_in_quest(qid: String) -> void:
 	var q = Data.get_quest(qid)
@@ -859,6 +868,7 @@ func turn_in_quest(qid: String) -> void:
 	world.save_now()
 	_render_quests()
 	render_npc_dialogue()
+	world.refresh_quest_icons()
 
 func buy_item(key: String) -> void:
 	var cd = world.char_data

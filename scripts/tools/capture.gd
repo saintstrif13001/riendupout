@@ -945,22 +945,64 @@ func _run_quest_chain_test() -> void:
 
 func _run_deliver_quest_test() -> void:
 	print("TEST_START:deliver_quest")
+	var data = root.get_node("/root/Data")
 	var hud = inst.get_node("Hud")
 	var cd = inst.char_data
 	hud.accept_quest("q_relique")
-	# tenter de rendre sans avoir l'objet requis : ne doit ni terminer la quête
-	# ni consommer quoi que ce soit (rien à consommer de toute façon)
+
+	# BUG REEL trouvé en auditant le jeu : les quêtes "deliver" ne font jamais
+	# progresser quests_active[qid] (rien n'incrémente ce compteur pour ce
+	# type), donc l'ancienne condition ">= count" du dialogue restait
+	# bloquée à 0 pour toujours — le bouton "[Rendre]" n'apparaissait JAMAIS,
+	# même objet en main. De plus q_relique est donnée par "pretre" mais doit
+	# se rendre à "ancien" (obj.target) : rendre chez le donneur était donc
+	# aussi la mauvaise condition. Deux quêtes majeures (500 et 600 XP)
+	# étaient de facto impossibles à terminer via l'interface normale.
+	hud._on_open_npc(data.get_npc("ancien"))
+	var turnin_hidden_without_item = not _dialogue_has_button(hud, "[Rendre]")
+	var icon_hidden_without_item = inst.npc_quest_icon_state("ancien") != "turnin"
+
+	cd.inventory["relique_ossements"] = 1
+	inst.refresh_quest_icons()
+	var icon_shows_turnin_with_item = inst.npc_quest_icon_state("ancien") == "turnin"
+	hud._on_open_npc(data.get_npc("ancien"))
+	var turnin_button_shown_at_target_npc = _dialogue_has_button(hud, "[Rendre]")
+
+	# _clear_box() utilise queue_free() : libère explicitement (pas de frame
+	# d'attente fiable en headless) pour ne pas mélanger les boutons de l'ancien
+	# rendu avec le nouveau lors de la vérification qui suit.
+	for c in hud.dialogue_box.get_children(): c.free()
+	hud._on_open_npc(data.get_npc("pretre")) # le donneur, pas la cible de livraison
+	var turnin_not_shown_at_wrong_npc = not _dialogue_has_button(hud, "[Rendre]")
+
+	# tenter de rendre sans avoir l'objet (remis à zéro) : ne doit ni terminer
+	# la quête ni consommer quoi que ce soit.
+	var had_item = cd.inventory["relique_ossements"]
+	cd.inventory["relique_ossements"] = 0
 	hud.turn_in_quest("q_relique")
 	var blocked_without_item = not cd.quests_completed.has("q_relique") and cd.quests_active.has("q_relique")
-	# donne l'objet et rend la quête : doit consommer exactement la quantité requise
-	cd.inventory["relique_ossements"] = 1
+	cd.inventory["relique_ossements"] = had_item
+
 	var gold_before = cd.gold
 	hud.turn_in_quest("q_relique")
 	var completed = cd.quests_completed.has("q_relique")
 	var item_consumed = cd.inventory.get("relique_ossements", 0) == 0
 	var gold_gained = (cd.gold - gold_before) == 250
-	print("TEST_RESULT blocked_without_item=%s completed_with_item=%s item_consumed=%s gold_gained_correct=%s"
-		% [blocked_without_item, completed, item_consumed, gold_gained])
+	var icon_cleared_after_turnin = inst.npc_quest_icon_state("ancien") != "turnin"
+
+	print("TEST_RESULT turnin_hidden_without_item=%s icon_hidden_without_item=%s icon_shows_turnin_with_item=%s turnin_button_shown_at_target_npc=%s turnin_not_shown_at_wrong_npc=%s blocked_without_item=%s completed_with_item=%s item_consumed=%s gold_gained_correct=%s icon_cleared_after_turnin=%s"
+		% [turnin_hidden_without_item, icon_hidden_without_item, icon_shows_turnin_with_item, turnin_button_shown_at_target_npc, turnin_not_shown_at_wrong_npc, blocked_without_item, completed, item_consumed, gold_gained, icon_cleared_after_turnin])
+
+func _dialogue_button_texts(hud) -> Array:
+	var texts = []
+	for c in hud.dialogue_box.get_children():
+		if c is Button: texts.append(c.text)
+	return texts
+
+func _dialogue_has_button(hud, prefix: String) -> bool:
+	for t in _dialogue_button_texts(hud):
+		if t.begins_with(prefix): return true
+	return false
 
 func _run_talent_ui_flow_test() -> void:
 	print("TEST_START:talent_ui_flow")

@@ -115,6 +115,7 @@ func _ready() -> void:
 	current_zone_light_id = start_zid
 	canvas_modulate.color = ZONE_LIGHT.get(start_zid, Color(1, 1, 1))
 	build_npcs()
+	refresh_quest_icons()
 	build_gather_nodes()
 	if char_data.bloodstain: spawn_bloodstain_marker()
 	if is_sim:
@@ -664,12 +665,13 @@ func build_npcs() -> void:
 		label.add_theme_color_override("font_color", Color(1, 0.88, 0.4))
 		node.add_child(label)
 		var icon = Label.new()
-		icon.text = "!" if npc.role != "shop" and npc.role != "profession" else ("$" if npc.role == "shop" else "*")
+		icon.text = "$" if npc.role == "shop" else ("*" if npc.role == "profession" else "!")
 		icon.position = Vector2(-8, -72)
 		icon.add_theme_font_size_override("font_size", 18)
+		icon.add_theme_color_override("font_color", Color(1, 0.85, 0.2))
 		node.add_child(icon)
 		$NPCs.add_child(node)
-		npc_nodes.append({"npc": npc, "node": node})
+		npc_nodes.append({"npc": npc, "node": node, "icon": icon})
 		# Collision légère pour que le joueur ne marche pas littéralement à travers/
 		# par-dessus le PNJ. Corps séparé (pas enfant du node qui oscille pour
 		# l'idle) pour rester parfaitement fixe malgré l'animation de respiration.
@@ -1388,6 +1390,7 @@ func update_quest_progress(kind: String, target_id) -> void:
 			char_data.quests_active[qid] = min(obj.count, char_data.quests_active[qid] + 1)
 			float_text(player.global_position + Vector2(0,-70), "%s %d/%d" % [q.name, char_data.quests_active[qid], obj.count], Color(0.63,0.82,1))
 			emit_signal("quest_progress")
+			refresh_quest_icons()
 
 func register_drop_for_quests(item_id: String) -> void:
 	for qid in char_data.quests_active.keys():
@@ -1396,6 +1399,41 @@ func register_drop_for_quests(item_id: String) -> void:
 		if q.obj.type == "gather_drop" and q.obj.target == item_id:
 			char_data.quests_active[qid] = min(q.obj.count, char_data.quests_active[qid] + 1)
 			emit_signal("quest_progress")
+			refresh_quest_icons()
+	# L'inventaire peut aussi débloquer une quête "deliver" déjà active (dont le
+	# statut suit l'inventaire, pas quests_active) sans passer par la branche
+	# gather_drop ci-dessus.
+	refresh_quest_icons()
+
+func npc_quest_icon_state(npc_id: String) -> String:
+	# Reflète le même calcul que hud.gd:render_npc_dialogue() pour que
+	# l'icône au-dessus du PNJ corresponde à ce que le dialogue affichera.
+	for qid in char_data.quests_active.keys():
+		var q = Data.get_quest(qid)
+		if q.is_empty(): continue
+		var turnin_npc = q.obj.target if q.obj.type == "deliver" else q.giver
+		if turnin_npc != npc_id: continue
+		var ready = char_data.inventory.get(q.obj.item, 0) >= q.obj.count if q.obj.type == "deliver" else char_data.quests_active[qid] >= q.obj.count
+		if ready: return "turnin"
+	for q in Data.QUESTS:
+		if q.giver != npc_id: continue
+		if char_data.quests_active.has(q.id) or char_data.quests_completed.has(q.id): continue
+		var ok = true
+		for r in q.requires:
+			if not char_data.quests_completed.has(r): ok = false; break
+		if q.has("race_req") and char_data.race != q.race_req: ok = false
+		if ok: return "available"
+	return "none"
+
+func refresh_quest_icons() -> void:
+	for entry in npc_nodes:
+		var npc = entry.npc
+		if npc.role == "shop" or npc.role == "profession": continue
+		var icon: Label = entry.icon
+		match npc_quest_icon_state(npc.id):
+			"turnin": icon.text = "?"; icon.visible = true
+			"available": icon.text = "!"; icon.visible = true
+			_: icon.visible = false
 
 # ---------------- Réseau ----------------
 const NETWORK_GRACE_PERIOD := 2.0 # laisse le temps à tous les pairs de charger World.tscn

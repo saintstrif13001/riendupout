@@ -132,6 +132,8 @@ func _process(delta: float) -> bool:
 			_run_quest_chain_test()
 		elif test_mode == "test_deliver_quest":
 			_run_deliver_quest_test()
+		elif test_mode == "test_talent_ui_flow":
+			_run_talent_ui_flow_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -847,6 +849,28 @@ func _run_deliver_quest_test() -> void:
 	var gold_gained = (cd.gold - gold_before) == 250
 	print("TEST_RESULT blocked_without_item=%s completed_with_item=%s item_consumed=%s gold_gained_correct=%s"
 		% [blocked_without_item, completed, item_consumed, gold_gained])
+
+func _run_talent_ui_flow_test() -> void:
+	print("TEST_START:talent_ui_flow")
+	var gs = root.get_node("/root/GameState")
+	var hud = inst.get_node("Hud")
+	inst.char_data.level = 5
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	var atk_before = inst.player.stats.atk
+	var tier = gs.pending_talent(inst.char_data)
+	var chosen = tier.options[0]
+	# passe par le vrai chemin UI (bouton -> _on_talent_available/_choose_talent),
+	# pas juste une manipulation directe de char_data + recompute_stats comme
+	# le faisait test_talent — sinon un bug dans le câblage UI passerait inaperçu
+	# (c'est exactement le genre de trou qui cachait le bug des quêtes 'talk').
+	hud._on_talent_available(tier)
+	var overlay_shown = hud.talent_overlay.visible
+	hud._choose_talent(tier, chosen.id)
+	var atk_after = inst.player.stats.atk
+	print("TEST_RESULT overlay_shown_before_choice=%s talent_recorded=%s stats_actually_updated_on_player=%s overlay_hidden_after=%s"
+		% [overlay_shown, inst.char_data.talents.get(str(tier.level)) == chosen.id,
+			atk_after != atk_before, not hud.talent_overlay.visible])
+	print("TEST_RESULT2 hp_clamped_to_new_max=%s" % [inst.player.hp <= inst.player.stats.max_hp])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

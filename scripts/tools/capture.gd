@@ -122,6 +122,10 @@ func _process(delta: float) -> bool:
 			_run_npc_variety_test()
 		elif test_mode == "test_tooltip":
 			_run_tooltip_test()
+		elif test_mode == "test_save_roundtrip":
+			_run_save_roundtrip_test()
+		elif test_mode == "test_gold_guards":
+			_run_gold_guards_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -657,6 +661,78 @@ func _run_tooltip_test() -> void:
 	var icon = hud._icon_tex("epee_fer")
 	print("TEST_RESULT4 icon_tooltip_set=%s" % [icon.tooltip_text == weapon_tt])
 	icon.free() # créé hors-arbre juste pour le test, à nettoyer immédiatement
+
+func _run_save_roundtrip_test() -> void:
+	print("TEST_START:save_roundtrip")
+	var gs = root.get_node("/root/GameState")
+	var cd = gs.new_character("RoundtripHero", "nain", "pretre")
+	cd.level = 17
+	cd.xp = 12345
+	cd.gold = 999999
+	cd.equipment = {"weapon": "epee_fer", "armor": ""}
+	cd.inventory = {"minerai": 12, "bois": 0, "potion_vie": 3, "relique_ossements": 1}
+	cd.quests_active = {"q_intro": 2, "q_foret_1": 0}
+	cd.quests_completed = ["q_village_1", "q_village_2"]
+	cd.profession = "forgeron"
+	cd.gather_counts = {"minerai": 40, "bois": 12}
+	cd.bounty = {"target": "loup_alpha", "target_name": "Loup Alpha", "count": 3, "progress": 1, "reward_gold": 50, "reward_xp": 100}
+	cd.bounties_done = 4
+	cd.talents = {"5": "talent_a", "15": "talent_b"}
+	cd.reputation = {"garde": 320, "rangers": -50}
+	cd.unlocked_zones = ["village", "plaine", "foret", "caverne"]
+	cd.bloodstain = {"x": 1234.5, "y": 678.0, "gold": 77}
+	gs.char_data = cd
+	gs.save_character()
+	gs.char_data = {} # simule un redémarrage : plus rien en mémoire, seulement le fichier
+	var loaded = gs.load_saved_character()
+	var checks = {
+		"name": loaded.get("name") == "RoundtripHero",
+		"level": loaded.get("level") == 17,
+		"xp": loaded.get("xp") == 12345,
+		"gold": loaded.get("gold") == 999999,
+		"equipment_weapon": loaded.get("equipment",{}).get("weapon") == "epee_fer",
+		"inventory_minerai": loaded.get("inventory",{}).get("minerai") == 12,
+		"quests_active_q_intro": loaded.get("quests_active",{}).get("q_intro") == 2,
+		"quests_completed": loaded.get("quests_completed",[]) == ["q_village_1","q_village_2"],
+		"profession": loaded.get("profession") == "forgeron",
+		"gather_counts": loaded.get("gather_counts",{}).get("minerai") == 40,
+		"bounty_target": loaded.get("bounty",{}).get("target") == "loup_alpha",
+		"bounties_done": loaded.get("bounties_done") == 4,
+		"talents": loaded.get("talents",{}).get("5") == "talent_a",
+		"reputation_negative": loaded.get("reputation",{}).get("rangers") == -50,
+		"unlocked_zones": loaded.get("unlocked_zones",[]) == ["village","plaine","foret","caverne"],
+		"bloodstain_gold": loaded.get("bloodstain",{}).get("gold") == 77,
+	}
+	var all_ok = true
+	for k in checks.keys():
+		if not checks[k]: all_ok = false
+	print("TEST_RESULT all_fields_ok=%s details=%s" % [all_ok, checks])
+	gs.delete_save()
+
+func _run_gold_guards_test() -> void:
+	print("TEST_START:gold_guards")
+	var hud = inst.get_node("Hud")
+	# achat simple (buy_item, cout fixe 15) avec pas assez d'or : ne doit ni
+	# donner l'objet ni faire passer l'or en negatif
+	inst.char_data.gold = 5
+	var inv_before = inst.char_data.inventory.get("potion_vie", 0)
+	hud.buy_item("potion_vie")
+	print("TEST_RESULT buy_item_blocked=%s gold_unchanged=%s"
+		% [inst.char_data.inventory.get("potion_vie", 0) == inv_before, inst.char_data.gold == 5])
+	# achat de faction (prix variable + condition de reputation) avec or insuffisant
+	inst.char_data.gold = 10
+	inst.char_data.reputation["garde"] = 999 # réputation suffisante, seul l'or manque
+	var inv2_before = inst.char_data.inventory.get("cape_heros", 0)
+	hud.buy_faction_item("cape_heros")
+	print("TEST_RESULT2 buy_faction_blocked=%s gold_unchanged=%s"
+		% [inst.char_data.inventory.get("cape_heros", 0) == inv2_before, inst.char_data.gold == 10])
+	# reset des talents payant avec or insuffisant : ne doit pas vider les talents ni débiter
+	inst.char_data.gold = 3
+	inst.char_data.talents = {"5": "talent_test"}
+	hud.respec_talents(500)
+	print("TEST_RESULT3 respec_blocked=%s gold_unchanged=%s"
+		% [inst.char_data.talents.has("5"), inst.char_data.gold == 3])
+	print("TEST_RESULT4 gold_never_negative=%s" % [inst.char_data.gold >= 0])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

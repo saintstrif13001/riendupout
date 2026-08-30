@@ -21,6 +21,9 @@ var talent_overlay: Control
 var talent_box: VBoxContainer
 var travel_overlay: Control
 var travel_box: VBoxContainer
+var options_overlay: Control
+var options_slider: HSlider
+var options_pct_label: Label
 var fade_rect: ColorRect
 
 func bind(w) -> void:
@@ -40,6 +43,7 @@ func _ready() -> void:
 	_build_inventory_overlay()
 	_build_talent_overlay()
 	_build_travel_overlay()
+	_build_options_overlay()
 	_build_fade_overlay()
 
 func _build_fade_overlay() -> void:
@@ -248,6 +252,57 @@ func _build_travel_overlay() -> void:
 	travel_overlay.add_child(panel)
 	add_child(travel_overlay)
 
+func _build_options_overlay() -> void:
+	options_overlay = Control.new()
+	options_overlay.theme = UiTheme.build()
+	options_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	options_overlay.visible = false
+	var bg = ColorRect.new()
+	bg.color = Color(0,0,0,0.75)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	options_overlay.add_child(bg)
+	var panel = PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(420, 0)
+	var box = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 10)
+	panel.add_child(box)
+	var title = Label.new()
+	title.text = "Options"
+	title.add_theme_font_size_override("font_size", 22)
+	box.add_child(title)
+	var sub = Label.new()
+	sub.text = "Volume général (touche O pour ouvrir/fermer)"
+	box.add_child(sub)
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	box.add_child(row)
+	var slider = HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.01
+	slider.value = Audio.master_volume
+	slider.custom_minimum_size = Vector2(300, 0)
+	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(slider)
+	var pct_lbl = Label.new()
+	pct_lbl.text = "%d%%" % round(Audio.master_volume * 100)
+	pct_lbl.custom_minimum_size = Vector2(50, 0)
+	pct_lbl.name = "PctLabel"
+	row.add_child(pct_lbl)
+	slider.value_changed.connect(func(v):
+		Audio.set_master_volume(v)
+		pct_lbl.text = "%d%%" % round(v * 100))
+	slider.name = "VolumeSlider"
+	options_slider = slider
+	options_pct_label = pct_lbl
+	options_overlay.add_child(panel)
+	add_child(options_overlay)
+
+func sync_options() -> void:
+	options_slider.value = Audio.master_volume
+	options_pct_label.text = "%d%%" % round(Audio.master_volume * 100)
+
 func render_travel() -> void:
 	var cd = world.char_data
 	_clear_box(travel_box)
@@ -273,9 +328,13 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif event.physical_keycode == KEY_M:
 		if travel_overlay.visible: travel_overlay.visible = false
 		else: render_travel(); travel_overlay.visible = true
+	elif event.physical_keycode == KEY_O:
+		if options_overlay.visible: options_overlay.visible = false
+		else: sync_options(); options_overlay.visible = true
 	elif event.physical_keycode == KEY_ESCAPE:
 		close_all()
 		travel_overlay.visible = false
+		options_overlay.visible = false
 
 func close_all() -> void:
 	dialogue_overlay.visible = false

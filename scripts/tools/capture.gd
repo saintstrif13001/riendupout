@@ -174,6 +174,12 @@ func _process(delta: float) -> bool:
 			_run_plaine_cull_test()
 		elif test_mode == "test_audio_system":
 			_run_audio_system_test()
+		elif test_mode == "test_options_screen":
+			_run_options_screen_test()
+		elif test_mode == "show_options":
+			inst.show_options()
+		elif test_mode == "test_ingame_options_overlay":
+			_run_ingame_options_overlay_test()
 		elif test_mode == "test_progression_stats_display":
 			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
@@ -1464,6 +1470,64 @@ func _run_audio_system_test() -> void:
 
 	print("TEST_RESULT attack_sound_played=%s hit_sound_played=%s skill_sound_played=%s gather_sound_played=%s"
 		% [attack_sound_played, hit_sound_played, skill_sound_played, gather_sound_played])
+
+func _find_node_of_type(from: Node, type_name: String) -> Node:
+	for c in from.get_children():
+		if c.get_class() == type_name or (type_name == "HSlider" and c is HSlider):
+			return c
+		var found = _find_node_of_type(c, type_name)
+		if found != null:
+			return found
+	return null
+
+func _run_options_screen_test() -> void:
+	print("TEST_START:options_screen")
+	# Avant cette iteration, l'audio n'avait aucun controle de volume : le menu
+	# principal n'avait aucun ecran Options. Verifie que l'ecran s'affiche avec
+	# un curseur relie a Audio.master_volume et que le deplacer change le volume.
+	var audio = root.get_node("/root/Audio")
+	audio.set_master_volume(0.5)
+	inst.show_options()
+	var slider = _find_node_of_type(inst, "HSlider")
+	var slider_found = slider != null
+	var slider_matches_volume = slider_found and absf(slider.value - audio.master_volume) < 0.01
+	if slider_found:
+		slider.value = 0.3
+		slider.value_changed.emit(0.3)
+	var volume_updated = absf(audio.master_volume - 0.3) < 0.01
+	print("TEST_RESULT options_slider_found=%s slider_matches_volume=%s volume_updated_on_drag=%s"
+		% [slider_found, slider_matches_volume, volume_updated])
+
+func _run_ingame_options_overlay_test() -> void:
+	print("TEST_START:ingame_options_overlay")
+	# Verifie que la touche O bascule le panneau Options en jeu (pas seulement
+	# depuis le menu principal), que le curseur y reflete Audio.master_volume,
+	# et que le reglage persiste dans user://settings.cfg entre sessions.
+	var hud = inst.get_node("Hud")
+	var audio = root.get_node("/root/Audio")
+	audio.set_master_volume(0.6)
+	var was_visible = hud.options_overlay.visible
+	var ev = InputEventKey.new()
+	ev.pressed = true
+	ev.physical_keycode = KEY_O
+	hud._unhandled_key_input(ev)
+	var opened_on_o = hud.options_overlay.visible == true and was_visible == false
+	var slider = _find_node_of_type(hud.options_overlay, "HSlider")
+	var slider_found = slider != null
+	var slider_matches_volume = slider_found and absf(slider.value - 0.6) < 0.01
+	var ev_esc = InputEventKey.new()
+	ev_esc.pressed = true
+	ev_esc.physical_keycode = KEY_ESCAPE
+	hud._unhandled_key_input(ev_esc)
+	var closed_on_escape = hud.options_overlay.visible == false
+	if slider_found:
+		slider.value = 0.2
+		slider.value_changed.emit(0.2)
+	var cfg = ConfigFile.new()
+	var loaded_ok = cfg.load("user://settings.cfg") == OK
+	var persisted_correctly = loaded_ok and absf(cfg.get_value("audio", "master_volume", -1.0) - 0.2) < 0.01
+	print("TEST_RESULT opened_on_o=%s slider_found=%s slider_matches_volume=%s closed_on_escape=%s persisted_correctly=%s"
+		% [opened_on_o, slider_found, slider_matches_volume, closed_on_escape, persisted_correctly])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

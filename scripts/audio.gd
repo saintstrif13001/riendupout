@@ -22,6 +22,8 @@ var _cache: Dictionary = {}
 var _pool: Array = []
 var _pool_index := 0
 const POOL_SIZE := 8
+const SETTINGS_PATH := "user://settings.cfg"
+var master_volume: float = 0.8 # 0.0 (muet) à 1.0 (plein volume), linéaire pour le curseur UI
 
 func _ready() -> void:
 	for i in range(POOL_SIZE):
@@ -29,6 +31,27 @@ func _ready() -> void:
 		p.bus = "Master"
 		add_child(p)
 		_pool.append(p)
+	_load_settings()
+	_apply_master_volume()
+
+func _load_settings() -> void:
+	var cfg = ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) == OK:
+		master_volume = clampf(cfg.get_value("audio", "master_volume", 0.8), 0.0, 1.0)
+
+func set_master_volume(v: float) -> void:
+	master_volume = clampf(v, 0.0, 1.0)
+	_apply_master_volume()
+	var cfg = ConfigFile.new()
+	cfg.load(SETTINGS_PATH) # ignore l'erreur si le fichier n'existe pas encore
+	cfg.set_value("audio", "master_volume", master_volume)
+	cfg.save(SETTINGS_PATH)
+
+func _apply_master_volume() -> void:
+	var bus_idx = AudioServer.get_bus_index("Master")
+	AudioServer.set_bus_mute(bus_idx, master_volume <= 0.0)
+	if master_volume > 0.0:
+		AudioServer.set_bus_volume_db(bus_idx, linear_to_db(master_volume))
 
 func _load(key: String) -> AudioStream:
 	if not SFX.has(key): return null

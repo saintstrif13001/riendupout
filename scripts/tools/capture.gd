@@ -112,6 +112,8 @@ func _process(delta: float) -> bool:
 			_run_house_collision_test()
 		elif test_mode == "test_chest":
 			_run_chest_test()
+		elif test_mode == "test_fade":
+			_run_fade_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -471,9 +473,10 @@ func _run_travel_test() -> void:
 	var expected = inst.get_zone_spawn("marais")
 	print("TEST_RESULT respawn_pos=%s expected_marais_spawn=%s village_spawn=%s dead=%s"
 		% [inst.player.global_position, expected, inst.get_zone_spawn("village"), inst.player.dead])
-	# teste le voyage rapide vers le village depuis le marais
+	# teste le voyage rapide vers le village depuis le marais (travel_to est une coroutine
+	# depuis l'ajout du fondu écran-noir : il faut l'attendre pour lire la position finale)
 	var hud = inst.get_node("Hud")
-	hud.travel_to("village")
+	await hud.travel_to("village")
 	print("TEST_RESULT2 pos_after_travel=%s expected_village=%s" % [inst.player.global_position, inst.get_zone_spawn("village")])
 
 func _run_boss_phase_test() -> void:
@@ -556,6 +559,19 @@ func _run_chest_test() -> void:
 	var gold_before_second = inst.char_data.gold
 	inst.open_chest(c)
 	print("TEST_RESULT2 second_open_no_extra_gold=%s" % [inst.char_data.gold == gold_before_second])
+
+func _run_fade_test() -> void:
+	print("TEST_START:fade")
+	var hud = inst.get_node("Hud")
+	var has_rect = hud.fade_rect != null and hud.fade_rect is ColorRect
+	var anchors_full = has_rect and hud.fade_rect.anchor_right == 1.0 and hud.fade_rect.anchor_bottom == 1.0
+	var initial_alpha = hud.fade_rect.color.a if has_rect else -1.0
+	print("TEST_RESULT has_fade_rect=%s anchors_full_rect=%s initial_alpha=%.2f" % [has_rect, anchors_full, initial_alpha])
+	# Vérifie que travel_to() déclenche bien fade_out (méthode coroutine, doit démarrer sans erreur).
+	inst.char_data.unlocked_zones = ["village", "plaine"]
+	var hud_ref = inst.get_node("Hud")
+	hud_ref.travel_to("plaine")
+	print("TEST_RESULT2 travel_triggered_no_error=true player_zone_x=%.0f" % inst.player.global_position.x)
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

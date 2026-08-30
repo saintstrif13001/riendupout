@@ -21,6 +21,7 @@ var talent_overlay: Control
 var talent_box: VBoxContainer
 var travel_overlay: Control
 var travel_box: VBoxContainer
+var fade_rect: ColorRect
 
 func bind(w) -> void:
 	world = w
@@ -39,6 +40,26 @@ func _ready() -> void:
 	_build_inventory_overlay()
 	_build_talent_overlay()
 	_build_travel_overlay()
+	_build_fade_overlay()
+
+func _build_fade_overlay() -> void:
+	# Écran noir plein cadre pour adoucir les changements de zone et la mort,
+	# au lieu d'un cut instantané.
+	fade_rect = ColorRect.new()
+	fade_rect.color = Color(0, 0, 0, 0)
+	fade_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fade_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(fade_rect)
+
+func fade_out(duration: float = 0.35) -> void:
+	var tw = create_tween()
+	tw.tween_property(fade_rect, "color:a", 1.0, duration)
+	await tw.finished
+
+func fade_in(duration: float = 0.35) -> void:
+	var tw = create_tween()
+	tw.tween_property(fade_rect, "color:a", 0.0, duration)
+	await tw.finished
 
 func _build_bars() -> void:
 	var root = Control.new()
@@ -232,10 +253,12 @@ func render_travel() -> void:
 	_add_button(travel_box, "Fermer (M)", func(): travel_overlay.visible = false)
 
 func travel_to(zone_id: String) -> void:
+	travel_overlay.visible = false
 	var spawn = world.get_zone_spawn(zone_id)
+	await fade_out()
 	world.player.global_position = spawn
 	world.save_now()
-	travel_overlay.visible = false
+	await fade_in()
 
 func _unhandled_key_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo: return

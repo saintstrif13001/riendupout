@@ -29,6 +29,7 @@ var chest_nodes: Array = []
 var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
 var death_zone_id: String = "village"
+var hud = null
 
 func _ready() -> void:
 	char_data = GameState.char_data
@@ -43,7 +44,7 @@ func _ready() -> void:
 		build_enemy_spawns()
 	if Net.is_online:
 		Net.player_left.connect(_on_peer_left)
-	var hud = HudScene.instantiate()
+	hud = HudScene.instantiate()
 	add_child(hud)
 	hud.bind(self)
 	emit_signal("hud_update", make_hud_data())
@@ -789,6 +790,7 @@ func update_enemies(delta: float) -> void:
 						if player.dead:
 							float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
 							on_player_died()
+							if hud: hud.fade_out(0.5)
 		else:
 			e.velocity = Vector2.ZERO
 			e.set_anim(e.dir, false)
@@ -850,6 +852,7 @@ func handle_respawn(delta: float) -> void:
 		# pour éviter d'avoir à retraverser toute la carte après une mort en zone avancée.
 		player.respawn(get_zone_spawn(death_zone_id))
 		emit_signal("hud_update", make_hud_data())
+		if hud: hud.fade_in(0.5)
 
 # ---------------- Récolte & PNJ ----------------
 func update_near_interactable() -> void:

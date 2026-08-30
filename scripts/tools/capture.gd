@@ -136,6 +136,8 @@ func _process(delta: float) -> bool:
 			_run_talent_ui_flow_test()
 		elif test_mode == "test_faction_shop_ui":
 			_run_faction_shop_ui_test()
+		elif test_mode == "test_village_economy":
+			_run_village_economy_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -908,6 +910,39 @@ func _run_faction_shop_ui_test() -> void:
 	if btn_unlocked != null: btn_unlocked.pressed.emit()
 	print("TEST_RESULT button_found=%s disabled_when_poor_rep=%s enabled_when_rep_ok=%s purchase_via_button_worked=%s"
 		% [button_found, disabled_when_poor_rep, enabled_when_rep_ok, cd.inventory.get("cape_heros", 0) == 1 and cd.gold == gold_before - 80])
+
+func _run_village_economy_test() -> void:
+	print("TEST_START:village_economy")
+	var hud = inst.get_node("Hud")
+	var eco = inst.village_economy
+	eco.herbe_stock = 0
+	eco.potion_stock = 0
+	eco.potion_price = 25
+	# simule 3 ticks : la cueilleuse récolte, l'alchimiste transforme dès que possible
+	for i in range(3):
+		inst.update_village_economy(inst.ECONOMY_TICK_INTERVAL + 0.1)
+	print("TEST_STATE herbe_stock=%d potion_stock=%d potion_price=%d"
+		% [eco.herbe_stock, eco.potion_stock, eco.potion_price])
+	var stock_grew = eco.potion_stock > 0
+	var price_dropped_with_stock = eco.potion_price == clampi(25 - eco.potion_stock, 8, 25)
+
+	# achat : consomme le stock et paie le prix affiché, pas un prix fixe codé en dur
+	inst.char_data.gold = 500
+	var stock_before_buy = eco.potion_stock
+	var price_before_buy = eco.potion_price
+	var gold_before_buy = inst.char_data.gold
+	hud.buy_item("potion_vie")
+	var stock_consumed = eco.potion_stock == stock_before_buy - 1
+	var paid_dynamic_price = (gold_before_buy - inst.char_data.gold) == price_before_buy
+
+	# épuisement du stock : plus aucun achat possible tant que l'alchimiste n'a rien à vendre
+	eco.potion_stock = 0
+	var inv_before = inst.char_data.inventory.get("potion_vie", 0)
+	hud.buy_item("potion_vie")
+	var blocked_when_out_of_stock = inst.char_data.inventory.get("potion_vie", 0) == inv_before
+
+	print("TEST_RESULT stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s blocked_when_out_of_stock=%s"
+		% [stock_grew, price_dropped_with_stock, stock_consumed, paid_dynamic_price, blocked_when_out_of_stock])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

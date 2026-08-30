@@ -461,10 +461,17 @@ func render_npc_dialogue() -> void:
 		dialogue_box.add_child(msg)
 
 	if npc.role == "shop":
+		var eco = world.village_economy
 		_add_title(dialogue_box, "Boutique", 15)
+		var stock_lbl = Label.new()
+		stock_lbl.text = "Yvenne a %d potions en stock (prix ajusté selon la demande)." % eco.potion_stock
+		stock_lbl.add_theme_font_size_override("font_size", 12)
+		stock_lbl.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
+		dialogue_box.add_child(stock_lbl)
 		for key in ["potion_vie", "potion_mana"]:
 			var it = Data.ITEMS[key]
-			_add_item_row(dialogue_box, key, it.name + " - 15 or", func(): buy_item(key))
+			var btn = _add_item_row(dialogue_box, key, "%s - %d or" % [it.name, eco.potion_price], func(): buy_item(key))
+			btn.disabled = eco.potion_stock <= 0
 		_add_title(dialogue_box, "Objets de faction", 14)
 		for key in ["cape_heros", "arc_rangers", "robe_cercle"]:
 			var it = Data.ITEMS[key]
@@ -563,8 +570,12 @@ func turn_in_quest(qid: String) -> void:
 
 func buy_item(key: String) -> void:
 	var cd = world.char_data
-	if cd.gold < 15: return
-	cd.gold -= 15
+	var eco = world.village_economy
+	if eco.potion_stock <= 0: return # l'alchimiste n'a plus rien à vendre pour l'instant
+	if cd.gold < eco.potion_price: return
+	cd.gold -= eco.potion_price
+	eco.potion_stock -= 1
+	eco.potion_price = clampi(25 - eco.potion_stock, 8, 25)
 	cd.inventory[key] = cd.inventory.get(key, 0) + 1
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()

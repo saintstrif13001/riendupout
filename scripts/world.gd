@@ -26,6 +26,14 @@ var net_enemy_accum: float = 0.0
 var npc_nodes: Array = []
 var gather_nodes: Array = []
 var chest_nodes: Array = []
+var economy_tick_accum: float = 0.0
+# Économie villageoise simulée : une cueilleuse récolte des herbes, l'alchimiste
+# les transforme en potions en arrière-plan, et le prix en boutique varie selon
+# le stock disponible (offre/demande simple). Rend le village un peu "vivant"
+# même quand le joueur n'interagit avec personne. Première version volontairement
+# simple — le maillon "un guerrier réduit la population de monstres pour les
+# cueilleurs" n'est pas encore simulé (le joueur en tient déjà ce rôle en jeu réel).
+var village_economy := {"herbe_stock": 12, "potion_stock": 6, "potion_price": 15}
 var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
 var death_zone_id: String = "village"
@@ -40,6 +48,19 @@ const ZONE_LIGHT := {
 	"caverne": Color(0.5, 0.55, 0.68),  # pénombre froide et bleutée des grottes
 	"marais": Color(0.72, 0.78, 0.62),  # brume verdâtre et humide
 }
+
+const ECONOMY_TICK_INTERVAL := 12.0
+
+func update_village_economy(delta: float) -> void:
+	economy_tick_accum += delta
+	if economy_tick_accum < ECONOMY_TICK_INTERVAL: return
+	economy_tick_accum = 0.0
+	var e = village_economy
+	e.herbe_stock += randi_range(1, 3) # la cueilleuse ramène sa récolte
+	while e.herbe_stock >= 4 and e.potion_stock < 20:
+		e.herbe_stock -= 4
+		e.potion_stock += 1 # l'alchimiste transforme les herbes en potions
+	e.potion_price = clampi(25 - e.potion_stock, 8, 25) # plus de stock = moins cher
 
 func update_zone_lighting(zid: String) -> void:
 	if zid == current_zone_light_id: return
@@ -536,6 +557,8 @@ func _physics_process(delta: float) -> void:
 	if autosave_accum > 20.0:
 		autosave_accum = 0.0
 		save_now()
+
+	update_village_economy(delta)
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST and player != null:

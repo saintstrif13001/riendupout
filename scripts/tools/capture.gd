@@ -188,6 +188,8 @@ func _process(delta: float) -> bool:
 			hud_s.stats_overlay.visible = true
 		elif test_mode == "test_stats_screen":
 			_run_stats_screen_test()
+		elif test_mode == "test_music_system":
+			_run_music_system_test()
 		elif test_mode == "test_progression_stats_display":
 			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
@@ -1616,6 +1618,47 @@ func _run_stats_screen_test() -> void:
 
 	print("TEST_RESULT opened_on_c=%s atk_shown_correctly=%s (expected %d, saw \"%s\") weapon_row_found=%s closed_on_escape=%s"
 		% [opened_on_c, atk_shown_correctly, expected_atk, combat_text, weapon_row_found, closed_on_escape])
+
+func _run_music_system_test() -> void:
+	print("TEST_START:music_system")
+	# Le jeu n'avait aucune musique (uniquement des bruitages). Verifie que le
+	# bus "Music" existe et est bien route vers "Master" (pour que le volume
+	# general coupe aussi la musique), que le reglage de volume musique
+	# persiste dans user://settings.cfg, et que déplacer le joueur en zone
+	# dangereuse fait bien basculer l'ambiance via le vrai flux de jeu
+	# (world.gd -> Audio.set_zone_mood), pas un appel direct au systeme audio.
+	var audio = root.get_node("/root/Audio")
+	var data = root.get_node("/root/Data")
+
+	var bus_idx = AudioServer.get_bus_index("Music")
+	var music_bus_exists = bus_idx != -1
+	var music_bus_routed_to_master = music_bus_exists and AudioServer.get_bus_send(bus_idx) == "Master"
+
+	audio.set_music_volume(0.35)
+	var cfg = ConfigFile.new()
+	var loaded_ok = cfg.load("user://settings.cfg") == OK
+	var music_volume_persisted = loaded_ok and absf(cfg.get_value("audio", "music_volume", -1.0) - 0.35) < 0.01
+
+	# Zone sûre au départ : l'ambiance calme doit dominer. On avance par frames
+	# (pas par temps réel) pour rester synchronisé avec le budget de frames du
+	# harness, qui tourne bien plus vite que le temps réel en headless.
+	inst.player.global_position = Vector2(data.ZONES.village.x0 + 50, 0)
+	for i in range(45): await process_frame
+	var calm_dominant_in_village = audio._calm_gain > audio._tension_gain
+
+	# Déplace le joueur en zone dangereuse et laisse le vrai tick de zone de
+	# world.gd (toutes les 0.4s) détecter le changement et appeler Audio.set_zone_mood.
+	inst.player.global_position = Vector2(data.ZONES.foret.x0 + 50, 0)
+	for i in range(45): await process_frame
+	var mood_switched_to_tension = audio._target_mood_is_safe == false
+
+	# Le fondu enchaîné est volontairement lent (~6.7s) ; on vérifie juste la
+	# tendance après quelques frames supplémentaires plutôt que d'attendre la fin complète.
+	for i in range(45): await process_frame
+	var tension_gain_rising = audio._tension_gain > 0.02
+
+	print("TEST_RESULT music_bus_exists=%s music_bus_routed_to_master=%s music_volume_persisted=%s calm_dominant_in_village=%s mood_switched_to_tension=%s tension_gain_rising=%s (tension_gain=%.2f)"
+		% [music_bus_exists, music_bus_routed_to_master, music_volume_persisted, calm_dominant_in_village, mood_switched_to_tension, tension_gain_rising, audio._tension_gain])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

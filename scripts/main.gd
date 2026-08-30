@@ -92,6 +92,11 @@ func show_options() -> void:
 	_button("< Retour", show_main)
 	_title("Options", 22)
 	_sub("Volume général")
+	_volume_row(Audio.master_volume, Audio.set_master_volume)
+	_sub("Volume musique")
+	_volume_row(Audio.music_volume, Audio.set_music_volume)
+
+func _volume_row(current: float, setter: Callable) -> void:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	content.add_child(row)
@@ -99,16 +104,16 @@ func show_options() -> void:
 	slider.min_value = 0.0
 	slider.max_value = 1.0
 	slider.step = 0.01
-	slider.value = Audio.master_volume
+	slider.value = current
 	slider.custom_minimum_size = Vector2(380, 0)
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(slider)
 	var pct_lbl = Label.new()
-	pct_lbl.text = "%d%%" % round(Audio.master_volume * 100)
+	pct_lbl.text = "%d%%" % round(current * 100)
 	pct_lbl.custom_minimum_size = Vector2(50, 0)
 	row.add_child(pct_lbl)
 	slider.value_changed.connect(func(v):
-		Audio.set_master_volume(v)
+		setter.call(v)
 		pct_lbl.text = "%d%%" % round(v * 100))
 
 func show_continue_mode_select() -> void:

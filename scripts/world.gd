@@ -765,6 +765,7 @@ func _physics_process(delta: float) -> void:
 		var zid = Data.zone_at(player.global_position.x).id
 		death_zone_id = zid
 		update_zone_lighting(zid)
+		Audio.set_zone_mood(Data.ZONES[zid].safe)
 		if not char_data.unlocked_zones.has(zid):
 			char_data.unlocked_zones.append(zid)
 			float_text(player.global_position + Vector2(0,-90), "Zone découverte : voyage rapide débloqué", Color(0.7,1,0.85))

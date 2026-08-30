@@ -24,6 +24,8 @@ var travel_box: VBoxContainer
 var options_overlay: Control
 var options_slider: HSlider
 var options_pct_label: Label
+var options_music_slider: HSlider
+var options_music_pct_label: Label
 var minimap: Control
 var stats_overlay: Control
 var stats_box: VBoxContainer
@@ -311,6 +313,21 @@ func _build_options_overlay() -> void:
 	var sub = Label.new()
 	sub.text = "Volume général (touche O pour ouvrir/fermer)"
 	box.add_child(sub)
+	var vol_row = _build_volume_row(box, Audio.master_volume, Audio.set_master_volume, "VolumeSlider")
+	options_slider = vol_row[0]
+	options_pct_label = vol_row[1]
+
+	var sub2 = Label.new()
+	sub2.text = "Volume musique"
+	box.add_child(sub2)
+	var music_row = _build_volume_row(box, Audio.music_volume, Audio.set_music_volume, "MusicVolumeSlider")
+	options_music_slider = music_row[0]
+	options_music_pct_label = music_row[1]
+
+	options_overlay.add_child(panel)
+	add_child(options_overlay)
+
+func _build_volume_row(box: VBoxContainer, current: float, setter: Callable, slider_name: String) -> Array:
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	box.add_child(row)
@@ -318,27 +335,25 @@ func _build_options_overlay() -> void:
 	slider.min_value = 0.0
 	slider.max_value = 1.0
 	slider.step = 0.01
-	slider.value = Audio.master_volume
+	slider.value = current
 	slider.custom_minimum_size = Vector2(300, 0)
 	slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	slider.name = slider_name
 	row.add_child(slider)
 	var pct_lbl = Label.new()
-	pct_lbl.text = "%d%%" % round(Audio.master_volume * 100)
+	pct_lbl.text = "%d%%" % round(current * 100)
 	pct_lbl.custom_minimum_size = Vector2(50, 0)
-	pct_lbl.name = "PctLabel"
 	row.add_child(pct_lbl)
 	slider.value_changed.connect(func(v):
-		Audio.set_master_volume(v)
+		setter.call(v)
 		pct_lbl.text = "%d%%" % round(v * 100))
-	slider.name = "VolumeSlider"
-	options_slider = slider
-	options_pct_label = pct_lbl
-	options_overlay.add_child(panel)
-	add_child(options_overlay)
+	return [slider, pct_lbl]
 
 func sync_options() -> void:
 	options_slider.value = Audio.master_volume
 	options_pct_label.text = "%d%%" % round(Audio.master_volume * 100)
+	options_music_slider.value = Audio.music_volume
+	options_music_pct_label.text = "%d%%" % round(Audio.music_volume * 100)
 
 func _build_stats_overlay() -> void:
 	# Le joueur n'avait aucun moyen de voir ses stats numeriques (ATK/DEF/etc.) :

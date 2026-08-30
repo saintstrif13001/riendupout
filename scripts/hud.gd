@@ -25,6 +25,8 @@ var options_overlay: Control
 var options_slider: HSlider
 var options_pct_label: Label
 var minimap: Control
+var stats_overlay: Control
+var stats_box: VBoxContainer
 var fade_rect: ColorRect
 
 func bind(w) -> void:
@@ -46,6 +48,7 @@ func _ready() -> void:
 	_build_talent_overlay()
 	_build_travel_overlay()
 	_build_options_overlay()
+	_build_stats_overlay()
 	_build_fade_overlay()
 
 func _build_fade_overlay() -> void:
@@ -114,7 +117,7 @@ func _build_bars() -> void:
 	root.add_child(quest_label)
 
 	var help = Label.new()
-	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · M: voyage rapide"
+	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · C: stats · M: voyage rapide · O: options"
 	help.add_theme_font_size_override("font_size", 11)
 	help.add_theme_color_override("font_color", Color(1,1,1,0.6))
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -337,6 +340,58 @@ func sync_options() -> void:
 	options_slider.value = Audio.master_volume
 	options_pct_label.text = "%d%%" % round(Audio.master_volume * 100)
 
+func _build_stats_overlay() -> void:
+	# Le joueur n'avait aucun moyen de voir ses stats numeriques (ATK/DEF/etc.) :
+	# l'inventaire montrait le nom des objets equipes mais jamais leur effet chiffre.
+	stats_overlay = Control.new()
+	stats_overlay.theme = UiTheme.build()
+	stats_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_overlay.visible = false
+	var bg = ColorRect.new()
+	bg.color = Color(0,0,0,0.75)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_overlay.add_child(bg)
+	var panel = PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.custom_minimum_size = Vector2(420, 0)
+	stats_box = VBoxContainer.new()
+	stats_box.add_theme_constant_override("separation", 6)
+	panel.add_child(stats_box)
+	stats_overlay.add_child(panel)
+	add_child(stats_overlay)
+
+func render_stats() -> void:
+	var cd = world.char_data
+	var p = world.player
+	_clear_box(stats_box)
+	_add_title(stats_box, "%s - Niveau %d" % [cd.name, cd.level], 20)
+	var sub = Label.new()
+	sub.text = "%s %s" % [Data.RACES[cd.race].name, Data.CLASSES[cd["class"]].name]
+	stats_box.add_child(sub)
+
+	var vitals = Label.new()
+	vitals.text = "PV : %d / %d      Mana : %d / %d" % [round(p.hp), p.stats.max_hp, round(p.mana), p.stats.max_mana]
+	_wrap_card(stats_box, vitals)
+
+	var combat = Label.new()
+	combat.text = "Attaque : %d      Défense : %d      Vitesse : %d" % [round(p.stats.atk), round(p.stats.def), round(p.stats.spd)]
+	_wrap_card(stats_box, combat)
+
+	_add_title(stats_box, "Equipement", 15)
+	var any_equipped = false
+	for slot in ["weapon", "armor"]:
+		var item_id = cd.equipment.get(slot, "")
+		if item_id == "" or item_id == null: continue
+		any_equipped = true
+		_add_item_row(stats_box, item_id, Data.ITEMS[item_id].name, null)
+	if not any_equipped:
+		var none_lbl = Label.new()
+		none_lbl.text = "Aucun objet équipé — les bonus d'attaque/défense ci-dessus sont les valeurs de base."
+		none_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		stats_box.add_child(none_lbl)
+
+	_add_button(stats_box, "Fermer (C)", func(): stats_overlay.visible = false)
+
 func render_travel() -> void:
 	var cd = world.char_data
 	_clear_box(travel_box)
@@ -365,10 +420,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	elif event.physical_keycode == KEY_O:
 		if options_overlay.visible: options_overlay.visible = false
 		else: sync_options(); options_overlay.visible = true
+	elif event.physical_keycode == KEY_C:
+		if stats_overlay.visible: stats_overlay.visible = false
+		else: render_stats(); stats_overlay.visible = true
 	elif event.physical_keycode == KEY_ESCAPE:
 		close_all()
 		travel_overlay.visible = false
 		options_overlay.visible = false
+		stats_overlay.visible = false
 
 func close_all() -> void:
 	dialogue_overlay.visible = false

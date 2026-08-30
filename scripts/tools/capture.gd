@@ -182,6 +182,12 @@ func _process(delta: float) -> bool:
 			_run_ingame_options_overlay_test()
 		elif test_mode == "test_minimap":
 			_run_minimap_test()
+		elif test_mode == "show_stats":
+			var hud_s = inst.get_node("Hud")
+			hud_s.render_stats()
+			hud_s.stats_overlay.visible = true
+		elif test_mode == "test_stats_screen":
+			_run_stats_screen_test()
 		elif test_mode == "test_progression_stats_display":
 			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
@@ -1568,6 +1574,48 @@ func _run_minimap_test() -> void:
 	inst.remote_players.erase(998)
 	print("TEST_RESULT minimap_found=%s minimap_sized=%s draw_ok_no_remotes=%s draw_ok_with_valid_remote=%s draw_ok_with_freed_remote=%s"
 		% [minimap_found, minimap_sized, draw_ok_no_remotes, draw_ok_with_valid_remote, draw_ok_with_freed_remote])
+
+func _run_stats_screen_test() -> void:
+	print("TEST_START:stats_screen")
+	# L'inventaire montrait le nom des objets equipes mais jamais de chiffres :
+	# aucun ecran ne repondait a "quel est mon ATK/DEF actuel ?". Verifie que la
+	# fiche de personnage affiche les bons totaux et l'objet equipe, et que la
+	# touche C l'ouvre/ferme comme les autres panneaux.
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	cd.equipment["weapon"] = "epee_fer"
+	var gs = root.get_node("/root/GameState")
+	inst.player.stats = gs.compute_stats(cd)
+	var expected_atk = int(round(inst.player.stats.atk))
+
+	var was_visible = hud.stats_overlay.visible
+	var ev = InputEventKey.new()
+	ev.pressed = true
+	ev.physical_keycode = KEY_C
+	hud._unhandled_key_input(ev)
+	var opened_on_c = hud.stats_overlay.visible == true and was_visible == false
+
+	var combat_text = ""
+	for c in hud.stats_box.get_children():
+		if c is PanelContainer:
+			var lbl = _find_node_of_type(c, "Label")
+			if lbl != null and "Attaque" in lbl.text: combat_text = lbl.text
+	var atk_shown_correctly = "Attaque : %d" % expected_atk in combat_text
+
+	var weapon_row_found = false
+	for c in hud.stats_box.get_children():
+		if c is PanelContainer:
+			var lbl2 = _find_node_of_type(c, "Label")
+			if lbl2 != null and lbl2.text == Data.ITEMS.epee_fer.name: weapon_row_found = true
+
+	var ev_esc = InputEventKey.new()
+	ev_esc.pressed = true
+	ev_esc.physical_keycode = KEY_ESCAPE
+	hud._unhandled_key_input(ev_esc)
+	var closed_on_escape = hud.stats_overlay.visible == false
+
+	print("TEST_RESULT opened_on_c=%s atk_shown_correctly=%s (expected %d, saw \"%s\") weapon_row_found=%s closed_on_escape=%s"
+		% [opened_on_c, atk_shown_correctly, expected_atk, combat_text, weapon_row_found, closed_on_escape])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

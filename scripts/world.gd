@@ -1023,6 +1023,21 @@ func net_apply_heal(amount: float) -> void:
 	float_text(player.global_position + Vector2(0,-50), "+%d PV (soin reçu)" % amount, Color(0.4,1,0.53))
 	emit_signal("hud_update", make_hud_data())
 
+@rpc("authority", "reliable")
+func net_enemy_attack(dmg: float) -> void:
+	# L'hote a decide qu'un ennemi nous attaque (IA cote hote uniquement) ; la
+	# mitigation reelle (def, bouclier, invulnerabilite) s'applique ici avec
+	# NOS propres stats, exactement comme pour un coup subi localement.
+	var applied = player.take_damage(dmg)
+	if applied > 0:
+		float_text(player.global_position + Vector2(0,-20), "-%d" % int(round(applied)), Color(1,0.4,0.4))
+	emit_signal("hud_update", make_hud_data())
+	if player.dead:
+		float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
+		Audio.play("death")
+		on_player_died()
+		if hud: hud.fade_out(0.5)
+
 @rpc("any_peer", "reliable")
 func net_apply_buff(b: Dictionary) -> void:
 	_apply_buff_to(player, b)
@@ -1253,6 +1268,17 @@ func update_enemies(delta: float) -> void:
 							Audio.play("death")
 							on_player_died()
 							if hud: hud.fade_out(0.5)
+					elif Net.is_online:
+						# BUG CRITIQUE trouvé en auditant le combat cote client : l'IA des
+						# ennemis (update_enemies, cote hote uniquement) ne faisait
+						# JAMAIS rien quand la cible la plus proche était un allié
+						# distant plutot que le joueur hote lui-meme — aucun degat,
+						# aucun RPC, rien. En pratique, seul l'hote pouvait etre
+						# blesse par les monstres ; les autres joueurs du groupe
+						# etaient invulnerables aux monstres, meme ciblés et "frappés".
+						# La mitigation depend des stats propres a chaque joueur, donc
+						# c'est au pair concerné d'appliquer les degats chez lui.
+						rpc_id(target.peer_id, "net_enemy_attack", e.atk)
 		else:
 			e.velocity = Vector2.ZERO
 			e.set_anim(e.dir, false)

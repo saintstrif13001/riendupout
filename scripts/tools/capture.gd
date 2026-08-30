@@ -188,6 +188,8 @@ func _process(delta: float) -> bool:
 			_run_player_hit_flash_test()
 		elif test_mode == "test_client_enemy_visuals":
 			_run_client_enemy_visuals_test()
+		elif test_mode == "test_net_enemy_attack":
+			_run_net_enemy_attack_test()
 		elif test_mode == "show_player_hit_flash":
 			inst.player.take_damage(30.0)
 		elif test_mode == "show_hotbar":
@@ -1750,6 +1752,38 @@ func _run_client_enemy_visuals_test() -> void:
 	var all_ok = enemy_created and baseline_atk_t_recorded and no_attack_on_unchanged_atk_t and attack_played_on_newer_atk_t
 	print("TEST_RESULT all_ok=%s enemy_created=%s baseline_atk_t_recorded=%s no_attack_on_unchanged_atk_t=%s attack_played_on_newer_atk_t=%s"
 		% [all_ok, enemy_created, baseline_atk_t_recorded, no_attack_on_unchanged_atk_t, attack_played_on_newer_atk_t])
+
+func _run_net_enemy_attack_test() -> void:
+	print("TEST_START:net_enemy_attack")
+	# BUG CRITIQUE trouve en auditant le combat multijoueur : l'IA des
+	# ennemis (update_enemies, cote hote uniquement) ne faisait RIEN quand la
+	# cible la plus proche etait un allie distant plutot que le joueur hote
+	# lui-meme — aucun degat, aucun RPC, rien. En pratique seul l'hote
+	# pouvait etre blesse par les monstres ; les autres joueurs du groupe
+	# etaient invulnerables, meme cibles et "frappes" visuellement. Teste ici
+	# la nouvelle fonction receptrice net_enemy_attack() qui applique
+	# desormais les degats chez le pair concerne (impossible de simuler un
+	# vrai second pair reseau dans ce process headless solo, donc on verifie
+	# la fonction elle-meme plutot que le trajet RPC complet).
+	var p = inst.player
+	p.hp = p.stats.max_hp
+	p.invuln_until = 0.0
+	p.shield = 0.0
+	var hp_before = p.hp
+
+	inst.net_enemy_attack(30.0)
+	var damage_applied = p.hp < hp_before
+	var expected_mitig = maxf(30.0 * 0.45, 30.0 - p.stats.def * 0.35)
+	var mitigation_matches_take_damage = absf(p.hp - (hp_before - expected_mitig)) < 0.01
+
+	p.hp = 1.0
+	inst.char_data.gold = 20
+	inst.net_enemy_attack(9999.0)
+	var death_triggers_correctly = p.dead and p.hp == 0.0
+	var bloodstain_created_locally = inst.char_data.bloodstain != null
+
+	print("TEST_RESULT damage_applied=%s mitigation_matches_take_damage=%s death_triggers_correctly=%s bloodstain_created_locally=%s"
+		% [damage_applied, mitigation_matches_take_damage, death_triggers_correctly, bloodstain_created_locally])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

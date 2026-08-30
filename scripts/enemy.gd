@@ -59,6 +59,41 @@ func setup(tid: String, u: String, lvl: int) -> void:
 	hp_bg.position = Vector2(-16, yoff)
 	hp_fg.position = Vector2(-14, yoff + 2)
 
+	# Respiration à l'arrêt : sans ça les monstres restaient parfaitement figés
+	# dès qu'ils ne se déplaçaient pas, contrairement aux PNJ/joueur animés.
+	_start_idle_bob()
+
+var _idle_tween: Tween = null
+
+func _start_idle_bob() -> void:
+	_idle_tween = create_tween().set_loops()
+	_idle_tween.tween_property(sprite, "position:y", -2.0, 0.7).set_trans(Tween.TRANS_SINE).set_delay(randf() * 0.6)
+	_idle_tween.tween_property(sprite, "position:y", 0.0, 0.7).set_trans(Tween.TRANS_SINE)
+
+func play_attack_anim() -> void:
+	# Pas de feuille de sprites d'attaque dédiée pour les monstres : un coup de
+	# "punch" (grossit + s'avance vers la cible) donne quand même un vrai signal
+	# visuel au lieu d'une attaque totalement silencieuse. On coupe la
+	# respiration le temps du coup pour éviter que les deux tweens se battent
+	# sur sprite.position, puis on la relance.
+	if dead or not is_instance_valid(sprite): return
+	if _idle_tween != null and _idle_tween.is_valid(): _idle_tween.kill()
+	sprite.position = Vector2.ZERO
+	var lunge = target_dir_vec() * 6.0
+	var tw = create_tween()
+	tw.tween_property(sprite, "scale", Vector2(1.18, 1.18), 0.1).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(sprite, "position", lunge, 0.1).set_trans(Tween.TRANS_SINE)
+	tw.tween_property(sprite, "scale", Vector2(1, 1), 0.15).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(sprite, "position", Vector2.ZERO, 0.15).set_trans(Tween.TRANS_SINE)
+	tw.finished.connect(_start_idle_bob)
+
+func target_dir_vec() -> Vector2:
+	match dir:
+		"up": return Vector2(0, -1)
+		"down": return Vector2(0, 1)
+		"left": return Vector2(-1, 0)
+		_: return Vector2(1, 0)
+
 func set_anim(new_dir: String, moving: bool) -> void:
 	dir = new_dir
 	var row = DIR_ROW[dir]

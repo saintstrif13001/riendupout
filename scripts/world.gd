@@ -1020,6 +1020,7 @@ func update_enemies(delta: float) -> void:
 				var now = Time.get_ticks_msec()/1000.0
 				if now > e.last_attack + 1.0:
 					e.last_attack = now
+					e.play_attack_anim()
 					if target == player:
 						var applied = player.take_damage(e.atk)
 						if applied > 0:

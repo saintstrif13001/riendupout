@@ -148,6 +148,8 @@ func _process(delta: float) -> bool:
 			_run_prop_collision_test()
 		elif test_mode == "test_enemy_collision":
 			_run_enemy_collision_test()
+		elif test_mode == "test_enemy_anim":
+			_run_enemy_anim_test()
 		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
 			inst.show_char_create()
 			if test_mode == "test_char_portraits":
@@ -1057,6 +1059,20 @@ func _run_char_portraits_test() -> void:
 		portrait_tint_matches = body_tex_rect.modulate.is_equal_approx(expected_tint)
 	print("TEST_RESULT race_grid_count_matches=%s class_grid_count_matches=%s first_row_has_portrait=%s portrait_tint_correct=%s"
 		% [race_ok, class_ok, first_row_has_portrait, portrait_tint_matches])
+
+func _run_enemy_anim_test() -> void:
+	print("TEST_START:enemy_anim")
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	await create_timer(0.2).timeout # laisse la respiration idle démarrer
+	var has_idle_tween_field = "_idle_tween" in e
+	e.dir = "down"
+	e.play_attack_anim()
+	var scaled_up_immediately = e.sprite.scale.x > 1.1
+	await create_timer(0.5).timeout # laisse l'attaque se terminer et la respiration reprendre
+	var scale_restored = e.sprite.scale.is_equal_approx(Vector2(1,1))
+	var idle_restarted = e._idle_tween != null and e._idle_tween.is_valid()
+	print("TEST_RESULT has_idle_field=%s scaled_up_during_attack=%s scale_restored_after=%s idle_restarted_after=%s"
+		% [has_idle_tween_field, scaled_up_immediately, scale_restored, idle_restarted])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

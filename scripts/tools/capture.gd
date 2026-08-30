@@ -172,6 +172,8 @@ func _process(delta: float) -> bool:
 			_run_forge_economy_test()
 		elif test_mode == "test_plaine_cull":
 			_run_plaine_cull_test()
+		elif test_mode == "test_garde_patrol_dialogue":
+			_run_garde_patrol_dialogue_test()
 		elif test_mode == "test_network_disconnect_guard":
 			_run_network_disconnect_guard_test()
 		elif test_mode == "test_save_zone_change":
@@ -1364,6 +1366,27 @@ func _run_plaine_cull_test() -> void:
 	print("TEST_RESULT monster_got_culled=%s normal_enemy_died=%s boss_survived=%s"
 		% [any_culled, e_normal.dead, (e_boss == null or not e_boss.dead)])
 	print("TEST_RESULT2 no_reward_given_to_player=%s" % [inst.char_data.gold == gold_before and inst.char_data.xp == xp_before])
+
+func _find_label_with_text(node: Node, needle: String) -> Label:
+	if node is Label and needle in node.text: return node
+	for c in node.get_children():
+		var r = _find_label_with_text(c, needle)
+		if r: return r
+	return null
+
+func _run_garde_patrol_dialogue_test() -> void:
+	print("TEST_START:garde_patrol_dialogue")
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	inst.village_economy.monsters_culled = 0
+	hud._on_open_npc(data.get_npc("garde"))
+	var label_absent = _find_label_with_text(hud.dialogue_box, "patrouilles ont repoussé") == null
+	for c in hud.dialogue_box.get_children(): c.free() # nettoyage immédiat avant re-rendu
+	inst.village_economy.monsters_culled = 3
+	hud._on_open_npc(data.get_npc("garde"))
+	var lbl = _find_label_with_text(hud.dialogue_box, "patrouilles ont repoussé")
+	print("TEST_RESULT hidden_when_zero=%s shown_when_nonzero=%s text=%s"
+		% [label_absent, lbl != null, lbl.text if lbl else ""])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

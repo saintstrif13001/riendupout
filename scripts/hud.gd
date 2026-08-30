@@ -493,6 +493,15 @@ func render_npc_dialogue() -> void:
 		msg.text = "\"Reviens me voir plus tard.\"" if has_active else "\"Je n'ai rien pour toi.\""
 		_wrap_card(dialogue_box, msg)
 
+	if npc.id == "garde":
+		var culled = world.village_economy.get("monsters_culled", 0)
+		if culled > 0:
+			var patrol_lbl = Label.new()
+			patrol_lbl.text = "\"Mes patrouilles ont repoussé %d monstre%s de la plaine ces derniers temps.\"" % [culled, "s" if culled > 1 else ""]
+			patrol_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+			patrol_lbl.add_theme_color_override("font_color", Color(0.7,0.8,1))
+			_wrap_card(dialogue_box, patrol_lbl)
+
 	if npc.role == "shop":
 		var eco = world.village_economy
 		_add_title(dialogue_box, "Boutique", 15)

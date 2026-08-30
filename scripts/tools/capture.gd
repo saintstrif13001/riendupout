@@ -170,6 +170,8 @@ func _process(delta: float) -> bool:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
 		elif test_mode == "test_forge_economy":
 			_run_forge_economy_test()
+		elif test_mode == "test_network_disconnect_guard":
+			_run_network_disconnect_guard_test()
 		elif test_mode == "test_save_zone_change":
 			_run_save_zone_change_test()
 		elif test_mode == "show_respec_dialogue":
@@ -1312,6 +1314,28 @@ func _run_save_zone_change_test() -> void:
 	var would_spawn_at = Vector2(loaded.last_x, loaded.last_y) if loaded.has("last_x") and loaded.last_x != null else inst.get_zone_spawn("village")
 	print("TEST_RESULT2 would_respawn_in_caverne=%s" % [would_spawn_at.distance_to(target_pos) < 1.0])
 	gs.delete_save()
+
+func _run_network_disconnect_guard_test() -> void:
+	print("TEST_START:network_disconnect_guard")
+	# En solo, inst.multiplayer.multiplayer_peer est nul (pas de session réseau) —
+	# c'est aussi l'état dans lequel se retrouve un client après une deconnexion
+	# serveur (server_disconnected ne remet pas Net.is_online a false). Verifie
+	# que network_tick() sort immediatement sans tenter de RPC ni planter.
+	# Godot refuse d'assigner directement un pair "déconnecté" à multiplayer_peer
+	# (l'API exige qu'il soit connecting/connected), donc impossible de simuler
+	# proprement une vraie coupure mi-session dans ce harnais mono-processus.
+	# Vérifié à la place par un vrai test deux-processus (host+client via ENet
+	# réel) : après une coupure, le client inondait les logs de "peer non
+	# connecté" en boucle infinie avant ce fix. Ici on vérifie juste le cas
+	# où plus aucun pair n'est assigné (multiplayer_peer = null), qui doit
+	# aussi sortir immédiatement sans planter.
+	var original_peer = inst.multiplayer.multiplayer_peer
+	inst.multiplayer.multiplayer_peer = null
+	var uptime_before = inst.network_uptime
+	inst.network_tick(5.0)
+	var uptime_unchanged = inst.network_uptime == uptime_before
+	inst.multiplayer.multiplayer_peer = original_peer
+	print("TEST_RESULT network_tick_returns_early_with_no_peer=%s no_crash=true" % uptime_unchanged)
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

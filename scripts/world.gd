@@ -1331,6 +1331,13 @@ const NETWORK_GRACE_PERIOD := 2.0 # laisse le temps à tous les pairs de charger
 var network_uptime: float = 0.0
 
 func network_tick(delta: float) -> void:
+	# Si le pair multijoueur s'est déconnecté (coupure réseau, hôte qui ferme sa
+	# partie...), inutile de continuer à spammer des RPC vers rien : ça remplissait
+	# les logs d'erreurs "peer non connecté" en boucle chaque frame sans jamais
+	# s'arrêter tant que World.tscn restait chargé.
+	var peer = multiplayer.multiplayer_peer
+	if peer == null or peer.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
 	network_uptime += delta
 	if network_uptime < NETWORK_GRACE_PERIOD: return
 	net_send_accum += delta

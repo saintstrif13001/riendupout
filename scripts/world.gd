@@ -824,14 +824,28 @@ func use_skill(idx: int) -> void:
 		var ally = find_nearest_ally_in_range(heal_range) if skill.get("party", false) else null
 		if ally != null:
 			rpc_id(ally.pid, "net_apply_heal", skill.heal)
+			spawn_heal_fx(ally.p)
 			float_text(ally.p.global_position + Vector2(0,-50), "+%d PV" % skill.heal, Color(0.4,1,0.53))
 			float_text(player.global_position + Vector2(0,-50), "Soin envoyé à %s" % ally.p.char_data.name, Color(0.6,0.85,1))
 		else:
 			player.heal(skill.heal)
+			spawn_heal_fx(player)
 			float_text(player.global_position + Vector2(0,-50), "+%d PV" % skill.heal, Color(0.4,1,0.53))
+	if skill.has("shield"):
+		var shield_range = skill.get("range", 180.0)
+		var ally_s = find_nearest_ally_in_range(shield_range) if skill.get("party", false) else null
+		if ally_s != null:
+			rpc_id(ally_s.pid, "net_apply_shield", skill.shield, skill.duration)
+			spawn_shield_fx(ally_s.p)
+			float_text(ally_s.p.global_position + Vector2(0,-50), "+%d Bouclier" % skill.shield, Color(0.6,0.85,1))
+		else:
+			_apply_shield_to(player, skill.shield, skill.duration)
+			spawn_shield_fx(player)
+			float_text(player.global_position + Vector2(0,-50), "+%d Bouclier" % skill.shield, Color(0.6,0.85,1))
 	if skill.has("buff"):
 		var b = skill.buff
 		_apply_buff_to(player, b)
+		spawn_buff_fx(player)
 		float_text(player.global_position + Vector2(0,-50), skill.name + " !", Color(1,0.88,0.4))
 		if skill.get("party", false):
 			var buff_range = skill.get("range", 0.0)
@@ -841,6 +855,7 @@ func use_skill(idx: int) -> void:
 				if rp.dead: continue
 				if player.global_position.distance_to(rp.global_position) <= buff_range:
 					rpc_id(pid, "net_apply_buff", b)
+					spawn_buff_fx(rp)
 					float_text(rp.global_position + Vector2(0,-50), skill.name + " !", Color(1,0.88,0.4))
 	if skill.has("dash"):
 		var v = DIR_VEC[player.dir] * skill.dash
@@ -879,6 +894,63 @@ func find_nearest_ally_in_range(range_px: float):
 			best_d = d
 			best = {"pid": pid, "p": rp}
 	return best
+
+func _apply_shield_to(p: Player, amount: float, duration: float) -> void:
+	p.shield = amount
+	get_tree().create_timer(duration).timeout.connect(func():
+		if is_instance_valid(p): p.shield = 0.0)
+
+@rpc("any_peer", "reliable")
+func net_apply_shield(amount: float, duration: float) -> void:
+	_apply_shield_to(player, amount, duration)
+	spawn_shield_fx(player)
+	float_text(player.global_position + Vector2(0,-50), "+%d Bouclier (reçu)" % amount, Color(0.6,0.85,1))
+	emit_signal("hud_update", make_hud_data())
+
+func spawn_heal_fx(target: Player) -> void:
+	# Étincelles vertes montantes sur la cible soignée, au lieu d'un simple texte.
+	var p = CPUParticles2D.new()
+	p.position = target.global_position + Vector2(0, -10)
+	p.z_index = 65
+	p.emitting = true
+	p.one_shot = true
+	p.amount = 12
+	p.lifetime = 0.6
+	p.explosiveness = 0.5
+	p.direction = Vector2.UP
+	p.spread = 25.0
+	p.initial_velocity_min = 30.0
+	p.initial_velocity_max = 60.0
+	p.gravity = Vector2(0, -20)
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 3.5
+	p.color = Color(0.4, 1.0, 0.55)
+	add_child(p)
+	get_tree().create_timer(0.9).timeout.connect(func():
+		if is_instance_valid(p): p.queue_free())
+
+func spawn_buff_fx(target: Player, color: Color = Color(1, 0.88, 0.4)) -> void:
+	# Anneau qui s'élève et s'estompe autour du personnage buffé.
+	var ring = Node2D.new()
+	ring.position = target.global_position
+	ring.z_index = 63
+	add_child(ring)
+	var pts = PackedVector2Array()
+	for i in range(16):
+		var a = i / 16.0 * TAU
+		pts.append(Vector2(cos(a), sin(a)) * 18)
+	var circle = Polygon2D.new()
+	circle.polygon = pts
+	circle.color = Color(color.r, color.g, color.b, 0.35)
+	ring.add_child(circle)
+	var tw = create_tween()
+	tw.tween_property(ring, "position:y", ring.position.y - 30.0, 0.5).set_trans(Tween.TRANS_SINE)
+	tw.parallel().tween_property(circle, "scale", Vector2(1.4, 1.4), 0.5)
+	tw.parallel().tween_property(circle, "modulate:a", 0.0, 0.5)
+	tw.tween_callback(ring.queue_free)
+
+func spawn_shield_fx(target: Player) -> void:
+	spawn_buff_fx(target, Color(0.5, 0.75, 1.0))
 
 func _apply_buff_to(p: Player, b: Dictionary) -> void:
 	p.stats.atk += b.get("atk", 0)

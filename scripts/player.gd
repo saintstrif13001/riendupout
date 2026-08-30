@@ -18,6 +18,7 @@ var dead: bool = false
 var cooldowns: Dictionary = {}
 var invuln_until: float = 0.0
 var buff_expiry: Array = [] # [{atk,def,spd,at}]
+var shield: float = 0.0 # absorbe les dégâts avant les PV (ex: Bouclier Saint)
 
 var body_tex: Texture2D
 var legs_tex: Texture2D
@@ -158,7 +159,13 @@ func take_damage(dmg: float) -> float:
 	# de tanker indéfiniment, il faut esquiver/gérer les affrontements avec prudence.
 	var reduced = dmg - stats.def * 0.35
 	var mitig = max(dmg * 0.45, reduced)
-	hp = max(0.0, hp - mitig)
+	# Le bouclier absorbe avant les PV (ex: Bouclier Saint du Prêtre).
+	var to_hp = mitig
+	if shield > 0.0:
+		var absorbed = min(shield, mitig)
+		shield -= absorbed
+		to_hp -= absorbed
+	hp = max(0.0, hp - to_hp)
 	if hp <= 0: die()
 	return mitig
 

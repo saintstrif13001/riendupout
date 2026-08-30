@@ -154,6 +154,8 @@ func _process(delta: float) -> bool:
 			_run_spell_fx_test()
 		elif test_mode == "test_projectile_target_freed":
 			_run_projectile_target_freed_test()
+		elif test_mode == "test_shield_skill":
+			_run_shield_skill_test()
 		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
 			inst.show_char_create()
 			if test_mode == "test_char_portraits":
@@ -1130,6 +1132,42 @@ func _run_projectile_target_freed_test() -> void:
 	e.take_damage(99999.0) # tué par un autre moyen avant l'impact (vrai chemin de mort du jeu)
 	await create_timer(0.5).timeout
 	print("TEST_RESULT no_crash=true dead_target_skipped=%s" % [e.dead]) # si on arrive ici sans SCRIPT ERROR, c'est bon
+
+func _run_shield_skill_test() -> void:
+	print("TEST_START:shield_skill")
+	var gs = root.get_node("/root/GameState")
+	inst.char_data["class"] = "pretre"
+	inst.char_data.level = 10
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	inst.player.mana = 999
+	inst.player.hp = inst.player.stats.max_hp
+	inst.player.cooldowns.clear()
+	inst.use_skill(1) # bouclier_saint : shield=60, duration=5.0
+	print("TEST_STATE shield_applied=%.1f (attendu 60)" % inst.player.shield)
+
+	# le bouclier absorbe avant les PV
+	var hp_before = inst.player.hp
+	var applied1 = inst.player.take_damage(30.0)
+	print("TEST_RESULT1 shield_after_30dmg=%.1f hp_unchanged=%s applied_returned=%.1f"
+		% [inst.player.shield, inst.player.hp == hp_before, applied1])
+
+	# un coup qui dépasse largement le bouclier restant doit l'épuiser et entamer les PV
+	# pour le surplus (le montant exact dépend de la mitigation par la défense)
+	var shield_before_big_hit = inst.player.shield
+	var hp_before2 = inst.player.hp
+	var mitig2 = inst.player.take_damage(50.0)
+	var hp_lost = hp_before2 - inst.player.hp
+	var expected_overflow = mitig2 - shield_before_big_hit
+	print("TEST_RESULT2 shield_depleted=%s hp_lost_matches_overflow=%s (perdu=%.1f attendu=%.1f)"
+		% [inst.player.shield <= 0.0, absf(hp_lost - expected_overflow) < 0.5, hp_lost, expected_overflow])
+
+	# expiration : un bouclier appliqué directement avec une courte durée doit retomber à 0
+	inst.player.hp = inst.player.stats.max_hp
+	inst._apply_shield_to(inst.player, 40.0, 0.2)
+	var shield_right_after = inst.player.shield
+	await create_timer(0.6).timeout
+	print("TEST_RESULT3 shield_set_immediately=%s shield_expired_after_duration=%s"
+		% [shield_right_after == 40.0, inst.player.shield == 0.0])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

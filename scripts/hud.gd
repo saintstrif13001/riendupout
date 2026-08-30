@@ -27,6 +27,8 @@ var options_pct_label: Label
 var options_music_slider: HSlider
 var options_music_pct_label: Label
 var minimap: Control
+var hotbar: HBoxContainer
+var hotbar_slots: Array = []
 var stats_overlay: Control
 var stats_box: VBoxContainer
 var chat_overlay: Control
@@ -49,6 +51,7 @@ func _ready() -> void:
 	layer = 10
 	_build_bars()
 	_build_minimap()
+	_build_hotbar()
 	_build_hint()
 	_build_dialogue_overlay()
 	_build_inventory_overlay()
@@ -163,6 +166,85 @@ func _draw_minimap() -> void:
 	var px = clampf(world.player.global_position.x / total, 0.0, 1.0) * w
 	minimap.draw_line(Vector2(px, 0), Vector2(px, h), Color(1, 0.92, 0.5), 2.0)
 	minimap.draw_circle(Vector2(px, h * 0.5), 3.5, Color(1, 1, 0.85))
+
+const HOTBAR_SLOT_SIZE := 52.0
+const HOTBAR_KEYS := ["Q", "E"]
+
+func _build_hotbar() -> void:
+	# Les compétences Q/E avaient un temps de recharge (cd) mais aucun retour
+	# visuel : impossible de savoir si un sort est prêt sans le tenter.
+	hotbar = HBoxContainer.new()
+	hotbar.theme = UiTheme.build()
+	hotbar.add_theme_constant_override("separation", 8)
+	hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	hotbar.position = Vector2(-(HOTBAR_SLOT_SIZE + 4), -100)
+	add_child(hotbar)
+	for key_letter in HOTBAR_KEYS:
+		hotbar_slots.append(_build_hotbar_slot(key_letter))
+
+func _build_hotbar_slot(key_letter: String) -> Dictionary:
+	var panel = PanelContainer.new()
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.08, 0.06, 0.03, 0.85)
+	style.border_color = Color(0.55, 0.45, 0.25, 0.9)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(6)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.custom_minimum_size = Vector2(HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE)
+	var stack = Control.new()
+	stack.custom_minimum_size = Vector2(HOTBAR_SLOT_SIZE, HOTBAR_SLOT_SIZE)
+	panel.add_child(stack)
+	var bg = ColorRect.new()
+	bg.color = Color(0.4, 0.4, 0.4, 0.5)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(bg)
+	var cd_overlay = ColorRect.new()
+	cd_overlay.color = Color(0, 0, 0, 0.75)
+	cd_overlay.size = Vector2(HOTBAR_SLOT_SIZE, 0)
+	cd_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(cd_overlay)
+	var key_lbl = Label.new()
+	key_lbl.text = key_letter
+	key_lbl.position = Vector2(3, 1)
+	key_lbl.add_theme_font_size_override("font_size", 12)
+	key_lbl.add_theme_color_override("font_color", Color(1, 1, 1, 0.7))
+	key_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stack.add_child(key_lbl)
+	var cd_lbl = Label.new()
+	cd_lbl.set_anchors_preset(Control.PRESET_CENTER)
+	cd_lbl.position = Vector2(-10, -12)
+	cd_lbl.add_theme_font_size_override("font_size", 20)
+	cd_lbl.add_theme_color_override("font_color", Color(1, 1, 1))
+	cd_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cd_lbl.visible = false
+	stack.add_child(cd_lbl)
+	hotbar.add_child(panel)
+	return {"panel": panel, "bg": bg, "cd_overlay": cd_overlay, "cd_label": cd_lbl}
+
+func _process(_delta: float) -> void:
+	if world == null or world.player == null or hotbar_slots.is_empty(): return
+	var cls = Data.CLASSES.get(world.char_data.get("class"), null)
+	if cls == null: return
+	var now = Time.get_ticks_msec() / 1000.0
+	for i in range(hotbar_slots.size()):
+		var slot = hotbar_slots[i]
+		if i >= cls.skills.size():
+			slot.panel.visible = false
+			continue
+		slot.panel.visible = true
+		var skill = cls.skills[i]
+		var remain = maxf(0.0, world.player.cooldowns.get("skill%d" % i, 0.0) - now)
+		var frac = clampf(remain / skill.cd, 0.0, 1.0)
+		slot.cd_overlay.size.y = HOTBAR_SLOT_SIZE * frac
+		slot.cd_overlay.position.y = HOTBAR_SLOT_SIZE - slot.cd_overlay.size.y
+		slot.cd_label.visible = remain > 0.05
+		if remain > 0.05:
+			slot.cd_label.text = "%d" % ceili(remain)
+		var can_afford = world.player.mana >= skill.cost
+		var base_color: Color = skill.get("fx_color", Color(0.5, 0.5, 0.5))
+		slot.bg.color = Color(base_color.r, base_color.g, base_color.b, 0.55) if can_afford else Color(0.3, 0.1, 0.1, 0.6)
+		slot.panel.tooltip_text = "%s (%s)\n%s\nCoût : %d mana · Recharge : %.1fs" % [skill.name, HOTBAR_KEYS[i], skill.desc, skill.cost, skill.cd]
 
 func _make_stat_bar(color: Color, size: Vector2) -> ProgressBar:
 	# Barre avec coins arrondis + bordure sombre + reflet brillant en haut,

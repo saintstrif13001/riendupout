@@ -182,6 +182,17 @@ func _process(delta: float) -> bool:
 			_run_ingame_options_overlay_test()
 		elif test_mode == "test_minimap":
 			_run_minimap_test()
+		elif test_mode == "test_hotbar":
+			_run_hotbar_test()
+		elif test_mode == "show_hotbar":
+			var gs_hb = root.get_node("/root/GameState")
+			var hud_hb = inst.get_node("Hud")
+			inst.char_data["class"] = "mage"
+			inst.player.stats = gs_hb.compute_stats(inst.char_data)
+			inst.player.mana = inst.player.stats.max_mana
+			inst.use_skill(0)
+			inst.player.mana = 0.0
+			hud_hb._process(0.0)
 		elif test_mode == "show_stats":
 			var hud_s = inst.get_node("Hud")
 			hud_s.render_stats()
@@ -1624,6 +1635,40 @@ func _run_minimap_test() -> void:
 	inst.remote_players.erase(998)
 	print("TEST_RESULT minimap_found=%s minimap_sized=%s draw_ok_no_remotes=%s draw_ok_with_valid_remote=%s draw_ok_with_freed_remote=%s"
 		% [minimap_found, minimap_sized, draw_ok_no_remotes, draw_ok_with_valid_remote, draw_ok_with_freed_remote])
+
+func _run_hotbar_test() -> void:
+	print("TEST_START:hotbar")
+	# Les competences Q/E avaient un temps de recharge mais aucun retour visuel :
+	# rien n'indiquait si un sort etait pret, en recharge, ou injouable faute de
+	# mana. Verifie que la barre reflete l'etat reel du cooldown et du mana.
+	var gs = root.get_node("/root/GameState")
+	var hud = inst.get_node("Hud")
+	inst.char_data["class"] = "guerrier" # skill0 coup_puissant cd=4.0 cout=8, skill1 cri_guerre cd=12.0 cout=15
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	inst.player.mana = inst.player.stats.max_mana
+	inst.player.cooldowns.clear()
+	hud._process(0.0)
+
+	var slots_built = hud.hotbar_slots.size() == 2
+	var ready_before_use = hud.hotbar_slots[0].cd_overlay.size.y == 0.0 and not hud.hotbar_slots[0].cd_label.visible
+
+	inst.use_skill(0)
+	hud._process(0.0)
+	var cooldown_shown_after_use = hud.hotbar_slots[0].cd_overlay.size.y > 0.0 and hud.hotbar_slots[0].cd_label.visible
+	var other_slot_unaffected = hud.hotbar_slots[1].cd_overlay.size.y == 0.0
+
+	# fait "expirer" le cooldown manuellement plutôt que d'attendre en temps réel
+	inst.player.cooldowns["skill0"] = 0.0
+	hud._process(0.0)
+	var overlay_clears_after_cooldown_expires = hud.hotbar_slots[0].cd_overlay.size.y == 0.0 and not hud.hotbar_slots[0].cd_label.visible
+
+	inst.player.mana = 0.0
+	hud._process(0.0)
+	var dimmed_when_cant_afford = hud.hotbar_slots[0].bg.color.r > hud.hotbar_slots[0].bg.color.g + 0.1 # teinte rougeâtre
+
+	var all_ok = slots_built and ready_before_use and cooldown_shown_after_use and other_slot_unaffected and overlay_clears_after_cooldown_expires and dimmed_when_cant_afford
+	print("TEST_RESULT all_ok=%s slots_built=%s ready_before_use=%s cooldown_shown_after_use=%s other_slot_unaffected=%s overlay_clears_after_cooldown_expires=%s dimmed_when_cant_afford=%s"
+		% [all_ok, slots_built, ready_before_use, cooldown_shown_after_use, other_slot_unaffected, overlay_clears_after_cooldown_expires, dimmed_when_cant_afford])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

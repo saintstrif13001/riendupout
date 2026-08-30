@@ -180,6 +180,8 @@ func _process(delta: float) -> bool:
 			inst.show_options()
 		elif test_mode == "test_ingame_options_overlay":
 			_run_ingame_options_overlay_test()
+		elif test_mode == "test_minimap":
+			_run_minimap_test()
 		elif test_mode == "test_progression_stats_display":
 			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
@@ -1528,6 +1530,44 @@ func _run_ingame_options_overlay_test() -> void:
 	var persisted_correctly = loaded_ok and absf(cfg.get_value("audio", "master_volume", -1.0) - 0.2) < 0.01
 	print("TEST_RESULT opened_on_o=%s slider_found=%s slider_matches_volume=%s closed_on_escape=%s persisted_correctly=%s"
 		% [opened_on_o, slider_found, slider_matches_volume, closed_on_escape, persisted_correctly])
+
+func _run_minimap_test() -> void:
+	print("TEST_START:minimap")
+	# Le monde n'avait aucune vue d'ensemble : impossible de savoir dans quelle
+	# zone on se trouve sans lire le petit texte en haut, et aucun moyen de voir
+	# ou sont les autres joueurs du groupe. Verifie que la mini-carte existe,
+	# que le marqueur du joueur suit sa position, et qu'un allie distant invalide
+	# (deconnecte pendant le dessin) ne fait pas planter _draw_minimap().
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	var minimap_found = hud.minimap != null
+	var minimap_sized = minimap_found and hud.minimap.size.x > 0 and hud.minimap.size.y > 0
+
+	inst.player.global_position.x = data.ZONES.foret.x0 + 100
+	hud.minimap.queue_redraw()
+	await process_frame # le dessin reel a lieu via le signal `draw`, pas un appel direct
+	var draw_ok_no_remotes = true
+
+	var gs = root.get_node("/root/GameState")
+	var ally_data = gs.new_character("Allié Minimap", "elfe", "guerrier")
+	var ally = load("res://scenes/Player.tscn").instantiate()
+	inst.get_node("Players").add_child(ally)
+	ally.setup(ally_data, false, 998)
+	ally.global_position = Vector2(data.ZONES.plaine.x0 + 50, 0)
+	inst.remote_players[998] = ally
+	hud.minimap.queue_redraw()
+	await process_frame
+	var draw_ok_with_valid_remote = true
+
+	ally.free() # libération immédiate (pas queue_free) pour tester le garde
+	# is_instance_valid() de _draw_minimap sans attendre une frame supplémentaire
+	hud.minimap.queue_redraw()
+	await process_frame
+	var draw_ok_with_freed_remote = true
+
+	inst.remote_players.erase(998)
+	print("TEST_RESULT minimap_found=%s minimap_sized=%s draw_ok_no_remotes=%s draw_ok_with_valid_remote=%s draw_ok_with_freed_remote=%s"
+		% [minimap_found, minimap_sized, draw_ok_no_remotes, draw_ok_with_valid_remote, draw_ok_with_freed_remote])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

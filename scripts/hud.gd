@@ -24,6 +24,7 @@ var travel_box: VBoxContainer
 var options_overlay: Control
 var options_slider: HSlider
 var options_pct_label: Label
+var minimap: Control
 var fade_rect: ColorRect
 
 func bind(w) -> void:
@@ -38,6 +39,7 @@ func bind(w) -> void:
 func _ready() -> void:
 	layer = 10
 	_build_bars()
+	_build_minimap()
 	_build_hint()
 	_build_dialogue_overlay()
 	_build_inventory_overlay()
@@ -118,6 +120,38 @@ func _build_bars() -> void:
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	help.position = Vector2(16, -24)
 	root.add_child(help)
+
+func _build_minimap() -> void:
+	# Le monde etait navigable a l'aveugle : aucune vue d'ensemble des zones,
+	# aucun moyen de voir ou se trouvent les autres joueurs du groupe.
+	minimap = Control.new()
+	minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	minimap.custom_minimum_size = Vector2(220, 22)
+	minimap.position = Vector2(-236, -24)
+	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	minimap.draw.connect(_draw_minimap)
+	add_child(minimap)
+
+func _draw_minimap() -> void:
+	if world == null or world.player == null: return
+	var w = minimap.size.x
+	var h = minimap.size.y
+	var total = Data.WORLD_WIDTH
+	for zid in Data.ZONES.keys():
+		var z = Data.ZONES[zid]
+		var x0 = (z.x0 / total) * w
+		var x1 = (z.x1 / total) * w
+		var col = z.bg.lightened(0.1) if zid == world.death_zone_id else z.bg.darkened(0.25)
+		minimap.draw_rect(Rect2(x0, 0, max(1.0, x1 - x0), h), col)
+	minimap.draw_rect(Rect2(0, 0, w, h), Color(0.9, 0.85, 0.6, 0.6), false, 1.0)
+	for pid in world.remote_players.keys():
+		var rp = world.remote_players[pid]
+		if rp == null or not is_instance_valid(rp): continue
+		var rx = clampf(rp.global_position.x / total, 0.0, 1.0) * w
+		minimap.draw_circle(Vector2(rx, h * 0.5), 3.0, Color(0.4, 0.75, 1.0))
+	var px = clampf(world.player.global_position.x / total, 0.0, 1.0) * w
+	minimap.draw_line(Vector2(px, 0), Vector2(px, h), Color(1, 0.92, 0.5), 2.0)
+	minimap.draw_circle(Vector2(px, h * 0.5), 3.5, Color(1, 1, 0.85))
 
 func _make_stat_bar(color: Color, size: Vector2) -> ProgressBar:
 	# Barre avec coins arrondis + bordure sombre + reflet brillant en haut,
@@ -350,6 +384,7 @@ func _on_hud_update(d: Dictionary) -> void:
 	lvl_label.text = "Niveau %d" % d.level
 	zone_label.text = d.zone
 	gold_label.text = "Or: %d" % d.gold
+	minimap.queue_redraw()
 
 var _bar_tweens: Dictionary = {} # ProgressBar -> Tween en cours
 

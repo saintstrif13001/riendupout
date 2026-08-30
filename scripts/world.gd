@@ -752,7 +752,8 @@ func _physics_process(delta: float) -> void:
 		update_enemies(delta)
 
 	for pid in remote_players.keys():
-		remote_players[pid].update_visuals()
+		if is_instance_valid(remote_players[pid]):
+			remote_players[pid].update_visuals()
 
 	if Net.is_online:
 		network_tick(delta)
@@ -892,7 +893,7 @@ func use_skill(idx: int) -> void:
 			if buff_range <= 0: buff_range = 220.0 # 0 = "portée illimitée locale" -> zone raisonnable autour du lanceur
 			for pid in remote_players.keys():
 				var rp: Player = remote_players[pid]
-				if rp.dead: continue
+				if not is_instance_valid(rp) or rp.dead: continue
 				if player.global_position.distance_to(rp.global_position) <= buff_range:
 					rpc_id(pid, "net_apply_buff", b)
 					spawn_buff_fx(rp)
@@ -930,7 +931,7 @@ func find_nearest_ally_in_range(range_px: float):
 	var best_d = range_px
 	for pid in remote_players.keys():
 		var rp: Player = remote_players[pid]
-		if rp.dead: continue
+		if not is_instance_valid(rp) or rp.dead: continue
 		var d = player.global_position.distance_to(rp.global_position)
 		if d <= best_d:
 			best_d = d
@@ -1183,7 +1184,7 @@ func update_enemies(delta: float) -> void:
 		var best_d = e.global_position.distance_to(player.global_position)
 		for pid in remote_players.keys():
 			var rp: Player = remote_players[pid]
-			if rp.dead: continue
+			if not is_instance_valid(rp) or rp.dead: continue
 			var d = e.global_position.distance_to(rp.global_position)
 			if d < best_d: best_d = d; target = rp
 		var aggro_range = 260.0 if e.mdef.get("boss", false) else 150.0
@@ -1386,7 +1387,8 @@ func network_tick(delta: float) -> void:
 			var relevance_range = 1400.0
 			var player_positions = [player.global_position]
 			for pid in remote_players.keys():
-				player_positions.append(remote_players[pid].global_position)
+				if is_instance_valid(remote_players[pid]):
+					player_positions.append(remote_players[pid].global_position)
 			var snap := []
 			for uid in enemies.keys():
 				var e: Enemy = enemies[uid]

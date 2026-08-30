@@ -208,6 +208,8 @@ func _process(delta: float) -> bool:
 			_run_camera_zoom_test()
 		elif test_mode == "test_crit_feedback":
 			_run_crit_feedback_test()
+		elif test_mode == "test_npc_lore":
+			_run_npc_lore_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
@@ -2131,6 +2133,52 @@ func _run_crit_feedback_test() -> void:
 	var all_ok = crit_always_true and crit_dmg_multiplied and crit_text_shown and crit_color_distinct and shake_ends_at_zero and shake_bounded
 	print("TEST_RESULT all_ok=%s crit_always_true=%s crit_dmg_multiplied=%s crit_text_shown=%s crit_color_distinct=%s shake_ends_at_zero=%s shake_bounded=%s"
 		% [all_ok, crit_always_true, crit_dmg_multiplied, crit_text_shown, crit_color_distinct, shake_ends_at_zero, shake_bounded])
+
+func _run_npc_lore_test() -> void:
+	print("TEST_START:npc_lore")
+	# Les PNJ n'avaient que des échanges transactionnels (quêtes/boutique/métier) :
+	# rien à raconter sur eux-mêmes ou le monde. Vérifie que chaque PNJ déclare du
+	# lore, que la première ligne s'affiche, que "Continuer à discuter..." fait
+	# avancer la conversation, et que ça boucle proprement à la fin de la liste.
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+
+	var all_npcs_have_lore = true
+	var npcs_missing_lore = []
+	for npc in Data.NPCS:
+		if not npc.has("lore") or npc.lore.is_empty():
+			all_npcs_have_lore = false
+			npcs_missing_lore.append(npc.id)
+
+	var ancien = data.get_npc("ancien")
+	hud._on_open_npc(ancien)
+	var first_line_shown = _find_label_with_text(hud.dialogue_box, ancien.lore[0]) != null
+
+	# _clear_box() utilise queue_free() (pas immédiat en headless) : sans libérer
+	# explicitement la génération précédente avant chaque clic, une recherche
+	# récursive risque de retrouver un ancien bouton encore présent — dont la
+	# fermeture capturait un index de discussion périmé — au lieu du nouveau
+	# (piège déjà rencontré avec d'autres tests de dialogue dans ce fichier).
+	var gen0 = hud.dialogue_box.get_children().duplicate()
+	var advance_btn = _find_button_with_text(hud.dialogue_box, "Continuer à discuter")
+	var advance_button_found = advance_btn != null
+	if advance_btn: advance_btn.pressed.emit()
+	for c in gen0:
+		if is_instance_valid(c): c.free()
+	var second_line_shown = _find_label_with_text(hud.dialogue_box, ancien.lore[1]) != null
+
+	# fait boucler jusqu'à revenir à la première ligne (ancien.lore.size() a 3 entrées : encore 2 clics)
+	for i in range(ancien.lore.size() - 1):
+		var gen = hud.dialogue_box.get_children().duplicate()
+		var btn = _find_button_with_text(hud.dialogue_box, "Continuer à discuter")
+		if btn: btn.pressed.emit()
+		for c in gen:
+			if is_instance_valid(c): c.free()
+	var loops_back_to_first_line = _find_label_with_text(hud.dialogue_box, ancien.lore[0]) != null
+
+	var all_ok = all_npcs_have_lore and first_line_shown and advance_button_found and second_line_shown and loops_back_to_first_line
+	print("TEST_RESULT all_ok=%s all_npcs_have_lore=%s npcs_missing_lore=%s first_line_shown=%s advance_button_found=%s second_line_shown=%s loops_back_to_first_line=%s"
+		% [all_ok, all_npcs_have_lore, npcs_missing_lore, first_line_shown, advance_button_found, second_line_shown, loops_back_to_first_line])
 
 func _run_npc_wander_test() -> void:
 	print("TEST_START:npc_wander")

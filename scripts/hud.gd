@@ -789,6 +789,7 @@ func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
 
 # ---------------- Dialogue PNJ ----------------
 var current_npc: Dictionary = {}
+var npc_lore_index: Dictionary = {} # npc_id -> index dans npc.lore, pour faire avancer la discussion à chaque clic
 
 func _on_open_npc(npc: Dictionary) -> void:
 	current_npc = npc
@@ -966,6 +967,22 @@ func render_npc_dialogue() -> void:
 			rew.text = "Récompense : %d or, %d XP" % [b.reward_gold, b.reward_xp]
 			box2.add_child(rew)
 			_wrap_card(dialogue_box, box2)
+
+	if npc.has("lore") and not npc.lore.is_empty():
+		# Les PNJ n'avaient que des échanges transactionnels (quêtes/boutique/
+		# métier) : rien à dire sur eux-mêmes ou le monde en dehors de ça. Une
+		# ligne de discussion/lore qui avance à chaque clic, façon vrai dialogue,
+		# au lieu d'une seule réplique figée.
+		_add_title(dialogue_box, "Discuter", 14)
+		var idx = npc_lore_index.get(npc.id, 0) % npc.lore.size()
+		var lore_lbl = Label.new()
+		lore_lbl.text = npc.lore[idx]
+		lore_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
+		lore_lbl.add_theme_color_override("font_color", Color(0.85,0.8,0.65))
+		_wrap_card(dialogue_box, lore_lbl)
+		_add_button(dialogue_box, "Continuer à discuter...", func():
+			npc_lore_index[npc.id] = idx + 1
+			render_npc_dialogue())
 
 	_add_button(dialogue_box, "Fermer (ESC)", func(): close_all())
 

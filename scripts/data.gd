@@ -171,18 +171,66 @@ const GATHER_NODES := [
 ]
 
 const NPCS := [
-	{"id":"ancien", "name":"l'Ancien Malorin", "x":400, "y":400, "role":"quest_turnin", "tint":Color(1,1,1)},
-	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":600, "y":600, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53)},
-	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":700, "y":300, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85)},
-	{"id":"marchand", "name":"Bosk le Marchand", "x":500, "y":750, "role":"shop", "tint":Color(0.85,0.76,0.29)},
-	{"id":"garde", "name":"Garde Ren", "x":1300, "y":500, "role":"quest", "tint":Color(0.29,0.43,0.85)},
-	{"id":"fermier", "name":"Fermier Otto", "x":1900, "y":700, "role":"quest", "tint":Color(0.85,0.56,0.29)},
-	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":3900, "y":300, "role":"quest", "tint":Color(0.29,0.85,0.43)},
-	{"id":"ranger", "name":"Ranger Doff", "x":3400, "y":900, "role":"quest", "tint":Color(0.18,0.54,0.23)},
-	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85)},
-	{"id":"hulda", "name":"Vieille Hulda", "x":7400, "y":600, "role":"quest", "tint":Color(0.55,0.7,0.4)},
-	{"id":"chasseur", "name":"Chasseur Kessler", "x":1100, "y":450, "role":"bounty", "tint":Color(0.6,0.45,0.25)},
-	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":800, "y":500, "role":"respec", "tint":Color(0.8,0.65,0.3)},
+	{"id":"ancien", "name":"l'Ancien Malorin", "x":400, "y":400, "role":"quest_turnin", "tint":Color(1,1,1), "lore":[
+		"\"Val-Repos fut bâti par des colons fuyant la chute du vieux royaume, il y a trois générations. Les fondations que tu vois sous l'auberge sont d'origine.\"",
+		"\"Autrefois la Forêt de Sylvombre s'étendait jusqu'aux portes du village. On a coupé pour bâtir, et la forêt n'a jamais pardonné — demande aux rôdeurs.\"",
+		"\"La Caverne des Ossements n'a pas toujours porté ce nom. Avant les squelettes, on l'appelait la Grotte aux Échos. Je préfère l'ancien nom, personnellement.\"",
+	]},
+	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":600, "y":600, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53), "lore":[
+		"\"Le bon minerai vient de la Plaine d'Aubval — plus friable, plus facile à purifier que celui de la caverne. Mais celui de la caverne fait de meilleures lames.\"",
+		"\"Mon grand-père forgeait déjà ici. Il disait qu'un vrai forgeron reconnaît la qualité d'un métal au son qu'il fait sur l'enclume, pas à sa couleur.\"",
+		"\"Je n'ai jamais réussi à reproduire les techniques des anciennes armures qu'on trouve parfois en fouillant. Un savoir perdu, sans doute.\"",
+	]},
+	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":700, "y":300, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85), "lore":[
+		"\"La gelée de slime est étonnamment stable en potion — c'est l'ichor putride du marais qui est délicat, il faut le travailler vite avant qu'il ne tourne.\"",
+		"\"On m'a longtemps prise pour une sorcière. Je préfère 'chimiste appliquée', mais bon, dans ce village les nuances ne portent pas loin.\"",
+		"\"Les fleurs de la plaine et les champignons de Sylvombre ne se marient jamais bien en potion. J'ai essayé. Trois fois. Ne recommencez pas mon erreur.\"",
+	]},
+	{"id":"marchand", "name":"Bosk le Marchand", "x":500, "y":750, "role":"shop", "tint":Color(0.85,0.76,0.29), "lore":[
+		"\"Mes prix montent avec la demande, baissent avec le stock — c'est pas de la magie, c'est du commerce. Demandez à Yvenne pour la magie.\"",
+		"\"J'ai fait la route entre trois villages avant de m'installer ici. Val-Repos a le marché le plus honnête que j'aie vu — enfin, presque.\"",
+		"\"Un jour un aventurier m'a vendu une amulette du marais encore tiède. Je n'ai pas posé de questions. Je pose rarement des questions.\"",
+	]},
+	{"id":"garde", "name":"Garde Ren", "x":1300, "y":500, "role":"quest", "tint":Color(0.29,0.43,0.85), "lore":[
+		"\"La frontière entre le village et la plaine n'a jamais été aussi calme qu'aujourd'hui — et ça, ça m'inquiète plus que ça me rassure.\"",
+		"\"On m'a affecté ici après mon service dans la garde royale. Moins de gloire, mais je dors mieux. La plupart des nuits.\"",
+		"\"Les loups de la plaine chassent en meute organisée depuis peu. Ce n'est pas naturel pour des loups ordinaires.\"",
+	]},
+	{"id":"fermier", "name":"Fermier Otto", "x":1900, "y":700, "role":"quest", "tint":Color(0.85,0.56,0.29), "lore":[
+		"\"Mes récoltes ont doublé depuis que les patrouilles du village repoussent les gobelins hors de mes champs. Petit prix à payer en impôts, franchement.\"",
+		"\"Mon père labourait cette terre avant les loups alpha. Il disait que la plaine était plus sauvage encore de son temps. Difficile à croire.\"",
+		"\"Je troque mes légumes contre les potions de Yvenne. Elle prétend que ça la 'venge' des champignons de la forêt. Je n'ai jamais compris la blague.\"",
+	]},
+	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":3900, "y":300, "role":"quest", "tint":Color(0.29,0.85,0.43), "lore":[
+		"\"Sylvombre porte bien son nom : même en plein midi, la canopée ne laisse passer qu'un filet de lumière. On s'y perd vite si on ne connaît pas les sentiers.\"",
+		"\"Les lucioles qu'on voit la nuit ne sont pas de simples insectes — les anciens de la forêt disent qu'elles suivent les voyageurs égarés jusqu'à un chemin sûr.\"",
+		"\"J'ai cartographié la moitié de cette forêt et je découvre encore des clairières inconnues. Sylvombre garde ses secrets.\"",
+	]},
+	{"id":"ranger", "name":"Ranger Doff", "x":3400, "y":900, "role":"quest", "tint":Color(0.18,0.54,0.23), "lore":[
+		"\"Les gobelins de Sylvombre ne sont pas bêtes — ils évitent nos pièges depuis qu'on en a posé un peu trop souvent au même endroit. On varie, maintenant.\"",
+		"\"Un tronc abattu dans cette forêt n'est jamais du bois mort bien longtemps — la mousse et les champignons colonisent tout en quelques semaines à peine.\"",
+		"\"Je chasse ici depuis quinze ans. Je n'ai toujours pas vu la lisière est de la forêt, du côté de la caverne. Certains coins ne m'attirent pas.\"",
+	]},
+	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85), "lore":[
+		"\"On m'appelait autrefois la 'Grotte aux Échos', avant qu'elle ne devienne la Caverne des Ossements. Les échos, eux, n'ont jamais cessé.\"",
+		"\"Je prie ici pour apaiser les morts qui n'ont pas trouvé le repos. Certains jours, j'ai l'impression qu'ils m'écoutent. D'autres jours, moins.\"",
+		"\"Les cristaux qu'on trouve dans la roche ne sont pas naturels — je crois qu'ils sont nés du même rituel qui a peuplé cette grotte de squelettes.\"",
+	]},
+	{"id":"hulda", "name":"Vieille Hulda", "x":7400, "y":600, "role":"quest", "tint":Color(0.55,0.7,0.4), "lore":[
+		"\"Le Marais Putride n'a pas toujours empesté ainsi. C'est le rituel raté d'un nécromancien d'autrefois qui a corrompu ces eaux, il y a bien longtemps.\"",
+		"\"Les feux follets qui dansent la nuit sur les mares ne sont pas de simples gaz — ce sont les âmes de ceux que le marais a pris et n'a jamais rendus.\"",
+		"\"Le Coeur du Marais que je cherche à récupérer contient ce qu'il reste du rituel original. Le détruire pourrait bien purifier ces terres. Ou pas.\"",
+	]},
+	{"id":"chasseur", "name":"Chasseur Kessler", "x":1100, "y":450, "role":"bounty", "tint":Color(0.6,0.45,0.25), "lore":[
+		"\"Les primes payent mieux que la chasse ordinaire, mais elles attirent aussi les têtes brûlées. Je préfère les aventuriers qui savent quand fuir.\"",
+		"\"J'ai traqué un loup alpha pendant trois semaines avant de comprendre qu'il me traquait aussi. On a fini par se laisser tranquilles, tous les deux.\"",
+		"\"Chaque prime raconte une histoire — une ferme attaquée, une caravane perdue. Je ne les affiche jamais sans vérifier qu'elles sont vraies.\"",
+	]},
+	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":800, "y":500, "role":"respec", "tint":Color(0.8,0.65,0.3), "lore":[
+		"\"Changer de voie n'est pas une honte — j'ai moi-même été trois choses avant de devenir maître d'armes. On ne trouve pas toujours sa voie du premier coup.\"",
+		"\"J'ai formé la moitié de la garde du village. Certains soirs, je regrette de ne pas avoir mieux formé Ren aux patrouilles de nuit.\"",
+		"\"Un guerrier qui ne doute jamais de ses choix n'apprend jamais rien de nouveau. Le doute, bien dirigé, est un outil comme un autre.\"",
+	]},
 ]
 
 const QUESTS := [

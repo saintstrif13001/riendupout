@@ -128,13 +128,14 @@ func build_village_structures() -> void:
 	# bien plus lisible que le triangle plat d'avant.
 	var roof_tan = load("res://assets/buildings/roof_tan.png")
 	var roof_brown = load("res://assets/buildings/roof_brown.png")
+	# Chaque maison est alignée avec le PNJ qui "y habite" (forge = Grondar, etc.)
+	# pour que le village ait une disposition lisible au lieu de bâtiments épars.
 	var houses = [
-		{"x":300, "y":250, "w":90, "h":70, "wall":Color(0.78,0.68,0.5), "roof":roof_tan},
-		{"x":600, "y":500, "w":110, "h":80, "wall":Color(0.7,0.62,0.48), "roof":roof_brown},
-		{"x":450, "y":700, "w":90, "h":70, "wall":Color(0.75,0.65,0.5), "roof":roof_tan},
-		{"x":900, "y":300, "w":120, "h":90, "wall":Color(0.65,0.6,0.6), "roof":roof_brown},
-		{"x":950, "y":650, "w":100, "h":75, "wall":Color(0.72,0.63,0.47), "roof":roof_tan},
-		{"x":200, "y":650, "w":85, "h":65, "wall":Color(0.76,0.66,0.5), "roof":roof_brown},
+		{"x":600, "y":530, "w":100, "h":75, "wall":Color(0.7,0.62,0.48), "roof":roof_brown}, # forge (Grondar, 600,600)
+		{"x":700, "y":230, "w":90, "h":70, "wall":Color(0.75,0.65,0.5), "roof":roof_tan}, # alchimiste (Yvenne, 700,300)
+		{"x":500, "y":680, "w":100, "h":75, "wall":Color(0.72,0.63,0.47), "roof":roof_tan}, # échoppe (Bosk, 500,750)
+		{"x":400, "y":330, "w":80, "h":60, "wall":Color(0.76,0.66,0.5), "roof":roof_brown}, # cabane de l'Ancien (400,400)
+		{"x":800, "y":430, "w":85, "h":65, "wall":Color(0.65,0.6,0.6), "roof":roof_brown}, # salle d'armes (Thoric, 800,500)
 	]
 	for h in houses:
 		# ombre portée douce sous la maison
@@ -157,6 +158,15 @@ func build_village_structures() -> void:
 		wall.position = Vector2(h.x - h.w/2.0, h.y - h.h/2.0)
 		wall.z_index = int(h.y)
 		$Decor.add_child(wall)
+		# Collision solide pour que le joueur ne traverse pas visuellement le mur.
+		var body = StaticBody2D.new()
+		body.position = Vector2(h.x, h.y)
+		var shape = CollisionShape2D.new()
+		var rect_shape = RectangleShape2D.new()
+		rect_shape.size = Vector2(h.w, h.h)
+		shape.shape = rect_shape
+		body.add_child(shape)
+		$Decor.add_child(body)
 		# bande d'ombre en bas du mur (donne un peu de volume)
 		var wall_shade = ColorRect.new()
 		wall_shade.color = h.wall.darkened(0.2)
@@ -301,6 +311,7 @@ func build_npcs() -> void:
 	for npc in Data.NPCS:
 		var node = Node2D.new()
 		node.position = Vector2(npc.x, npc.y)
+		node.z_index = int(npc.y) # sinon le PNJ reste toujours derrière les maisons (z_index en centaines)
 		var legs = Sprite2D.new()
 		legs.texture = npc_legs_tex
 		legs.region_enabled = true; legs.region_rect = region

@@ -95,5 +95,6 @@ func die() -> void:
 	if collider: collider.disabled = true
 
 func update_visuals() -> void:
+	z_index = int(global_position.y) # tri en profondeur : sinon disparait derrière les maisons/décors
 	var pct = clamp(hp / max(1.0, max_hp), 0.0, 1.0)
 	hp_fg.size.x = 28 * pct

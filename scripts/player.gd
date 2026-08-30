@@ -202,6 +202,7 @@ func gain_xp(amount: int) -> Dictionary:
 	return {"amount": amount, "leveled": leveled}
 
 func update_visuals() -> void:
+	z_index = int(global_position.y) # tri en profondeur : sinon on disparait derrière les maisons/décors
 	name_label.position = Vector2(-name_label.size.x/2, -58)
 	hp_bg.position = Vector2(-20, -46)
 	hp_fg.position = Vector2(-18, -44)

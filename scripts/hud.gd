@@ -377,19 +377,37 @@ func item_tooltip_text(item_id: String) -> String:
 		lines.append("Prix : %d or" % it.price)
 	return "\n".join(lines)
 
+# Carte translucente utilisée derrière chaque ligne d'objet (inventaire,
+# boutiques, artisanat) pour que la liste se lise comme des "slots" distincts
+# au lieu d'un empilement plat de texte sans séparation visuelle.
+func _item_card_style() -> StyleBoxFlat:
+	var sb = StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.06, 0.03, 0.4)
+	sb.border_color = Color(0.55, 0.45, 0.25, 0.6)
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(5)
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	sb.content_margin_top = 3
+	sb.content_margin_bottom = 3
+	return sb
+
 # Ligne d'objet avec icône, utilisée dans l'inventaire et les boutiques.
 # Si cb est fourni, toute la ligne est cliquable (bouton) ; sinon c'est un simple affichage.
 func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
+	var card = PanelContainer.new()
+	card.add_theme_stylebox_override("panel", _item_card_style())
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	row.add_child(_icon_tex(item_id))
+	card.add_child(row)
+	box.add_child(card)
 	if cb == null:
 		var l = Label.new()
 		l.text = label_text
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		row.add_child(l)
-		box.add_child(row)
 		return row
 	else:
 		var b = Button.new()
@@ -397,10 +415,10 @@ func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
 		b.custom_minimum_size = Vector2(0, 36)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.flat = true
 		b.tooltip_text = item_tooltip_text(item_id)
 		b.pressed.connect(cb)
 		row.add_child(b)
-		box.add_child(row)
 		return b
 
 # ---------------- Dialogue PNJ ----------------
@@ -506,10 +524,8 @@ func render_npc_dialogue() -> void:
 				for k in r.cost.keys():
 					cost_str.append(str(r.cost[k]) + " " + Data.ITEMS[k].name)
 					if cd.inventory.get(k, 0) < r.cost[k]: has = false
-				var lbl = Label.new()
-				lbl.text = r.name + " -- Cout: " + ", ".join(cost_str)
-				dialogue_box.add_child(lbl)
-				var btn = _add_button(dialogue_box, "Fabriquer " + r.name, func(): craft_recipe(r.id))
+				var label = "%s — Coût : %s" % [r.name, ", ".join(cost_str)]
+				var btn = _add_item_row(dialogue_box, r.result, label, func(): craft_recipe(r.id))
 				btn.disabled = not has
 
 	if npc.role == "respec":

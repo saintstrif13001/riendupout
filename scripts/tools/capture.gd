@@ -170,6 +170,12 @@ func _process(delta: float) -> bool:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
 		elif test_mode == "test_forge_economy":
 			_run_forge_economy_test()
+		elif test_mode == "show_forge_dialogue":
+			var hud6 = inst.get_node("Hud")
+			var data6 = root.get_node("/root/Data")
+			inst.char_data.profession = "forgeron"
+			inst.char_data.inventory = {"minerai": 20}
+			hud6._on_open_npc(data6.get_npc("forgeron_pnj"))
 		elif test_mode == "show_village_center":
 			inst.player.global_position = Vector2(600, 480)
 			var cam2 = inst.player.get_node_or_null("Camera2D")

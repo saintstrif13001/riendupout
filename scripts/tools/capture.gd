@@ -110,6 +110,19 @@ func _process(delta: float) -> bool:
 			_run_data_integrity_test()
 		elif test_mode == "test_house_collision":
 			_run_house_collision_test()
+		elif test_mode == "test_chest":
+			_run_chest_test()
+		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
+			var tx = int(inst.player.global_position.x) + 30
+			var ty = int(inst.player.global_position.y)
+			inst._spawn_torch(tx, ty)
+			if test_mode == "test_torch_glow":
+				var decor = inst.get_node("Decor")
+				var light = null
+				for c in decor.get_children():
+					if c is PointLight2D: light = c
+				print("TEST_RESULT light_found=%s light_texture_valid=%s light_energy=%.2f"
+					% [light != null, light != null and light.texture != null, light.energy if light != null else -1.0])
 		elif test_mode == "test_depth_sort":
 			_run_depth_sort_test()
 		elif test_mode == "test_equip":
@@ -526,6 +539,23 @@ func _run_depth_sort_test() -> void:
 	e.update_visuals()
 	var enemy_ok = e.z_index == 812
 	print("TEST_RESULT player_z=%d player_ok=%s enemy_z=%d enemy_ok=%s" % [inst.player.z_index, player_ok, e.z_index, enemy_ok])
+
+func _run_chest_test() -> void:
+	print("TEST_START:chest")
+	var before_gold = inst.char_data.gold
+	var cx = int(inst.player.global_position.x) + 30
+	var cy = int(inst.player.global_position.y)
+	inst._spawn_chest(cx, cy)
+	var c = inst.chest_nodes[inst.chest_nodes.size() - 1]
+	print("TEST_STATE opened_before=%s lid_rot_before=%.2f gold=%d" % [c.opened, c.lid.rotation, c.gold])
+	inst.open_chest(c)
+	var gold_gained = inst.char_data.gold - before_gold
+	print("TEST_RESULT opened_after=%s lid_rot_after=%.2f gold_gained=%d expected_gain=%d"
+		% [c.opened, c.lid.rotation, gold_gained, c.gold])
+	# Un second appel ne doit pas régénérer d'or (coffre déjà vidé).
+	var gold_before_second = inst.char_data.gold
+	inst.open_chest(c)
+	print("TEST_RESULT2 second_open_no_extra_gold=%s" % [inst.char_data.gold == gold_before_second])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

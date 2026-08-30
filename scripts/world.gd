@@ -25,6 +25,7 @@ var net_send_accum: float = 0.0
 var net_enemy_accum: float = 0.0
 var npc_nodes: Array = []
 var gather_nodes: Array = []
+var chest_nodes: Array = []
 var hud_tick_accum: float = 0.0
 var autosave_accum: float = 0.0
 var death_zone_id: String = "village"
@@ -223,6 +224,38 @@ func _spawn_torch(x: int, y: int) -> void:
 	flame.position = Vector2(x - 4, y - 20)
 	flame.z_index = int(y) + 1
 	$Decor.add_child(flame)
+	# Scintillement : la flamme pulse en taille/teinte pour paraître vivante.
+	var flicker = create_tween().set_loops()
+	flicker.tween_property(flame, "scale", Vector2(1.25, 1.4), 0.18).set_trans(Tween.TRANS_SINE).set_delay(randf() * 0.5)
+	flicker.tween_property(flame, "scale", Vector2(0.9, 0.85), 0.22).set_trans(Tween.TRANS_SINE)
+	flame.pivot_offset = flame.size / 2.0
+	# Halo lumineux autour de la torche pour éclairer la zone alentour.
+	var glow = PointLight2D.new()
+	glow.texture = _radial_light_texture()
+	glow.position = Vector2(x, y - 16)
+	glow.color = Color(1.0, 0.65, 0.25)
+	glow.energy = 1.1
+	glow.texture_scale = 2.2
+	glow.z_index = int(y) + 2
+	$Decor.add_child(glow)
+	var glow_pulse = create_tween().set_loops()
+	glow_pulse.tween_property(glow, "energy", 1.4, 0.3).set_trans(Tween.TRANS_SINE).set_delay(randf() * 0.5)
+	glow_pulse.tween_property(glow, "energy", 0.9, 0.35).set_trans(Tween.TRANS_SINE)
+
+var _radial_light_tex: Texture2D = null
+func _radial_light_texture() -> Texture2D:
+	# Godot n'a pas de texture radiale native ; on en génère une petite au premier appel.
+	if _radial_light_tex != null: return _radial_light_tex
+	var size = 64
+	var img = Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var center = Vector2(size / 2.0, size / 2.0)
+	for px in range(size):
+		for py in range(size):
+			var d = Vector2(px, py).distance_to(center) / (size / 2.0)
+			var a = clamp(1.0 - d, 0.0, 1.0)
+			img.set_pixel(px, py, Color(1, 1, 1, a * a))
+	_radial_light_tex = ImageTexture.create_from_image(img)
+	return _radial_light_tex
 
 func _spawn_rock(x: int, y: int) -> void:
 	var rock = Polygon2D.new()
@@ -249,8 +282,21 @@ func _spawn_chest(x: int, y: int) -> void:
 	lid.color = Color(0.55, 0.4, 0.2)
 	lid.size = Vector2(22, 5)
 	lid.position = Vector2(x - 11, y - 12)
+	lid.pivot_offset = Vector2(0, 5) # charnière côté arrière : la couvercle bascule vers le haut
 	lid.z_index = int(y) + 1
 	$Decor.add_child(lid)
+	var gold = randi_range(5, 20)
+	chest_nodes.append({"x": x, "y": y, "lid": lid, "base": base, "opened": false, "gold": gold})
+
+func open_chest(c: Dictionary) -> void:
+	if c.opened: return
+	c.opened = true
+	var tw = create_tween()
+	tw.tween_property(c.lid, "rotation", -1.1, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	c.lid.color = Color(0.3, 0.22, 0.12) # intérieur du coffre, plus sombre une fois ouvert
+	char_data.gold += c.gold
+	float_text(Vector2(c.x, c.y - 24), "+%d or" % c.gold, Color(1.0, 0.85, 0.3))
+	emit_signal("hud_update", make_hud_data())
 
 func _build_ground_mosaic(z: Dictionary) -> void:
 	var paths = GROUND_TEXTURES[z.id]
@@ -816,6 +862,10 @@ func update_near_interactable() -> void:
 	for n in npc_nodes:
 		var d = player.global_position.distance_to(Vector2(n.npc.x, n.npc.y))
 		if d < best_d: best_d = d; nearest = {"type":"npc", "ref": n}
+	for c in chest_nodes:
+		if c.opened: continue
+		var d = player.global_position.distance_to(Vector2(c.x, c.y))
+		if d < best_d: best_d = d; nearest = {"type":"chest", "ref": c}
 	if char_data.bloodstain:
 		var b = char_data.bloodstain
 		var d = player.global_position.distance_to(Vector2(b.x, b.y))
@@ -827,6 +877,8 @@ func update_near_interactable() -> void:
 		emit_signal("near_update", "Récupérer %d or" % char_data.bloodstain.gold)
 	elif nearest.type == "npc":
 		emit_signal("near_update", nearest.ref.npc.name)
+	elif nearest.type == "chest":
+		emit_signal("near_update", "Ouvrir le coffre")
 	else:
 		emit_signal("near_update", "Récolter")
 
@@ -853,6 +905,8 @@ func try_interact() -> void:
 		emit_signal("hud_update", make_hud_data())
 	elif near_target.type == "npc":
 		emit_signal("open_npc", near_target.ref.npc)
+	elif near_target.type == "chest":
+		open_chest(near_target.ref)
 	elif near_target.type == "bloodstain":
 		reclaim_bloodstain()
 

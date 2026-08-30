@@ -114,6 +114,8 @@ func _process(delta: float) -> bool:
 			_run_chest_test()
 		elif test_mode == "test_fade":
 			_run_fade_test()
+		elif test_mode == "test_bar_tween":
+			_run_bar_tween_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -572,6 +574,27 @@ func _run_fade_test() -> void:
 	var hud_ref = inst.get_node("Hud")
 	hud_ref.travel_to("plaine")
 	print("TEST_RESULT2 travel_triggered_no_error=true player_zone_x=%.0f" % inst.player.global_position.x)
+
+func _run_bar_tween_test() -> void:
+	print("TEST_START:bar_tween")
+	var hud = inst.get_node("Hud")
+	# Aligne aussi les vrais PV du joueur sur la cible : le tick périodique de
+	# hud_update (toutes les 0.4s dans world.gd) peut se déclencher pendant le
+	# test et re-cibler la barre avec la vraie valeur — en la gardant identique
+	# à la cible testée, ça n'interfère pas avec la mesure.
+	inst.player.hp = 40.0
+	hud.hp_bar.max_value = 100
+	hud.hp_bar.value = 100
+	hud._tween_bar(hud.hp_bar, 40.0)
+	print("TEST_STATE immediately_after_call value=%.1f (doit rester proche de 100, pas sauter a 40)" % hud.hp_bar.value)
+	# deuxieme mise a jour en rafale pendant que le premier tween tourne encore :
+	# doit converger proprement vers la nouvelle cible sans que les deux tweens se battent.
+	await create_timer(0.05).timeout
+	inst.player.hp = 70.0
+	hud._tween_bar(hud.hp_bar, 70.0)
+	await create_timer(0.5).timeout
+	var final_val = hud.hp_bar.value
+	print("TEST_RESULT final_value=%.1f expected=70.0 converged=%s" % [final_val, absf(final_val - 70.0) < 1.0])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

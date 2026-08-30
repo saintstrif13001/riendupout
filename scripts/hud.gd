@@ -73,28 +73,13 @@ func _build_bars() -> void:
 	topleft.custom_minimum_size = Vector2(220, 0)
 	root.add_child(topleft)
 
-	hp_bar = ProgressBar.new()
-	hp_bar.max_value = 100; hp_bar.value = 100
-	hp_bar.custom_minimum_size = Vector2(200, 16)
-	hp_bar.show_percentage = false
-	var hp_style = StyleBoxFlat.new(); hp_style.bg_color = Color(0.82,0.23,0.23)
-	hp_bar.add_theme_stylebox_override("fill", hp_style)
+	hp_bar = _make_stat_bar(Color(0.85,0.25,0.22), Vector2(200, 16))
 	topleft.add_child(hp_bar)
 
-	mana_bar = ProgressBar.new()
-	mana_bar.max_value = 100; mana_bar.value = 100
-	mana_bar.custom_minimum_size = Vector2(200, 12)
-	mana_bar.show_percentage = false
-	var mana_style = StyleBoxFlat.new(); mana_style.bg_color = Color(0.23,0.48,0.82)
-	mana_bar.add_theme_stylebox_override("fill", mana_style)
+	mana_bar = _make_stat_bar(Color(0.25,0.5,0.85), Vector2(200, 12))
 	topleft.add_child(mana_bar)
 
-	xp_bar = ProgressBar.new()
-	xp_bar.max_value = 100; xp_bar.value = 0
-	xp_bar.custom_minimum_size = Vector2(200, 6)
-	xp_bar.show_percentage = false
-	var xp_style = StyleBoxFlat.new(); xp_style.bg_color = Color(0.82,0.78,0.23)
-	xp_bar.add_theme_stylebox_override("fill", xp_style)
+	xp_bar = _make_stat_bar(Color(0.85,0.78,0.22), Vector2(200, 6))
 	topleft.add_child(xp_bar)
 
 	lvl_label = Label.new()
@@ -129,6 +114,27 @@ func _build_bars() -> void:
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	help.position = Vector2(16, -24)
 	root.add_child(help)
+
+func _make_stat_bar(color: Color, size: Vector2) -> ProgressBar:
+	# Barre avec coins arrondis + bordure sombre + reflet brillant en haut,
+	# au lieu d'un simple ColorRect plat.
+	var bar = ProgressBar.new()
+	bar.max_value = 100; bar.value = 100
+	bar.custom_minimum_size = size
+	bar.show_percentage = false
+	var fill = StyleBoxFlat.new()
+	fill.bg_color = color
+	fill.set_corner_radius_all(3)
+	fill.border_color = color.darkened(0.4)
+	fill.set_border_width_all(1)
+	bar.add_theme_stylebox_override("fill", fill)
+	var shine = ColorRect.new()
+	shine.color = Color(1, 1, 1, 0.22)
+	shine.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shine.position = Vector2(2, 1)
+	shine.size = Vector2(size.x - 4, max(2.0, size.y * 0.35))
+	bar.add_child(shine)
+	return bar
 
 func _build_hint() -> void:
 	hint_panel = PanelContainer.new()
@@ -277,12 +283,28 @@ func close_all() -> void:
 	inventory_overlay.visible = false
 
 func _on_hud_update(d: Dictionary) -> void:
-	hp_bar.max_value = d.max_hp; hp_bar.value = d.hp
-	mana_bar.max_value = d.max_mana; mana_bar.value = d.mana
-	xp_bar.max_value = d.xp_needed; xp_bar.value = d.xp
+	hp_bar.max_value = d.max_hp
+	_tween_bar(hp_bar, d.hp)
+	mana_bar.max_value = d.max_mana
+	_tween_bar(mana_bar, d.mana)
+	xp_bar.max_value = d.xp_needed
+	_tween_bar(xp_bar, d.xp)
 	lvl_label.text = "Niveau %d" % d.level
 	zone_label.text = d.zone
 	gold_label.text = "Or: %d" % d.gold
+
+var _bar_tweens: Dictionary = {} # ProgressBar -> Tween en cours
+
+func _tween_bar(bar: ProgressBar, target: float) -> void:
+	# Anime la barre vers sa nouvelle valeur au lieu d'un saut instantané —
+	# rend les dégâts/soins beaucoup plus lisibles visuellement. On tue le
+	# tween précédent d'abord pour éviter que deux tweens se battent sur la
+	# même valeur quand plusieurs mises à jour arrivent en rafale (combat).
+	if _bar_tweens.has(bar) and _bar_tweens[bar] != null and _bar_tweens[bar].is_valid():
+		_bar_tweens[bar].kill()
+	var tw = create_tween()
+	tw.tween_property(bar, "value", target, 0.25).set_trans(Tween.TRANS_SINE)
+	_bar_tweens[bar] = tw
 
 func _on_near_update(text: String) -> void:
 	if text == "":

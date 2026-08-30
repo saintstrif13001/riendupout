@@ -276,6 +276,8 @@ func _process(delta: float) -> bool:
 			var data_ss = root.get_node("/root/Data")
 			inst.char_data.inventory = {"bois": 5, "epee_fer": 1, "potion_vie": 2}
 			hud_ss._on_open_npc(data_ss.get_npc("marchand"))
+		elif test_mode == "test_modal_overlay":
+			_run_modal_overlay_test()
 		elif test_mode == "test_sell_item":
 			_run_sell_item_test()
 		elif test_mode == "show_forge_dialogue":
@@ -993,6 +995,49 @@ func _run_quest_chain_test() -> void:
 		if not results[k]: all_ok = false
 	print("TEST_RESULT all_ok=%s details=%s" % [all_ok, results])
 
+func _run_modal_overlay_test() -> void:
+	print("TEST_START:modal_overlay")
+	# Retour utilisateur : l'UI n'etait pas ergonomique. Le bouton "Fermer"
+	# etait un simple bouton en bas d'une liste parfois longue (invisible sans
+	# tout faire defiler), et un texte long sans retour a la ligne (ex: objets
+	# de faction avec leur condition de deblocage) pouvait faire deborder toute
+	# la fenetre modale. Verifie que le panneau reste a une largeur raisonnable
+	# malgre du texte long, qu'un bouton "×" toujours visible existe en haut a
+	# droite et ferme bien le panneau, et que cliquer en dehors ferme aussi.
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	inst.char_data.inventory = {"bois": 5, "epee_fer": 1, "potion_vie": 2}
+	hud._on_open_npc(data.get_npc("marchand")) # dialogue avec le plus de texte (objets de faction + vente)
+
+	var panel = hud.dialogue_overlay.get_child(1) # bg=0, panel=1
+	var panel_width_reasonable = panel.size.x < 700.0 # 560 de contenu + ~40 de marge du thème
+
+	var outer = panel.get_child(0)
+	var header = outer.get_child(0)
+	var close_btn = header.get_child(header.get_child_count() - 1)
+	var close_button_is_top_right = close_btn is Button and close_btn.text == "×"
+
+	var scroll = outer.get_child(1)
+	var content = scroll.get_child(0)
+	var no_child_overflows_panel = true
+	for c in content.get_children():
+		if c.size.x > outer.size.x + 1.0: no_child_overflows_panel = false
+
+	close_btn.pressed.emit()
+	var close_button_closes_overlay = not hud.dialogue_overlay.visible
+
+	hud._on_open_npc(data.get_npc("marchand"))
+	var bg = hud.dialogue_overlay.get_child(0)
+	var ev = InputEventMouseButton.new()
+	ev.pressed = true
+	ev.button_index = MOUSE_BUTTON_LEFT
+	bg.gui_input.emit(ev)
+	var click_outside_closes_overlay = not hud.dialogue_overlay.visible
+
+	var all_ok = panel_width_reasonable and close_button_is_top_right and no_child_overflows_panel and close_button_closes_overlay and click_outside_closes_overlay
+	print("TEST_RESULT all_ok=%s panel_width_reasonable=%s (width=%.0f) close_button_is_top_right=%s no_child_overflows_panel=%s close_button_closes_overlay=%s click_outside_closes_overlay=%s"
+		% [all_ok, panel_width_reasonable, panel.size.x, close_button_is_top_right, no_child_overflows_panel, close_button_closes_overlay, click_outside_closes_overlay])
+
 func _run_sell_item_test() -> void:
 	print("TEST_START:sell_item")
 	# Aucun moyen de convertir les objets inutiles (materiaux en trop,
@@ -1413,11 +1458,15 @@ func _run_forge_economy_test() -> void:
 	print("TEST_START:forge_economy")
 	var hud = inst.get_node("Hud")
 	var eco = inst.village_economy
-	eco.minerai_stock = 0
+	# BUG DE TEST trouvé en auditant l'UI : minerai_stock partait de 0 et
+	# update_village_economy() n'en ajoute que 1-2 par tick (aléatoire) ; il en
+	# faut 6 pour forger une arme, donc 3 tics n'atteignaient le seuil que
+	# ~12.5% du temps (il fallait un 2 aux trois tirages). Part de 6 pour
+	# garantir un stock suffisant independamment du tirage aleatoire.
+	eco.minerai_stock = 6
 	eco.arme_stock = 0
 	eco.arme_price = 70
-	for i in range(3):
-		inst.update_village_economy(inst.ECONOMY_TICK_INTERVAL + 0.1)
+	inst.update_village_economy(inst.ECONOMY_TICK_INTERVAL + 0.1)
 	print("TEST_STATE minerai_stock=%d arme_stock=%d arme_price=%d" % [eco.minerai_stock, eco.arme_stock, eco.arme_price])
 	var stock_grew = eco.arme_stock > 0
 	var price_tracks_stock = eco.arme_price == clampi(70 - eco.arme_stock * 5, 25, 70)

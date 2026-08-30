@@ -326,47 +326,63 @@ func _build_hint() -> void:
 	hint_label = Label.new()
 	hint_panel.add_child(hint_label)
 
-func _build_dialogue_overlay() -> void:
-	dialogue_overlay = Control.new()
-	dialogue_overlay.theme = UiTheme.build()
-	dialogue_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dialogue_overlay.visible = false
+## Panneau modal standard : bouton "×" toujours visible en haut à droite
+## (indépendant du défilement — auparavant "Fermer" était un simple bouton en
+## bas d'une liste parfois longue, invisible sans faire défiler jusqu'au bout)
+## et clic en dehors du panneau pour fermer, en plus d'Échap. Retourne la
+## boîte de contenu défilante où l'appelant ajoute ses éléments.
+func _build_modal_overlay(width: float, scroll_height: float, dim_alpha: float, on_close: Callable) -> Dictionary:
+	var overlay = Control.new()
+	overlay.theme = UiTheme.build()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.visible = false
 	var bg = ColorRect.new()
-	bg.color = Color(0,0,0,0.7)
+	bg.color = Color(0, 0, 0, dim_alpha)
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dialogue_overlay.add_child(bg)
+	bg.gui_input.connect(func(event):
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			on_close.call())
+	overlay.add_child(bg)
+
 	var panel = PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(460, 0)
+	panel.custom_minimum_size = Vector2(width, 0)
+	var outer = VBoxContainer.new()
+	outer.add_theme_constant_override("separation", 4)
+	panel.add_child(outer)
+
+	var header = HBoxContainer.new()
+	outer.add_child(header)
+	var header_spacer = Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(header_spacer)
+	var close_btn = Button.new()
+	close_btn.text = "×"
+	close_btn.custom_minimum_size = Vector2(32, 32)
+	close_btn.tooltip_text = "Fermer (Échap)"
+	close_btn.pressed.connect(func(): Audio.play("ui_click", -10.0); on_close.call())
+	header.add_child(close_btn)
+
 	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(460, 500)
-	dialogue_box = VBoxContainer.new()
-	dialogue_box.add_theme_constant_override("separation", 8)
-	scroll.add_child(dialogue_box)
-	panel.add_child(scroll)
-	dialogue_overlay.add_child(panel)
-	add_child(dialogue_overlay)
+	scroll.custom_minimum_size = Vector2(width, scroll_height)
+	outer.add_child(scroll)
+	var content_box = VBoxContainer.new()
+	content_box.add_theme_constant_override("separation", 8)
+	scroll.add_child(content_box)
+
+	overlay.add_child(panel)
+	add_child(overlay)
+	return {"overlay": overlay, "box": content_box}
+
+func _build_dialogue_overlay() -> void:
+	var built = _build_modal_overlay(560, 480, 0.7, close_all)
+	dialogue_overlay = built.overlay
+	dialogue_box = built.box
 
 func _build_inventory_overlay() -> void:
-	inventory_overlay = Control.new()
-	inventory_overlay.theme = UiTheme.build()
-	inventory_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	inventory_overlay.visible = false
-	var bg = ColorRect.new()
-	bg.color = Color(0,0,0,0.7)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	inventory_overlay.add_child(bg)
-	var panel = PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(460, 0)
-	var scroll = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(460, 500)
-	inventory_box = VBoxContainer.new()
-	inventory_box.add_theme_constant_override("separation", 8)
-	scroll.add_child(inventory_box)
-	panel.add_child(scroll)
-	inventory_overlay.add_child(panel)
-	add_child(inventory_overlay)
+	var built = _build_modal_overlay(560, 480, 0.7, close_all)
+	inventory_overlay = built.overlay
+	inventory_box = built.box
 
 func _build_talent_overlay() -> void:
 	talent_overlay = Control.new()
@@ -411,38 +427,14 @@ func _choose_talent(tier: Dictionary, opt_id: String) -> void:
 	if not next_tier.is_empty(): _on_talent_available(next_tier)
 
 func _build_travel_overlay() -> void:
-	travel_overlay = Control.new()
-	travel_overlay.theme = UiTheme.build()
-	travel_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	travel_overlay.visible = false
-	var bg = ColorRect.new()
-	bg.color = Color(0,0,0,0.75)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	travel_overlay.add_child(bg)
-	var panel = PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(420, 0)
-	travel_box = VBoxContainer.new()
-	travel_box.add_theme_constant_override("separation", 8)
-	panel.add_child(travel_box)
-	travel_overlay.add_child(panel)
-	add_child(travel_overlay)
+	var built = _build_modal_overlay(420, 320, 0.75, func(): travel_overlay.visible = false)
+	travel_overlay = built.overlay
+	travel_box = built.box
 
 func _build_options_overlay() -> void:
-	options_overlay = Control.new()
-	options_overlay.theme = UiTheme.build()
-	options_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	options_overlay.visible = false
-	var bg = ColorRect.new()
-	bg.color = Color(0,0,0,0.75)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	options_overlay.add_child(bg)
-	var panel = PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(420, 0)
-	var box = VBoxContainer.new()
-	box.add_theme_constant_override("separation", 10)
-	panel.add_child(box)
+	var built = _build_modal_overlay(420, 320, 0.75, func(): options_overlay.visible = false)
+	options_overlay = built.overlay
+	var box = built.box
 	var title = Label.new()
 	title.text = "Options"
 	title.add_theme_font_size_override("font_size", 22)
@@ -468,9 +460,6 @@ func _build_options_overlay() -> void:
 	box.add_child(spacer)
 	_add_button(box, "Retour au menu principal", func(): world.quit_to_menu())
 	_add_button(box, "Quitter le jeu", func(): world.save_now(); get_tree().quit())
-
-	options_overlay.add_child(panel)
-	add_child(options_overlay)
 
 func _build_volume_row(box: VBoxContainer, current: float, setter: Callable, slider_name: String) -> Array:
 	var row = HBoxContainer.new()
@@ -503,22 +492,9 @@ func sync_options() -> void:
 func _build_stats_overlay() -> void:
 	# Le joueur n'avait aucun moyen de voir ses stats numeriques (ATK/DEF/etc.) :
 	# l'inventaire montrait le nom des objets equipes mais jamais leur effet chiffre.
-	stats_overlay = Control.new()
-	stats_overlay.theme = UiTheme.build()
-	stats_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
-	stats_overlay.visible = false
-	var bg = ColorRect.new()
-	bg.color = Color(0,0,0,0.75)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	stats_overlay.add_child(bg)
-	var panel = PanelContainer.new()
-	panel.set_anchors_preset(Control.PRESET_CENTER)
-	panel.custom_minimum_size = Vector2(420, 0)
-	stats_box = VBoxContainer.new()
-	stats_box.add_theme_constant_override("separation", 6)
-	panel.add_child(stats_box)
-	stats_overlay.add_child(panel)
-	add_child(stats_overlay)
+	var built = _build_modal_overlay(420, 320, 0.75, func(): stats_overlay.visible = false)
+	stats_overlay = built.overlay
+	stats_box = built.box
 
 func render_stats() -> void:
 	var cd = world.char_data
@@ -791,6 +767,11 @@ func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
 		l.text = label_text
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		# Sans retour à la ligne, un texte long (ex: objets de faction avec leur
+		# condition de déblocage) forçait toute la fenêtre modale à s'élargir
+		# bien au-delà de l'écran plutôt que de simplement passer à la ligne.
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD
 		row.add_child(l)
 		return row
 	else:
@@ -800,6 +781,7 @@ func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.flat = true
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD
 		b.tooltip_text = item_tooltip_text(item_id)
 		b.pressed.connect(func(): Audio.play("ui_click", -10.0); cb.call())
 		row.add_child(b)

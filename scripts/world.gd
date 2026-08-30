@@ -217,6 +217,7 @@ func draw_world() -> void:
 	build_props()
 	build_plaine_decor()
 	build_foret_decor()
+	build_caverne_decor()
 
 func build_plaine_decor() -> void:
 	# La plaine était restée plate/verte alors que le village a été détaillé —
@@ -329,6 +330,67 @@ func _spawn_firefly(x: int, y: int) -> void:
 	var pulse = create_tween().set_loops()
 	pulse.tween_property(glow, "energy", 0.9, 0.6).set_trans(Tween.TRANS_SINE).set_delay(randf())
 	pulse.tween_property(glow, "energy", 0.15, 0.8).set_trans(Tween.TRANS_SINE)
+
+func build_caverne_decor() -> void:
+	# Les rochers génériques donnaient une ambiance minérale correcte, mais rien
+	# ne distinguait vraiment une grotte d'un simple terrain rocailleux : ni
+	# cristaux, ni ossements (pourtant thématiquement liés aux squelettes du
+	# lieu), ni lumière de torches pour percer la pénombre déjà en place
+	# (ZONE_LIGHT.caverne).
+	var cav = Data.ZONES.caverne
+	seed(4488)
+	for i in range(24):
+		var x = randi_range(int(cav.x0) + 60, int(cav.x1) - 60)
+		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		_spawn_crystal_cluster(x, y)
+	for i in range(20):
+		var x = randi_range(int(cav.x0) + 60, int(cav.x1) - 60)
+		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		_spawn_bone_pile(x, y)
+	for i in range(12):
+		var x = randi_range(int(cav.x0) + 80, int(cav.x1) - 80)
+		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		_spawn_torch(x, y)
+
+func _spawn_crystal_cluster(x: int, y: int) -> void:
+	var count = randi_range(2, 3)
+	var base_hue = Color(0.4, 0.75, 0.95) if randf() < 0.5 else Color(0.75, 0.45, 0.95)
+	for i in range(count):
+		var ox = randf_range(-6, 6)
+		var oy = randf_range(-3, 3)
+		var h = randf_range(10, 18)
+		var w = h * 0.4
+		var shard = Polygon2D.new()
+		shard.polygon = PackedVector2Array([
+			Vector2(0, -h), Vector2(w, -h * 0.3), Vector2(w * 0.6, 0), Vector2(-w * 0.6, 0), Vector2(-w, -h * 0.3)
+		])
+		shard.color = base_hue.lightened(randf_range(-0.1, 0.2))
+		shard.position = Vector2(x + ox, y + oy)
+		shard.z_index = int(y)
+		$Decor.add_child(shard)
+	var glow = PointLight2D.new()
+	glow.texture = _radial_light_texture()
+	glow.position = Vector2(x, y - 8)
+	glow.color = base_hue
+	glow.energy = 0.7
+	glow.texture_scale = 0.8
+	glow.z_index = int(y) + 2
+	$Decor.add_child(glow)
+	var pulse = create_tween().set_loops()
+	pulse.tween_property(glow, "energy", 1.0, 1.2).set_trans(Tween.TRANS_SINE).set_delay(randf())
+	pulse.tween_property(glow, "energy", 0.5, 1.4).set_trans(Tween.TRANS_SINE)
+
+func _spawn_bone_pile(x: int, y: int) -> void:
+	var count = randi_range(3, 5)
+	for i in range(count):
+		var bone = ColorRect.new()
+		bone.color = Color(0.82, 0.8, 0.72)
+		var bone_len = randf_range(6, 12)
+		bone.size = Vector2(bone_len, 2)
+		bone.position = Vector2(x + randf_range(-8, 8) - bone_len / 2.0, y + randf_range(-5, 5))
+		bone.rotation = randf_range(0, PI)
+		bone.z_index = int(y)
+		$Decor.add_child(bone)
 
 func _spawn_hay_bale(x: int, y: int) -> void:
 	var bale = Polygon2D.new()

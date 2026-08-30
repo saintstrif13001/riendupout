@@ -142,6 +142,8 @@ func _process(delta: float) -> bool:
 			_run_village_decor_test()
 		elif test_mode == "test_foret_decor":
 			_run_foret_decor_test()
+		elif test_mode == "test_caverne_decor":
+			_run_caverne_decor_test()
 		elif test_mode == "test_plaine_decor":
 			_run_plaine_decor_test()
 		elif test_mode == "test_npc_collision":
@@ -1273,6 +1275,24 @@ func _run_foret_decor_test() -> void:
 	print("TEST_RESULT mushroom_and_log_polygons_in_foret=%d (attendu >= 40) fireflies_in_foret=%d (attendu >= 25) fallen_logs_in_foret=%d (attendu >= 14)"
 		% [polygons_in_foret, lights_in_foret, logs_in_foret])
 
+func _run_caverne_decor_test() -> void:
+	print("TEST_START:caverne_decor")
+	# La caverne n'avait que les rochers génériques (70, communs à toute
+	# grotte) : aucun cristal, ossement ni torche qui lui soit propre.
+	var data = root.get_node("/root/Data")
+	var decor = inst.get_node("Decor")
+	var cav = data.ZONES.caverne
+	var rock_and_crystal_polygons = 0
+	var lights_in_caverne = 0
+	var bone_colorrects = 0
+	for c in decor.get_children():
+		if c.position.x < cav.x0 or c.position.x > cav.x1: continue
+		if c is Polygon2D: rock_and_crystal_polygons += 1
+		elif c is PointLight2D: lights_in_caverne += 1
+		elif c is ColorRect and c.size.y < 3: bone_colorrects += 1 # ossements : fins et courts, contrairement aux torches
+	print("TEST_RESULT rock_and_crystal_polygons_in_caverne=%d (attendu >= 110, dont 70 rochers génériques + cristaux) crystal_and_torch_lights_in_caverne=%d (attendu >= 30) bone_colorrects_in_caverne=%d (attendu >= 55)"
+		% [rock_and_crystal_polygons, lights_in_caverne, bone_colorrects])
+
 func _run_npc_collision_test() -> void:
 	print("TEST_START:npc_collision")
 	var n = inst.npc_nodes[0]
@@ -2146,7 +2166,13 @@ func _run_death_screen_test() -> void:
 	var shows_countdown = "3" in hud.death_countdown_label.text
 	var shows_gold_lost = "or" in hud.death_countdown_label.text and inst.char_data.bloodstain.gold > 0
 
-	inst.respawn_at = Time.get_ticks_msec() / 1000.0 - 1.0 # force l'expiration du minuteur
+	# BUG DE TEST : "now - 1.0" peut devenir négatif si le moteur tourne depuis
+	# moins d'une seconde (fréquent en headless, qui traite les frames bien plus
+	# vite que le temps réel) ; handle_respawn() traite alors respawn_at < 0.0
+	# comme le sentinel "vient de mourir" et relance un compte à rebours de 3s
+	# au lieu d'expirer. Une petite valeur positive expire sans jamais être
+	# confondue avec le sentinel.
+	inst.respawn_at = 0.001
 	inst.handle_respawn(0.0)
 	var hidden_after_respawn = not hud.death_overlay.visible
 	var player_alive_again = not inst.player.dead

@@ -130,6 +130,15 @@ func _process(delta: float) -> bool:
 			inst.basic_attack()
 			inst.use_skill(0)
 			print("TEST_RESULT fx_ran_no_error=true")
+		elif test_mode == "test_attack_anim":
+			inst.player.dir = "down"
+			inst.basic_attack()
+			var body_swapped = inst.player.body_sprite.texture == inst.player.body_slash_tex
+			var head_swapped = inst.player.head_sprite.texture == inst.player.head_slash_tex
+			print("TEST_RESULT attacking=%s body_tex_is_slash=%s head_tex_is_slash=%s" % [inst.player.attacking, body_swapped, head_swapped])
+		elif test_mode == "show_attack_swing":
+			inst.player.dir = "down"
+			inst.player.play_attack_anim("down")
 		elif test_mode == "show_talent_ui":
 			var gs2 = root.get_node("/root/GameState")
 			inst.char_data.level = 5
@@ -141,7 +150,13 @@ func _process(delta: float) -> bool:
 	if frame_count < wait_frames + 10:
 		return false
 
-	var img = root.get_texture().get_image()
+	var vp_tex = root.get_texture()
+	var img = vp_tex.get_image() if vp_tex != null else null
+	if img == null:
+		print("SAVE_RESULT:-1 PATH:%s ERR:image_null" % out_path)
+		if test_mode != "":
+			print("TEST_DONE:%s" % test_mode)
+		return true
 	var err = img.save_png(out_path)
 	print("SAVE_RESULT:%d PATH:%s" % [err, out_path])
 	if test_mode != "":

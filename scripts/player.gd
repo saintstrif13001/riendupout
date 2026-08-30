@@ -22,6 +22,10 @@ var buff_expiry: Array = [] # [{atk,def,spd,at}]
 var body_tex: Texture2D
 var legs_tex: Texture2D
 var head_tex: Texture2D
+var body_slash_tex: Texture2D
+var head_slash_tex: Texture2D
+var attacking: bool = false
+const SLASH_FCOUNT := 6
 
 @onready var legs_sprite: Sprite2D = $Legs
 @onready var body_sprite: Sprite2D = $Body
@@ -50,6 +54,8 @@ func setup(cd: Dictionary, local: bool, pid: int) -> void:
 	head_tex = load("res://assets/sprites/player/head_walk.png")
 	var vest_tex = load("res://assets/sprites/player/vest_tan_walk.png")
 	var hair_tex = load("res://assets/sprites/player/hair_walk.png")
+	body_slash_tex = load("res://assets/sprites/player/body_slash.png")
+	head_slash_tex = load("res://assets/sprites/player/head_slash.png")
 
 	body_sprite.texture = body_tex
 	legs_sprite.texture = legs_tex
@@ -113,6 +119,7 @@ func _update_equip_icons() -> void:
 func set_anim(new_dir: String, is_moving: bool) -> void:
 	dir = new_dir
 	moving = is_moving
+	if attacking: return # l'animation d'attaque a la priorité, ne pas l'écraser
 	var row = DIR_ROW[dir]
 	var frame = 2
 	if is_moving:
@@ -123,6 +130,25 @@ func set_anim(new_dir: String, is_moving: bool) -> void:
 	head_sprite.region_rect = rect
 	vest_sprite.region_rect = rect
 	hair_sprite.region_rect = rect
+
+func play_attack_anim(attack_dir: String) -> void:
+	if attacking or dead: return
+	attacking = true
+	body_sprite.texture = body_slash_tex
+	head_sprite.texture = head_slash_tex
+	var row = DIR_ROW[attack_dir]
+	var duration = 0.32
+	var frame_time = duration / float(SLASH_FCOUNT)
+	for i in range(SLASH_FCOUNT):
+		if not is_instance_valid(self) or not attacking: return
+		var rect = Rect2(i * FW, row * FH, FW, FH)
+		body_sprite.region_rect = rect
+		head_sprite.region_rect = rect
+		await get_tree().create_timer(frame_time).timeout
+	if not is_instance_valid(self): return
+	body_sprite.texture = body_tex
+	head_sprite.texture = head_tex
+	attacking = false
 
 func take_damage(dmg: float) -> float:
 	if dead: return 0.0

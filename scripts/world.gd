@@ -503,6 +503,7 @@ func basic_attack() -> void:
 	var cls = Data.CLASSES[char_data["class"]]
 	var range_px = 210.0 if (cls.role == "dps_range" or cls.role == "dps_zone") else 55.0
 	flash_attack_fx(range_px)
+	player.play_attack_anim(player.dir)
 	var targets = find_enemies_in_range(range_px)
 	if targets.is_empty(): return
 	var dmg = roll_damage(player.stats.atk, 1.0, 0.0)
@@ -552,6 +553,7 @@ func use_skill(idx: int) -> void:
 	if skill.has("dmg_mult"):
 		var range_px = skill.get("range", 60.0)
 		flash_attack_fx(range_px)
+		if not skill.get("projectile", false): player.play_attack_anim(player.dir)
 		var targets = find_enemies_in_range(range_px)
 		var hits = targets if skill.get("aoe", false) else (targets.slice(0,1) if targets.size() > 0 else [])
 		for t in hits:

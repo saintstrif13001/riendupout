@@ -22,7 +22,7 @@ const CLASSES := {
 		"growth":{"hp":19,"mana":2,"atk":2.1,"def":2.0},
 		"color":Color(0.85,0.29,0.29),
 		"skills":[
-			{"id":"coup_puissant","name":"Coup Puissant","key":"skill_q","cd":4.0,"cost":8,"dmg_mult":2.0,"range":60,"desc":"Frappe lourde."},
+			{"id":"coup_puissant","name":"Coup Puissant","key":"skill_q","cd":4.0,"cost":8,"dmg_mult":2.0,"range":60,"fx_color":Color(0.95,0.3,0.25),"desc":"Frappe lourde."},
 			{"id":"cri_guerre","name":"Cri de Guerre","key":"skill_e","cd":12.0,"cost":15,"buff":{"atk":6,"def":6,"duration":6.0},"range":0,"party":true,"desc":"+ATK/DEF pour le groupe."},
 		]},
 	"mage": {"name":"Mage Élémentaire", "role":"dps_zone", "desc":"Sorts de zone dévastateurs, fragile.",
@@ -30,8 +30,8 @@ const CLASSES := {
 		"growth":{"hp":8,"mana":15,"atk":2.8,"def":0.6},
 		"color":Color(0.29,0.56,0.85),
 		"skills":[
-			{"id":"boule_feu","name":"Boule de Feu","key":"skill_q","cd":2.5,"cost":14,"dmg_mult":2.6,"range":260,"projectile":true,"desc":"Projectile de feu."},
-			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"desc":"Dégâts de zone + ralentit."},
+			{"id":"boule_feu","name":"Boule de Feu","key":"skill_q","cd":2.5,"cost":14,"dmg_mult":2.6,"range":260,"projectile":true,"fx_color":Color(1,0.5,0.1),"desc":"Projectile de feu."},
+			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"fx_color":Color(0.5,0.85,1.0),"desc":"Dégâts de zone + ralentit."},
 		]},
 	"pretre": {"name":"Soigneur/Prêtre", "role":"heal", "desc":"Soigne et protège le groupe.",
 		"base":{"hp":90,"mana":100,"atk":8,"def":5,"spd":150},
@@ -46,15 +46,15 @@ const CLASSES := {
 		"growth":{"hp":11,"mana":6,"atk":2.6,"def":1.0},
 		"color":Color(0.29,0.85,0.56),
 		"skills":[
-			{"id":"tir_rapide","name":"Tir Rapide","key":"skill_q","cd":1.8,"cost":8,"dmg_mult":1.5,"range":220,"projectile":true,"desc":"Flèche rapide."},
-			{"id":"piege","name":"Piège à Ours","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"desc":"Immobilise un ennemi."},
+			{"id":"tir_rapide","name":"Tir Rapide","key":"skill_q","cd":1.8,"cost":8,"dmg_mult":1.5,"range":220,"projectile":true,"fx_color":Color(0.55,0.85,0.35),"desc":"Flèche rapide."},
+			{"id":"piege","name":"Piège à Ours","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"fx_color":Color(0.6,0.45,0.2),"desc":"Immobilise un ennemi."},
 		]},
 	"voleur": {"name":"Voleur/Assassin", "role":"dps_burst", "desc":"Burst de dégâts et crochetage.",
 		"base":{"hp":95,"mana":40,"atk":12,"def":4,"spd":195},
 		"growth":{"hp":10,"mana":4,"atk":2.4,"def":0.8},
 		"color":Color(0.6,0.29,0.85),
 		"skills":[
-			{"id":"coup_dos","name":"Coup dans le Dos","key":"skill_q","cd":3.0,"cost":10,"dmg_mult":2.8,"range":55,"crit_bonus":0.5,"desc":"Fort dégâts, critique accru."},
+			{"id":"coup_dos","name":"Coup dans le Dos","key":"skill_q","cd":3.0,"cost":10,"dmg_mult":2.8,"range":55,"crit_bonus":0.5,"fx_color":Color(0.65,0.3,0.85),"desc":"Fort dégâts, critique accru."},
 			{"id":"esquive","name":"Esquive Fumigène","key":"skill_e","cd":8.0,"cost":12,"dash":220,"invuln":0.4,"desc":"Fonce en avant, invulnérabilité brève."},
 		]},
 	"barde": {"name":"Barde/Support", "role":"support", "desc":"Buffs de groupe, débuffs ennemis.",
@@ -63,7 +63,7 @@ const CLASSES := {
 		"color":Color(0.85,0.29,0.69),
 		"skills":[
 			{"id":"chant_vaillance","name":"Chant de Vaillance","key":"skill_q","cd":9.0,"cost":20,"buff":{"atk":5,"spd":20,"duration":7.0},"range":0,"party":true,"desc":"+ATK/Vitesse pour le groupe."},
-			{"id":"complainte","name":"Complainte Lugubre","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.5,"range":180,"aoe":true,"desc":"Réduit la défense ennemie."},
+			{"id":"complainte","name":"Complainte Lugubre","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.5,"range":180,"aoe":true,"fx_color":Color(0.55,0.3,0.55),"desc":"Réduit la défense ennemie."},
 		]},
 }
 

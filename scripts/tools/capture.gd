@@ -150,6 +150,10 @@ func _process(delta: float) -> bool:
 			_run_enemy_collision_test()
 		elif test_mode == "test_enemy_anim":
 			_run_enemy_anim_test()
+		elif test_mode == "test_spell_fx":
+			_run_spell_fx_test()
+		elif test_mode == "test_projectile_target_freed":
+			_run_projectile_target_freed_test()
 		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
 			inst.show_char_create()
 			if test_mode == "test_char_portraits":
@@ -1073,6 +1077,59 @@ func _run_enemy_anim_test() -> void:
 	var idle_restarted = e._idle_tween != null and e._idle_tween.is_valid()
 	print("TEST_RESULT has_idle_field=%s scaled_up_during_attack=%s scale_restored_after=%s idle_restarted_after=%s"
 		% [has_idle_tween_field, scaled_up_immediately, scale_restored, idle_restarted])
+
+func _run_spell_fx_test() -> void:
+	print("TEST_START:spell_fx")
+	var data = root.get_node("/root/Data")
+	var dmg_skill_count = 0
+	var fx_color_count = 0
+	for cid in data.CLASSES.keys():
+		for skill in data.CLASSES[cid].skills:
+			if skill.has("dmg_mult"):
+				dmg_skill_count += 1
+				if skill.has("fx_color"): fx_color_count += 1
+	print("TEST_STATE dmg_skills=%d with_fx_color=%d" % [dmg_skill_count, fx_color_count])
+
+	# Sort à projectile (Boule de Feu, mage) : les dégâts doivent être différés
+	# le temps que l'orbe visuel voyage, pas instantanés comme au corps à corps.
+	inst.char_data["class"] = "mage"
+	inst.char_data.level = 10
+	inst.player.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
+	inst.player.mana = 999
+	var e1 = inst.spawn_enemy({"x": inst.player.global_position.x + 150, "y": inst.player.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	var hp_before_cast = e1.hp
+	inst.use_skill(0) # boule_feu
+	var hp_immediately_after = e1.hp
+	await create_timer(0.5).timeout
+	var hp_after_travel = e1.hp
+	print("TEST_RESULT projectile_damage_delayed=%s projectile_damage_landed=%s"
+		% [hp_immediately_after == hp_before_cast, hp_after_travel < hp_before_cast])
+
+	# Sort de mêlée (Coup Puissant, guerrier) : dégâts instantanés, pas de délai.
+	inst.char_data["class"] = "guerrier"
+	inst.player.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
+	inst.player.mana = 999
+	inst.player.cooldowns.clear()
+	var e2 = inst.spawn_enemy({"x": inst.player.global_position.x + 30, "y": inst.player.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	var hp2_before = e2.hp
+	inst.use_skill(0) # coup_puissant
+	var hp2_after = e2.hp
+	print("TEST_RESULT2 melee_damage_instant=%s" % [hp2_after < hp2_before])
+
+func _run_projectile_target_freed_test() -> void:
+	print("TEST_START:projectile_target_freed")
+	# Régression : un sort à projectile (boule_feu) dont la cible meurt/est
+	# libérée avant que l'orbe n'arrive ne doit pas planter le jeu.
+	inst.char_data["class"] = "mage"
+	inst.char_data.level = 10
+	var gs = root.get_node("/root/GameState")
+	inst.player.stats = gs.compute_stats(inst.char_data)
+	inst.player.mana = 999
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 150, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	inst.use_skill(0) # boule_feu, l'orbe est en vol vers e
+	e.take_damage(99999.0) # tué par un autre moyen avant l'impact (vrai chemin de mort du jeu)
+	await create_timer(0.5).timeout
+	print("TEST_RESULT no_crash=true dead_target_skipped=%s" % [e.dead]) # si on arrive ici sans SCRIPT ERROR, c'est bon
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

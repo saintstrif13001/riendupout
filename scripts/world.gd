@@ -798,12 +798,13 @@ func basic_attack() -> void:
 	player.cooldowns["basic"] = now + 0.5
 	var cls = Data.CLASSES[char_data["class"]]
 	var range_px = 210.0 if (cls.role == "dps_range" or cls.role == "dps_zone") else 55.0
-	flash_attack_fx(range_px)
+	flash_attack_fx(range_px, Color(1, 0.95, 0.8))
 	player.play_attack_anim(player.dir)
 	var targets = find_enemies_in_range(range_px)
 	if targets.is_empty(): return
 	var dmg = roll_damage(player.stats.atk, 1.0, 0.0)
 	deal_damage_to_enemy(targets[0].e, dmg)
+	spawn_hit_particles(targets[0].e.global_position, Color(1, 0.9, 0.7), 6)
 
 func use_skill(idx: int) -> void:
 	var cls = Data.CLASSES[char_data["class"]]
@@ -848,13 +849,24 @@ func use_skill(idx: int) -> void:
 		player.invuln_until = now + skill.invuln
 	if skill.has("dmg_mult"):
 		var range_px = skill.get("range", 60.0)
-		flash_attack_fx(range_px)
+		var fx_color = skill.get("fx_color", Color(1, 1, 1))
+		flash_attack_fx(range_px, fx_color)
 		if not skill.get("projectile", false): player.play_attack_anim(player.dir)
 		var targets = find_enemies_in_range(range_px)
 		var hits = targets if skill.get("aoe", false) else (targets.slice(0,1) if targets.size() > 0 else [])
-		for t in hits:
-			var dmg = roll_damage(player.stats.atk, skill.dmg_mult, skill.get("crit_bonus", 0.0))
-			deal_damage_to_enemy(t.e, dmg)
+		var apply_hits = func():
+			for t in hits:
+				# Le projectile a un temps de vol : la cible a pu mourir/être libérée
+				# entre-temps (tuée par un allié, changement de zone...).
+				if not is_instance_valid(t.e) or t.e.dead: continue
+				var dmg = roll_damage(player.stats.atk, skill.dmg_mult, skill.get("crit_bonus", 0.0))
+				deal_damage_to_enemy(t.e, dmg)
+				spawn_hit_particles(t.e.global_position, fx_color)
+		if skill.get("projectile", false) and hits.size() > 0:
+			# L'orbe voyage visiblement jusqu'à la cible avant que les dégâts s'appliquent.
+			spawn_projectile_fx(player.global_position, hits[0].e.global_position, fx_color, apply_hits)
+		else:
+			apply_hits.call()
 
 func find_nearest_ally_in_range(range_px: float):
 	var best = null
@@ -896,13 +908,13 @@ func roll_damage(atk: float, mult: float, extra_crit: float) -> float:
 	if randf() < crit_chance: dmg *= 1.8
 	return dmg
 
-func flash_attack_fx(range_px: float) -> void:
-	# Anneau qui s'étend rapidement depuis le joueur pour matérialiser la portée de l'attaque.
+func flash_attack_fx(range_px: float, color: Color = Color(1, 1, 1)) -> void:
+	# Anneau qui s'étend rapidement depuis le joueur pour matérialiser la portée de l'attaque,
+	# teinté selon le sort (feu, glace, poison...) au lieu d'un blanc générique unique pour tout.
 	var ring = Node2D.new()
 	ring.position = player.global_position
 	ring.z_index = 60
 	add_child(ring)
-	var mat = CanvasItemMaterial.new()
 	var pts = PackedVector2Array()
 	var segs = 20
 	for i in range(segs + 1):
@@ -910,13 +922,59 @@ func flash_attack_fx(range_px: float) -> void:
 		pts.append(Vector2(cos(a), sin(a)) * 6.0)
 	var line = Line2D.new()
 	line.points = pts
-	line.width = 2.0
-	line.default_color = Color(1, 1, 1, 0.8)
+	line.width = 3.0
+	line.default_color = Color(color.r, color.g, color.b, 0.9)
 	ring.add_child(line)
 	var tw = create_tween()
 	tw.tween_method(func(r): line.points = _ring_points(r), 6.0, range_px, 0.18)
 	tw.parallel().tween_property(line, "default_color:a", 0.0, 0.18)
 	tw.tween_callback(ring.queue_free)
+
+func spawn_hit_particles(pos: Vector2, color: Color, count: int = 10) -> void:
+	# Éclat de particules colorées à l'impact — donne un vrai "punch" visuel
+	# aux sorts au lieu d'un simple texte de dégâts qui apparaît.
+	var p = CPUParticles2D.new()
+	p.position = pos
+	p.z_index = 65
+	p.emitting = true
+	p.one_shot = true
+	p.amount = count
+	p.lifetime = 0.4
+	p.explosiveness = 1.0
+	p.direction = Vector2.UP
+	p.spread = 180.0
+	p.initial_velocity_min = 60.0
+	p.initial_velocity_max = 160.0
+	p.gravity = Vector2(0, 240)
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.0
+	p.color = color
+	add_child(p)
+	get_tree().create_timer(0.6).timeout.connect(func():
+		if is_instance_valid(p): p.queue_free())
+
+func spawn_projectile_fx(from_pos: Vector2, to_pos: Vector2, color: Color, on_arrive: Callable) -> void:
+	# Orbe lumineux qui voyage visiblement du lanceur à la cible avant que les
+	# dégâts s'appliquent, au lieu d'un impact instantané malgré le tag "projectile".
+	var orb = Node2D.new()
+	orb.position = from_pos
+	orb.z_index = 62
+	add_child(orb)
+	var glow = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(10):
+		var a = i / 10.0 * TAU
+		pts.append(Vector2(cos(a), sin(a)) * 6.0)
+	glow.polygon = pts
+	glow.color = color
+	orb.add_child(glow)
+	var dist = from_pos.distance_to(to_pos)
+	var duration = clampf(dist / 700.0, 0.08, 0.4)
+	var tw = create_tween()
+	tw.tween_property(orb, "position", to_pos, duration).set_trans(Tween.TRANS_LINEAR)
+	tw.tween_callback(func():
+		orb.queue_free()
+		on_arrive.call())
 
 func _ring_points(radius: float) -> PackedVector2Array:
 	var pts = PackedVector2Array()
@@ -998,6 +1056,12 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 
 func update_enemies(delta: float) -> void:
 	for uid in enemies.keys():
+		# Garde défensive : un ennemi ne devrait jamais être libéré sans être
+		# aussi retiré de ce dictionnaire (voir le flux de respawn), mais mieux
+		# vaut ignorer proprement une entrée invalide que planter en boucle.
+		if not is_instance_valid(enemies[uid]):
+			enemies.erase(uid)
+			continue
 		var e: Enemy = enemies[uid]
 		if e.dead: continue
 		var target: Player = player

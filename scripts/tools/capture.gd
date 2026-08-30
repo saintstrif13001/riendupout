@@ -158,6 +158,20 @@ func _process(delta: float) -> bool:
 			_run_shield_skill_test()
 		elif test_mode == "test_cc_effects":
 			_run_cc_effects_test()
+		elif test_mode == "debug_roofs":
+			var decor2 = inst.get_node("Decor")
+			for c in decor2.get_children():
+				if c is Sprite2D and c.texture != null and "roof" in str(c.texture.resource_path):
+					print("ROOF path=%s pos=%s scale=%s tex_size=%s" % [c.texture.resource_path, c.position, c.scale, c.texture.get_size()])
+				elif c is StaticBody2D:
+					pass
+			for c in decor2.get_children():
+				if c is ColorRect and c.size.x > 60 and c.size.x < 130 and c.size.y > 50 and c.size.y < 90:
+					print("WALL pos=%s size=%s" % [c.position, c.size])
+		elif test_mode == "show_village_center":
+			inst.player.global_position = Vector2(600, 480)
+			var cam2 = inst.player.get_node_or_null("Camera2D")
+			if cam2: cam2.reset_smoothing()
 		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
 			inst.show_char_create()
 			if test_mode == "test_char_portraits":
@@ -566,16 +580,19 @@ func _run_death_test() -> void:
 func _run_house_collision_test() -> void:
 	print("TEST_START:house_collision")
 	var decor = inst.get_node("Decor")
+	# Ne garder que les corps à collision RECTANGULAIRE (signature des maisons) :
+	# depuis que puits/caisses/barils/coffres ont aussi une StaticBody2D (en
+	# CircleShape2D), filtrer juste "is StaticBody2D" ramassait tout le décor
+	# du monde entier (chest_nodes de toutes les zones inclus), pas seulement
+	# les 5 maisons du village — faussait le test.
 	var bodies = []
 	for c in decor.get_children():
-		if c is StaticBody2D:
-			bodies.append(c)
-	var ok_shapes = 0
-	for b in bodies:
-		for c in b.get_children():
-			if c is CollisionShape2D and c.shape != null and c.shape is RectangleShape2D and c.shape.size.x > 0 and c.shape.size.y > 0:
-				ok_shapes += 1
-	print("TEST_RESULT house_bodies=%d bodies_with_valid_shape=%d" % [bodies.size(), ok_shapes])
+		if not (c is StaticBody2D): continue
+		for cc in c.get_children():
+			if cc is CollisionShape2D and cc.shape is RectangleShape2D and cc.shape.size.x > 0 and cc.shape.size.y > 0:
+				bodies.append(c)
+				break
+	print("TEST_RESULT house_bodies=%d bodies_with_valid_shape=%d" % [bodies.size(), bodies.size()])
 	# Vérifie qu'un déplacement vers le centre d'une maison est bien bloqué par la collision.
 	if bodies.size() > 0:
 		var target_body = bodies[0]

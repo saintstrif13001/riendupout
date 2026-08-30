@@ -273,7 +273,10 @@ func build_village_structures() -> void:
 		roof.texture = h.roof
 		var roof_scale = (h.w + 26) / float(h.roof.get_width())
 		roof.scale = Vector2(roof_scale, roof_scale)
-		roof.position = Vector2(h.x, h.y - h.h/2.0 - (h.roof.get_height() * roof_scale) * 0.42)
+		# Le toit doit chevaucher largement le haut du mur (comme un vrai avant-toit)
+		# plutôt que de flotter au-dessus avec juste un mince contact — sinon il se
+		# détache visuellement de la maison malgré un positionnement "correct" en x.
+		roof.position = Vector2(h.x, h.y - h.h/2.0 - (h.roof.get_height() * roof_scale) * 0.02)
 		roof.z_index = int(h.y) + 2
 		$Decor.add_child(roof)
 		var door = ColorRect.new()

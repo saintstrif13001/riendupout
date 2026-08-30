@@ -148,6 +148,10 @@ func _process(delta: float) -> bool:
 			_run_prop_collision_test()
 		elif test_mode == "test_enemy_collision":
 			_run_enemy_collision_test()
+		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
+			inst.show_char_create()
+			if test_mode == "test_char_portraits":
+				_run_char_portraits_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -1031,6 +1035,28 @@ func _run_enemy_collision_test() -> void:
 	var dist = inst.player.global_position.distance_to(enemy_pos)
 	var moved = start_pos.distance_to(inst.player.global_position)
 	print("TEST_RESULT enemy_blocks_player=%s dist_to_enemy=%.1f moved=%.1f" % [dist > 5.0, dist, moved])
+
+func _run_char_portraits_test() -> void:
+	print("TEST_START:char_portraits")
+	var data = root.get_node("/root/Data")
+	var grids = []
+	for c in inst.content.get_children():
+		if c is GridContainer: grids.append(c)
+	var race_grid = grids[0] if grids.size() > 0 else null
+	var class_grid = grids[1] if grids.size() > 1 else null
+	var race_ok = race_grid != null and race_grid.get_child_count() == data.RACES.size()
+	var class_ok = class_grid != null and class_grid.get_child_count() == data.CLASSES.size()
+	var first_row_has_portrait = false
+	var portrait_tint_matches = false
+	if race_ok:
+		var row = race_grid.get_child(0)
+		first_row_has_portrait = row.get_child_count() == 2 and row.get_child(0) is Control
+		var portrait = row.get_child(0)
+		var body_tex_rect = portrait.get_child(1)
+		var expected_tint = data.RACES[data.RACES.keys()[0]].tint
+		portrait_tint_matches = body_tex_rect.modulate.is_equal_approx(expected_tint)
+	print("TEST_RESULT race_grid_count_matches=%s class_grid_count_matches=%s first_row_has_portrait=%s portrait_tint_correct=%s"
+		% [race_ok, class_ok, first_row_has_portrait, portrait_tint_matches])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

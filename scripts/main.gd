@@ -149,17 +149,22 @@ func show_char_create() -> void:
 	content.add_child(race_grid)
 	for rid in Data.RACES.keys():
 		var r = Data.RACES[rid]
+		var row = HBoxContainer.new()
+		row.add_child(_make_portrait(r.tint))
 		var b = Button.new()
 		b.text = r.name + "\n" + r.desc
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD
-		b.custom_minimum_size = Vector2(250, 64)
+		b.custom_minimum_size = Vector2(210, 64)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.toggle_mode = true
 		b.button_pressed = (rid == sel_race)
 		b.pressed.connect(func():
 			sel_race = rid
-			for c in race_grid.get_children(): c.button_pressed = false
+			for c in race_grid.get_children(): c.get_node("Button").button_pressed = false
 			b.button_pressed = true)
-		race_grid.add_child(b)
+		b.name = "Button"
+		row.add_child(b)
+		race_grid.add_child(row)
 
 	_title("Classe", 17)
 	var class_grid = GridContainer.new()
@@ -167,19 +172,60 @@ func show_char_create() -> void:
 	content.add_child(class_grid)
 	for cid in Data.CLASSES.keys():
 		var c = Data.CLASSES[cid]
+		var row2 = HBoxContainer.new()
+		row2.add_child(_make_portrait(c.color))
 		var b = Button.new()
 		b.text = c.name + "\n" + c.desc
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD
-		b.custom_minimum_size = Vector2(250, 64)
+		b.custom_minimum_size = Vector2(210, 64)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.toggle_mode = true
 		b.button_pressed = (cid == sel_class)
 		b.pressed.connect(func():
 			sel_class = cid
-			for cc in class_grid.get_children(): cc.button_pressed = false
+			for cc in class_grid.get_children(): cc.get_node("Button").button_pressed = false
 			b.button_pressed = true)
-		class_grid.add_child(b)
+		b.name = "Button"
+		row2.add_child(b)
+		class_grid.add_child(row2)
 
 	_button("Confirmer", _on_char_confirmed)
+
+var _portrait_body_tex: Texture2D = null
+var _portrait_head_tex: Texture2D = null
+
+# Portrait composite (jambes+corps+tête, teinté) pour chaque race/classe au lieu
+# d'une liste de boutons purement textuels — donne un vrai visage à chaque choix.
+func _make_portrait(tint: Color) -> Control:
+	if _portrait_body_tex == null:
+		_portrait_body_tex = load("res://assets/sprites/player/body_walk.png")
+		_portrait_head_tex = load("res://assets/sprites/player/head_walk.png")
+	var frame = Rect2(2 * 64, 2 * 64, 64, 64) # pose idle, face caméra
+	var wrap = Control.new()
+	wrap.custom_minimum_size = Vector2(48, 48)
+	var bg = ColorRect.new()
+	bg.color = Color(0, 0, 0, 0.25)
+	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
+	wrap.add_child(bg)
+	var body = TextureRect.new()
+	var body_atlas = AtlasTexture.new()
+	body_atlas.atlas = _portrait_body_tex
+	body_atlas.region = frame
+	body.texture = body_atlas
+	body.modulate = tint
+	body.set_anchors_preset(Control.PRESET_FULL_RECT)
+	body.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	wrap.add_child(body)
+	var head = TextureRect.new()
+	var head_atlas = AtlasTexture.new()
+	head_atlas.atlas = _portrait_head_tex
+	head_atlas.region = frame
+	head.texture = head_atlas
+	head.modulate = tint
+	head.set_anchors_preset(Control.PRESET_FULL_RECT)
+	head.expand_mode = TextureRect.EXPAND_FIT_WIDTH_PROPORTIONAL
+	wrap.add_child(head)
+	return wrap
 
 func _on_char_confirmed() -> void:
 	var cname = name_edit.text.strip_edges()

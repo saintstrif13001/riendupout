@@ -137,6 +137,7 @@ func take_damage(dmg: float) -> float:
 	return mitig
 
 func heal(amount: float) -> void:
+	if dead: return
 	hp = min(stats.max_hp, hp + amount)
 
 func die() -> void:

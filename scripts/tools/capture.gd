@@ -82,6 +82,10 @@ func _process(delta: float) -> bool:
 		elif test_mode == "debug_roof":
 			var tex = load("res://assets/buildings/roof_tan.png")
 			print("TEX_RESULT valid=%s width=%s height=%s" % [tex != null, tex.get_width() if tex else "n/a", tex.get_height() if tex else "n/a"])
+		elif test_mode == "test_dead_actions":
+			_run_dead_actions_test()
+		elif test_mode == "test_crafting":
+			_run_crafting_test()
 		elif test_mode == "test_all_class_skills":
 			_run_all_class_skills_test()
 		elif test_mode == "test_party_targeting":
@@ -217,6 +221,63 @@ func _run_continue_menu_test() -> void:
 		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
 		var gs = root.get_node("/root/GameState")
 		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+
+func _run_dead_actions_test() -> void:
+	print("TEST_START:dead_actions")
+	var hud = inst.get_node("Hud")
+	var p = inst.player
+	p.take_damage(99999.0)
+	print("TEST_STATE dead=%s hp=%.1f" % [p.dead, p.hp])
+	# potion : ne doit RIEN faire tant qu'on est mort (évite de gâcher un objet limité)
+	inst.char_data.inventory["potion_vie"] = 3
+	var hp_before = p.hp
+	var qty_before = inst.char_data.inventory.potion_vie
+	hud.use_item("potion_vie")
+	print("TEST_RESULT potion_blocked_while_dead=%s hp_unchanged=%s qty_unchanged=%s"
+		% [p.hp == hp_before and inst.char_data.inventory.potion_vie == qty_before, p.hp == hp_before, inst.char_data.inventory.potion_vie == qty_before])
+	# équiper : ne doit rien faire non plus tant qu'on est mort
+	inst.char_data.inventory["epee_fer"] = 1
+	var equip_before = inst.char_data.equipment.get("weapon", "")
+	hud.equip_item("epee_fer")
+	print("TEST_RESULT equip_blocked_while_dead=%s" % [inst.char_data.equipment.get("weapon","") == equip_before])
+	# après réapparition, les deux doivent refonctionner normalement
+	p.respawn(inst.get_zone_spawn("village"))
+	p.hp = 50.0
+	hud.use_item("potion_vie")
+	hud.equip_item("epee_fer")
+	print("TEST_RESULT works_again_after_respawn=%s hp_after=%.1f weapon=%s"
+		% [inst.char_data.equipment.get("weapon","") == "epee_fer" and p.hp > 50.0, p.hp, inst.char_data.equipment.get("weapon","")])
+
+func _run_crafting_test() -> void:
+	print("TEST_START:crafting")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	var data = root.get_node("/root/Data")
+	var recipe = data.RECIPES[0] # r_epee_fer : forgeron, cost {minerai:5}
+	print("TEST_RECIPE id=%s profession=%s cost=%s result=%s" % [recipe.id, recipe.profession, recipe.cost, recipe.result])
+
+	# 1) sans le métier appris -> learn_profession doit être requis avant de voir la recette
+	#    (testé indirectement : on vérifie juste que craft_recipe refuse sans les matériaux)
+	cd.inventory.clear()
+	hud.craft_recipe(recipe.id)
+	print("TEST_RESULT craft_without_materials_blocked=%s inventory_empty=%s" % [not cd.inventory.has(recipe.result), cd.inventory.is_empty()])
+
+	# 2) avec pas assez de matériaux
+	cd.inventory["minerai"] = 2 # il en faut 5
+	hud.craft_recipe(recipe.id)
+	print("TEST_RESULT craft_insufficient_blocked=%s minerai_unchanged=%s" % [not cd.inventory.has(recipe.result), cd.inventory.minerai == 2])
+
+	# 3) avec assez de matériaux -> doit réussir et déduire exactement le coût
+	cd.inventory["minerai"] = 8
+	hud.learn_profession(recipe.profession)
+	hud.craft_recipe(recipe.id)
+	print("TEST_RESULT craft_success=%s minerai_left=%d (attendu 3) result_qty=%d profession=%s"
+		% [cd.inventory.get(recipe.result, 0) > 0, cd.inventory.get("minerai", 0), cd.inventory.get(recipe.result, 0), cd.profession])
+
+	# 4) craft répété doit à nouveau consommer les bons matériaux
+	var before2 = cd.inventory.minerai
+	hud.craft_recipe(recipe.id)
+	print("TEST_RESULT second_craft_result_qty=%d minerai_after=%d (attendu %d)" % [cd.inventory[recipe.result], cd.inventory.minerai, before2 - recipe.cost.minerai])
 
 func _run_all_class_skills_test() -> void:
 	print("TEST_START:all_class_skills")

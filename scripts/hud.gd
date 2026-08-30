@@ -640,6 +640,7 @@ func render_inventory() -> void:
 	_add_button(inventory_box, "Fermer (I)", func(): close_all())
 
 func equip_item(id: String) -> void:
+	if world.player.dead: return
 	var cd = world.char_data
 	var it = Data.ITEMS[id]
 	var slot = "weapon" if it.type == "weapon" else "armor"
@@ -651,6 +652,9 @@ func equip_item(id: String) -> void:
 	render_inventory()
 
 func use_item(id: String) -> void:
+	if world.player.dead:
+		world.float_text(world.player.global_position + Vector2(0,-50), "Impossible : tu es K.O.", Color(0.9,0.3,0.3))
+		return
 	var cd = world.char_data
 	if cd.inventory.get(id, 0) <= 0: return
 	var it = Data.ITEMS[id]

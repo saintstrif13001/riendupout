@@ -408,6 +408,9 @@ var current_npc: Dictionary = {}
 
 func _on_open_npc(npc: Dictionary) -> void:
 	current_npc = npc
+	# Sans ça, les quêtes de type "talk" (dont q_intro, la toute première quête)
+	# ne pouvaient jamais être complétées : parler au PNJ n'incrémentait rien.
+	world.update_quest_progress("talk", npc.id)
 	render_npc_dialogue()
 	dialogue_overlay.visible = true
 

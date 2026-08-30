@@ -128,6 +128,8 @@ func _process(delta: float) -> bool:
 			_run_gold_guards_test()
 		elif test_mode == "test_zone_lighting":
 			_run_zone_lighting_test()
+		elif test_mode == "test_quest_chain":
+			_run_quest_chain_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -760,6 +762,62 @@ func _run_zone_lighting_test() -> void:
 	var converged = final_color.is_equal_approx(expected)
 	print("TEST_RESULT zone_switched=%s no_duplicate_retrigger=%s converged_to_caverne_tint=%s final_color=%s expected=%s"
 		% [zone_switched, color_unchanged_on_repeat, converged, final_color, expected])
+
+func _run_quest_chain_test() -> void:
+	print("TEST_START:quest_chain")
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	var gold_before = cd.gold
+	var results = {}
+
+	# 1) q_intro (talk) — c'était cassé : ouvrir le dialogue ne faisait progresser
+	# aucune quête de type "talk", donc impossible de terminer même la 1ere quête du jeu.
+	hud._on_open_npc(data.get_npc("ancien"))
+	hud.accept_quest("q_intro")
+	hud._on_open_npc(data.get_npc("garde")) # doit maintenant faire progresser q_intro
+	results["q_intro_progressed_by_talk"] = cd.quests_active.get("q_intro", -1) >= 1
+	hud.turn_in_quest("q_intro")
+	results["q_intro_completed"] = cd.quests_completed.has("q_intro")
+
+	# 2) q_slime1 ne doit pas être proposable avant q_intro terminé — déjà vérifié
+	# ci-dessus ; on vérifie maintenant qu'il DEVIENT disponible une fois le prérequis rempli.
+	var q_slime1 = data.get_quest("q_slime1")
+	var prereq_ok = true
+	for r in q_slime1.requires:
+		if not cd.quests_completed.has(r): prereq_ok = false
+	results["q_slime1_unlocked_after_intro"] = prereq_ok
+
+	hud.accept_quest("q_slime1")
+	for i in range(8): inst.update_quest_progress("kill", "slime_vert")
+	hud.turn_in_quest("q_slime1")
+	results["q_slime1_completed"] = cd.quests_completed.has("q_slime1")
+
+	hud.accept_quest("q_slime2")
+	for i in range(5): inst.update_quest_progress("kill", "slime_rouge")
+	hud.turn_in_quest("q_slime2")
+	results["q_slime2_completed"] = cd.quests_completed.has("q_slime2")
+
+	hud.accept_quest("q_loups")
+	for i in range(8): inst.update_quest_progress("kill", "loup")
+	hud.turn_in_quest("q_loups")
+	results["q_loups_completed"] = cd.quests_completed.has("q_loups")
+
+	hud.accept_quest("q_loup_alpha")
+	inst.update_quest_progress("boss", "loup_alpha")
+	hud.turn_in_quest("q_loup_alpha")
+	results["q_loup_alpha_completed"] = cd.quests_completed.has("q_loup_alpha")
+
+	# Récompenses cumulées attendues sur toute la chaîne
+	var expected_gold_gain = 10 + 25 + 35 + 40 + 60
+	results["gold_reward_correct"] = (cd.gold - gold_before) == expected_gold_gain
+	results["nothing_left_active"] = cd.quests_active.is_empty()
+	results["chain_order_preserved"] = cd.quests_completed == ["q_intro","q_slime1","q_slime2","q_loups","q_loup_alpha"]
+
+	var all_ok = true
+	for k in results.keys():
+		if not results[k]: all_ok = false
+	print("TEST_RESULT all_ok=%s details=%s" % [all_ok, results])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

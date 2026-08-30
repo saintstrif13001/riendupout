@@ -351,7 +351,31 @@ func _icon_tex(item_id: String) -> TextureRect:
 	t.custom_minimum_size = Vector2(28, 28)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	t.mouse_filter = Control.MOUSE_FILTER_STOP
+	t.tooltip_text = item_tooltip_text(item_id)
 	return t
+
+# Construit une infobulle lisible (stats/effet) pour un objet, affichée au
+# survol grâce au système de tooltip natif de Godot.
+func item_tooltip_text(item_id: String) -> String:
+	var it = Data.ITEMS.get(item_id, {})
+	if it.is_empty(): return item_id
+	var lines = [it.name]
+	if it.has("bonus"):
+		for stat in ["atk","def","hp","mana","spd"]:
+			var v = it.bonus.get(stat, 0)
+			if v != 0:
+				var label = {"atk":"Attaque","def":"Défense","hp":"Vie","mana":"Mana","spd":"Vitesse"}[stat]
+				lines.append("%s %s%d" % [label, "+" if v > 0 else "", v])
+	if it.has("heal"):
+		lines.append("Soigne %d PV" % it.heal)
+	if it.get("type","") == "mat":
+		lines.append("Matériau de fabrication")
+	if it.get("type","") == "quest":
+		lines.append("Objet de quête")
+	if it.has("price"):
+		lines.append("Prix : %d or" % it.price)
+	return "\n".join(lines)
 
 # Ligne d'objet avec icône, utilisée dans l'inventaire et les boutiques.
 # Si cb est fourni, toute la ligne est cliquable (bouton) ; sinon c'est un simple affichage.
@@ -373,6 +397,7 @@ func _add_item_row(box, item_id: String, label_text: String, cb) -> Control:
 		b.custom_minimum_size = Vector2(0, 36)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.tooltip_text = item_tooltip_text(item_id)
 		b.pressed.connect(cb)
 		row.add_child(b)
 		box.add_child(row)

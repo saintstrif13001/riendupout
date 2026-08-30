@@ -120,6 +120,8 @@ func _process(delta: float) -> bool:
 			_run_gather_test()
 		elif test_mode == "test_npc_variety":
 			_run_npc_variety_test()
+		elif test_mode == "test_tooltip":
+			_run_tooltip_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -641,6 +643,20 @@ func _run_npc_variety_test() -> void:
 	var h1 = hash(inst.npc_nodes[0].npc.id)
 	var h2 = hash(inst.npc_nodes[0].npc.id)
 	print("TEST_RESULT2 hash_deterministic=%s" % [h1 == h2])
+
+func _run_tooltip_test() -> void:
+	print("TEST_START:tooltip")
+	var hud = inst.get_node("Hud")
+	var weapon_tt = hud.item_tooltip_text("epee_fer")
+	var potion_tt = hud.item_tooltip_text("potion_vie")
+	var mat_tt = hud.item_tooltip_text("gelee")
+	print("TEST_RESULT weapon_has_atk=%s weapon_tt=%s" % [weapon_tt.contains("Attaque +5"), weapon_tt.replace("\n"," | ")])
+	print("TEST_RESULT2 potion_has_heal=%s potion_tt=%s" % [potion_tt.contains("Soigne 55"), potion_tt.replace("\n"," | ")])
+	print("TEST_RESULT3 mat_has_label=%s mat_tt=%s" % [mat_tt.contains("Matériau"), mat_tt.replace("\n"," | ")])
+	# vérifie que les icônes d'inventaire portent bien le tooltip (pas juste la fonction isolée)
+	var icon = hud._icon_tex("epee_fer")
+	print("TEST_RESULT4 icon_tooltip_set=%s" % [icon.tooltip_text == weapon_tt])
+	icon.free() # créé hors-arbre juste pour le test, à nettoyer immédiatement
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

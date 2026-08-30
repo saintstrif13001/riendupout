@@ -271,6 +271,13 @@ func _process(delta: float) -> bool:
 			for c in hud7.dialogue_box.get_children():
 				if c is PanelContainer: has_card = true
 			print("TEST_RESULT bounty_status_wrapped_in_card=%s" % has_card)
+		elif test_mode == "show_shop_sell":
+			var hud_ss = inst.get_node("Hud")
+			var data_ss = root.get_node("/root/Data")
+			inst.char_data.inventory = {"bois": 5, "epee_fer": 1, "potion_vie": 2}
+			hud_ss._on_open_npc(data_ss.get_npc("marchand"))
+		elif test_mode == "test_sell_item":
+			_run_sell_item_test()
 		elif test_mode == "show_forge_dialogue":
 			var hud6 = inst.get_node("Hud")
 			var data6 = root.get_node("/root/Data")
@@ -985,6 +992,39 @@ func _run_quest_chain_test() -> void:
 	for k in results.keys():
 		if not results[k]: all_ok = false
 	print("TEST_RESULT all_ok=%s details=%s" % [all_ok, results])
+
+func _run_sell_item_test() -> void:
+	print("TEST_START:sell_item")
+	# Aucun moyen de convertir les objets inutiles (materiaux en trop,
+	# equipement obsolete) en or : l'inventaire ne pouvait que grossir, jamais
+	# se vider. Verifie le calcul du prix par categorie, la vente elle-meme
+	# (or gagne, quantite decrementee, cle retiree a zero), et que les objets
+	# de quete restent exclus de la vente (ils doivent uniquement se rendre).
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+
+	var mat_price = hud.sell_value("bois")
+	var weapon_price = hud.sell_value("epee_fer") # bonus atk:5 -> max(3, int(5*1.5))=7
+	var faction_price = hud.sell_value("cape_heros") # price:80 -> int(80*0.4)=32
+	var prices_reasonable = mat_price == 2 and weapon_price == 7 and faction_price == 32
+
+	cd.gold = 20
+	cd.inventory = {"bois": 2}
+	hud.sell_item("bois")
+	var gold_after_first_sale = cd.gold == 20 + mat_price
+	var qty_decremented = cd.inventory.get("bois", 0) == 1
+
+	hud.sell_item("bois")
+	var key_erased_at_zero = not cd.inventory.has("bois")
+
+	cd.inventory["relique_ossements"] = 1 # objet de quete : ne doit jamais apparaitre a la vente
+	var data = root.get_node("/root/Data")
+	hud._on_open_npc(data.get_npc("marchand"))
+	var quest_item_not_sellable = not _find_button_text(hud.dialogue_box, "Relique")
+
+	var all_ok = prices_reasonable and gold_after_first_sale and qty_decremented and key_erased_at_zero and quest_item_not_sellable
+	print("TEST_RESULT all_ok=%s prices_reasonable=%s (mat=%d arme=%d faction=%d) gold_after_first_sale=%s qty_decremented=%s key_erased_at_zero=%s quest_item_not_sellable=%s"
+		% [all_ok, prices_reasonable, mat_price, weapon_price, faction_price, gold_after_first_sale, qty_decremented, key_erased_at_zero, quest_item_not_sellable])
 
 func _run_deliver_quest_test() -> void:
 	print("TEST_START:deliver_quest")

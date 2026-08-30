@@ -908,6 +908,17 @@ func render_npc_dialogue() -> void:
 			var btn = _add_item_row(dialogue_box, key, label, func(): buy_faction_item(key))
 			btn.disabled = not unlocked
 
+		# Aucun moyen de convertir les objets inutiles (materiaux en trop,
+		# equipement obsolete) en or : l'inventaire ne pouvait que grossir.
+		var sellable = []
+		for id in cd.inventory.keys():
+			if cd.inventory[id] > 0 and Data.ITEMS[id].type != "quest": sellable.append(id)
+		if not sellable.is_empty():
+			_add_title(dialogue_box, "Vendre tes objets", 14)
+			for id in sellable:
+				var price = sell_value(id)
+				_add_item_row(dialogue_box, id, "%s x%d — %d or/unité" % [Data.ITEMS[id].name, cd.inventory[id], price], func(): sell_item(id))
+
 	if npc.id == "forgeron_pnj":
 		var eco2 = world.village_economy
 		_add_title(dialogue_box, "Armurerie", 14)
@@ -1008,6 +1019,29 @@ func turn_in_quest(qid: String) -> void:
 	_render_quests()
 	render_npc_dialogue()
 	world.refresh_quest_icons()
+
+func sell_value(item_id: String) -> int:
+	var it = Data.ITEMS[item_id]
+	if it.has("price"): return maxi(1, int(it.price * 0.4))
+	match it.type:
+		"mat": return 2
+		"consumable": return 8
+		"weapon", "armor":
+			var total = 0
+			for v in it.get("bonus", {}).values(): total += absi(v)
+			return maxi(3, int(total * 1.5))
+		_: return 0
+
+func sell_item(item_id: String) -> void:
+	var cd = world.char_data
+	if cd.inventory.get(item_id, 0) <= 0: return
+	cd.inventory[item_id] -= 1
+	if cd.inventory[item_id] <= 0: cd.inventory.erase(item_id)
+	cd.gold += sell_value(item_id)
+	Audio.play("gold_pickup", -8.0)
+	world.emit_signal("hud_update", world.make_hud_data())
+	world.save_now()
+	render_npc_dialogue()
 
 func buy_item(key: String) -> void:
 	var cd = world.char_data

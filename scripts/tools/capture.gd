@@ -172,6 +172,8 @@ func _process(delta: float) -> bool:
 			_run_forge_economy_test()
 		elif test_mode == "test_plaine_cull":
 			_run_plaine_cull_test()
+		elif test_mode == "test_progression_stats_display":
+			_run_progression_stats_display_test()
 		elif test_mode == "test_gather_stats_display":
 			_run_gather_stats_display_test()
 		elif test_mode == "test_garde_patrol_dialogue":
@@ -1404,6 +1406,17 @@ func _run_gather_stats_display_test() -> void:
 	var shows_nonzero_only = stats_lbl != null and "12" in stats_lbl.text and "5" in stats_lbl.text and not ("Bois" in stats_lbl.text)
 	print("TEST_RESULT section_hidden_when_empty=%s section_shown_with_data=%s zero_counts_excluded=%s text=%s"
 		% [section_absent, stats_lbl != null, shows_nonzero_only, stats_lbl.text if stats_lbl else ""])
+
+func _run_progression_stats_display_test() -> void:
+	print("TEST_START:progression_stats_display")
+	var hud = inst.get_node("Hud")
+	inst.char_data.quests_completed = ["q_intro", "q_slime1", "q_slime2"]
+	inst.char_data.bounties_done = 1
+	hud.render_inventory()
+	var lbl = _find_label_with_text(hud.inventory_box, "quête")
+	print("TEST_RESULT progression_shown=%s text=%s" % [lbl != null, lbl.text if lbl else ""])
+	var counts_correct = lbl != null and "3 quêtes" in lbl.text and "1 prime" in lbl.text
+	print("TEST_RESULT2 counts_and_plurals_correct=%s" % counts_correct)
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

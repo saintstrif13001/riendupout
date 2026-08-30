@@ -738,6 +738,15 @@ func render_inventory() -> void:
 	var matches = func(id): return filter == "" or _normalize_search(Data.ITEMS[id].name).contains(filter)
 
 	if filter == "":
+		_add_title(inventory_box, "Progression", 15)
+		var prog_lbl = Label.new()
+		prog_lbl.text = "%d quête%s terminée%s · %d prime%s complétée%s" % [
+			cd.quests_completed.size(), "s" if cd.quests_completed.size() > 1 else "",
+			"s" if cd.quests_completed.size() > 1 else "",
+			cd.bounties_done, "s" if cd.bounties_done > 1 else "", "s" if cd.bounties_done > 1 else "",
+		]
+		inventory_box.add_child(prog_lbl)
+
 		_add_title(inventory_box, "Réputations", 15)
 		for fid in Data.FACTIONS.keys():
 			var rep = cd.reputation.get(fid, 0)

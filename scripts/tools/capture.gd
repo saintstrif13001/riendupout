@@ -140,6 +140,8 @@ func _process(delta: float) -> bool:
 			_run_village_economy_test()
 		elif test_mode == "test_village_decor":
 			_run_village_decor_test()
+		elif test_mode == "test_plaine_decor":
+			_run_plaine_decor_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -961,6 +963,21 @@ func _run_village_decor_test() -> void:
 	# les caisses/barils ajoutent 2 Polygon2D (barils) en plus du puits
 	print("TEST_RESULT well_and_props_polygons=%d (attendu >= 3) house_torches_present=%s house_bodies_unchanged=%d"
 		% [polygons, lights >= 5, house_bodies])
+
+func _run_plaine_decor_test() -> void:
+	print("TEST_START:plaine_decor")
+	var data = root.get_node("/root/Data")
+	var decor = inst.get_node("Decor")
+	var plaine = data.ZONES.plaine
+	var polygons_in_plaine = 0
+	var flower_patches_in_plaine = 0
+	for c in decor.get_children():
+		if c.position.x < plaine.x0 or c.position.x > plaine.x1: continue
+		if c is Polygon2D: polygons_in_plaine += 1
+		elif c is Node2D and c.get_child_count() == 3 and c.get_child(0) is ColorRect:
+			flower_patches_in_plaine += 1
+	print("TEST_RESULT hay_bales_and_rocks_in_plaine=%d (attendu >= 20) flower_patches_in_plaine=%d (attendu >= 40)"
+		% [polygons_in_plaine, flower_patches_in_plaine])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

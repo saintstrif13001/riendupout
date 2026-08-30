@@ -168,6 +168,55 @@ func draw_world() -> void:
 
 	build_village_structures()
 	build_props()
+	build_plaine_decor()
+
+func build_plaine_decor() -> void:
+	# La plaine était restée plate/verte alors que le village a été détaillé —
+	# bottes de foin, clôtures de pâture et parterres sauvages pour marquer
+	# une zone traversée par des voyageurs, sans la rendre aussi "aménagée"
+	# que le village.
+	var plaine = Data.ZONES.plaine
+	seed(5577)
+	var wild_colors = [Color(0.9,0.85,0.3), Color(0.85,0.4,0.5), Color(0.6,0.5,0.85)]
+	for i in range(60):
+		var x = randi_range(int(plaine.x0) + 60, int(plaine.x1) - 60)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var patch = Node2D.new()
+		patch.position = Vector2(x, y)
+		patch.z_index = -7
+		for j in range(3):
+			var dot = ColorRect.new()
+			dot.color = wild_colors[randi() % wild_colors.size()]
+			dot.size = Vector2(3, 3)
+			dot.position = Vector2(randf_range(-6,6), randf_range(-4,4))
+			patch.add_child(dot)
+		$Decor.add_child(patch)
+	for i in range(14):
+		var x = randi_range(int(plaine.x0) + 80, int(plaine.x1) - 80)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		_spawn_hay_bale(x, y)
+	for i in range(10):
+		var x = randi_range(int(plaine.x0) + 80, int(plaine.x1) - 80)
+		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		_spawn_rock(x, y)
+
+func _spawn_hay_bale(x: int, y: int) -> void:
+	var bale = Polygon2D.new()
+	var pts = PackedVector2Array()
+	for i in range(12):
+		var a = i / 12.0 * TAU
+		pts.append(Vector2(cos(a), sin(a) * 0.75) * 11)
+	bale.polygon = pts
+	bale.color = Color(0.75, 0.62, 0.28)
+	bale.position = Vector2(x, y)
+	bale.z_index = int(y)
+	$Decor.add_child(bale)
+	var band = ColorRect.new()
+	band.color = Color(0.55, 0.42, 0.15)
+	band.size = Vector2(20, 3)
+	band.position = Vector2(x - 10, y - 1)
+	band.z_index = int(y) + 1
+	$Decor.add_child(band)
 
 func build_village_structures() -> void:
 	# Bâtiments : murs procéduraux + vrai sprite de toit (tuiles LPC) pour une silhouette

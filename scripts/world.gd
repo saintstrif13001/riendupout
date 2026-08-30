@@ -790,6 +790,11 @@ func save_now() -> void:
 	char_data.mana = player.mana
 	GameState.save_character()
 
+func quit_to_menu() -> void:
+	save_now()
+	if Net.is_online: Net.disconnect_all()
+	get_tree().change_scene_to_file("res://scenes/Main.tscn")
+
 func handle_movement(delta: float) -> void:
 	# is_physical_key_pressed() lit l'état brut du clavier, sans passer par le
 	# système de focus GUI : sans ce garde, taper "s"/"d" dans le chat déplace

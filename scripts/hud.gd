@@ -412,6 +412,14 @@ func _build_options_overlay() -> void:
 	options_music_slider = music_row[0]
 	options_music_pct_label = music_row[1]
 
+	# Aucun moyen de quitter la partie ou de revenir au menu depuis l'écran de
+	# jeu : il fallait fermer la fenêtre (Alt+F4) faute d'échappatoire propre.
+	var spacer = Control.new()
+	spacer.custom_minimum_size = Vector2(0, 6)
+	box.add_child(spacer)
+	_add_button(box, "Retour au menu principal", func(): world.quit_to_menu())
+	_add_button(box, "Quitter le jeu", func(): world.save_now(); get_tree().quit())
+
 	options_overlay.add_child(panel)
 	add_child(options_overlay)
 

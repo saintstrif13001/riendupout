@@ -190,6 +190,12 @@ func _process(delta: float) -> bool:
 			_run_client_enemy_visuals_test()
 		elif test_mode == "test_net_enemy_attack":
 			_run_net_enemy_attack_test()
+		elif test_mode == "show_ingame_options":
+			var hud_o = inst.get_node("Hud")
+			hud_o.sync_options()
+			hud_o.options_overlay.visible = true
+		elif test_mode == "test_quit_to_menu":
+			_run_quit_to_menu_test()
 		elif test_mode == "show_player_hit_flash":
 			inst.player.take_damage(30.0)
 		elif test_mode == "show_hotbar":
@@ -1784,6 +1790,39 @@ func _run_net_enemy_attack_test() -> void:
 
 	print("TEST_RESULT damage_applied=%s mitigation_matches_take_damage=%s death_triggers_correctly=%s bloodstain_created_locally=%s"
 		% [damage_applied, mitigation_matches_take_damage, death_triggers_correctly, bloodstain_created_locally])
+
+func _find_button_text(node: Node, prefix: String) -> bool:
+	for c in node.get_children():
+		if c is Button and c.text.begins_with(prefix): return true
+		if _find_button_text(c, prefix): return true
+	return false
+
+func _run_quit_to_menu_test() -> void:
+	print("TEST_START:quit_to_menu")
+	# Il n'existait aucun moyen de quitter la partie ou de revenir au menu
+	# principal depuis l'ecran de jeu : seul Alt+F4 fonctionnait. Verifie que
+	# les boutons existent dans le panneau Options et que world.save_now()
+	# (appele par quit_to_menu avant le changement de scene) persiste bien
+	# l'etat. Ne declenche PAS le vrai quit_to_menu() : appeler
+	# get_tree().change_scene_to_file() depuis ce process de test
+	# detruirait le harnais lui-meme (inst est un enfant de la scene qu'il
+	# remplacerait).
+	var hud = inst.get_node("Hud")
+	hud.sync_options()
+	hud.options_overlay.visible = true
+	var quit_button_found = _find_button_text(hud.options_overlay, "Quitter le jeu")
+	var menu_button_found = _find_button_text(hud.options_overlay, "Retour au menu")
+	var has_quit_to_menu_method = inst.has_method("quit_to_menu")
+
+	var pos_before = inst.player.global_position
+	inst.player.global_position = Vector2(777, 333)
+	inst.save_now()
+	var gs = root.get_node("/root/GameState")
+	var save_now_persists_position = gs.char_data.last_x == 777.0 and gs.char_data.last_y == 333.0
+	inst.player.global_position = pos_before
+
+	print("TEST_RESULT quit_button_found=%s menu_button_found=%s has_quit_to_menu_method=%s save_now_persists_position=%s"
+		% [quit_button_found, menu_button_found, has_quit_to_menu_method, save_now_persists_position])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

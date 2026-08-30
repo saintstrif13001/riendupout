@@ -134,6 +134,8 @@ func _process(delta: float) -> bool:
 			_run_deliver_quest_test()
 		elif test_mode == "test_talent_ui_flow":
 			_run_talent_ui_flow_test()
+		elif test_mode == "test_faction_shop_ui":
+			_run_faction_shop_ui_test()
 		elif test_mode == "show_torch_glow" or test_mode == "test_torch_glow":
 			var tx = int(inst.player.global_position.x) + 30
 			var ty = int(inst.player.global_position.y)
@@ -871,6 +873,41 @@ func _run_talent_ui_flow_test() -> void:
 		% [overlay_shown, inst.char_data.talents.get(str(tier.level)) == chosen.id,
 			atk_after != atk_before, not hud.talent_overlay.visible])
 	print("TEST_RESULT2 hp_clamped_to_new_max=%s" % [inst.player.hp <= inst.player.stats.max_hp])
+
+func _find_button_by_prefix(root_node: Node, prefix: String) -> Button:
+	for c in root_node.get_children():
+		if c is Button and c.text.begins_with(prefix): return c
+		var found = _find_button_by_prefix(c, prefix)
+		if found != null: return found
+	return null
+
+func _run_faction_shop_ui_test() -> void:
+	print("TEST_START:faction_shop_ui")
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	var marchand = data.get_npc("marchand")
+	# réputation insuffisante : le bouton doit apparaître désactivé dans le vrai rendu de dialogue
+	cd.reputation["garde"] = 0
+	hud._on_open_npc(marchand)
+	var btn_locked = _find_button_by_prefix(hud.dialogue_box, "Cape du Héros")
+	var button_found = btn_locked != null
+	var disabled_when_poor_rep = button_found and btn_locked.disabled
+	# réputation suffisante : le bouton doit devenir cliquable et l'achat doit marcher
+	cd.reputation["garde"] = 300
+	cd.gold = 200
+	# queue_free() ne libère les anciens boutons qu'en fin de frame : sans yield entre les
+	# deux rendus (comme un vrai joueur en aurait toujours un), le second _find_button_by_prefix
+	# retrouverait l'ancien bouton encore en mémoire — artefact de test déjà rencontré ailleurs
+	# dans la session, pas un bug de jeu. On force le nettoyage immédiat avant de re-rendre.
+	for c in hud.dialogue_box.get_children(): c.free()
+	hud._on_open_npc(marchand) # re-render du dialogue avec la nouvelle réputation
+	var btn_unlocked = _find_button_by_prefix(hud.dialogue_box, "Cape du Héros")
+	var enabled_when_rep_ok = btn_unlocked != null and not btn_unlocked.disabled
+	var gold_before = cd.gold
+	if btn_unlocked != null: btn_unlocked.pressed.emit()
+	print("TEST_RESULT button_found=%s disabled_when_poor_rep=%s enabled_when_rep_ok=%s purchase_via_button_worked=%s"
+		% [button_found, disabled_when_poor_rep, enabled_when_rep_ok, cd.inventory.get("cape_heros", 0) == 1 and cd.gold == gold_before - 80])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

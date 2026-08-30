@@ -170,6 +170,13 @@ func _process(delta: float) -> bool:
 					print("WALL pos=%s size=%s" % [c.position, c.size])
 		elif test_mode == "test_forge_economy":
 			_run_forge_economy_test()
+		elif test_mode == "test_save_zone_change":
+			_run_save_zone_change_test()
+		elif test_mode == "show_respec_dialogue":
+			var hud9 = inst.get_node("Hud")
+			var data9 = root.get_node("/root/Data")
+			inst.char_data.talents = {"5": "berserker"}
+			hud9._on_open_npc(data9.get_npc("maitre_armes_pnj"))
 		elif test_mode == "show_quest_dialogue" or test_mode == "test_quest_dialogue_card":
 			var hud8 = inst.get_node("Hud")
 			var data8 = root.get_node("/root/Data")
@@ -1273,6 +1280,38 @@ func _run_forge_economy_test() -> void:
 
 	print("TEST_RESULT stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s item_received=%s blocked_when_out_of_stock=%s"
 		% [stock_grew, price_tracks_stock, stock_consumed, paid_dynamic_price, item_received, blocked_when_out_of_stock])
+
+func _run_save_zone_change_test() -> void:
+	print("TEST_START:save_zone_change")
+	var data = root.get_node("/root/Data")
+	var gs = root.get_node("/root/GameState")
+	# simule un joueur qui a voyagé jusqu'à la caverne, avec de l'état accumulé,
+	# puis quitte le jeu à cet endroit précis (pas au village de départ)
+	var target_pos = Vector2(data.ZONES.caverne.x0 + 400, 250.0)
+	inst.player.global_position = target_pos
+	inst.player.hp = 42.0
+	inst.player.mana = 17.0
+	inst.char_data.unlocked_zones = ["village", "plaine", "foret", "caverne"]
+	inst.char_data.reputation["garde"] = 180
+	inst.char_data.gold = 333
+	inst.save_now()
+
+	# simule un redémarrage complet : plus rien en mémoire, uniquement le fichier
+	gs.char_data = {}
+	var loaded = gs.load_saved_character()
+	var pos_ok = absf(loaded.last_x - target_pos.x) < 0.01 and absf(loaded.last_y - target_pos.y) < 0.01
+	var hp_ok = loaded.hp == 42.0 and loaded.mana == 17.0
+	var zones_ok = loaded.unlocked_zones == ["village", "plaine", "foret", "caverne"]
+	var rep_ok = loaded.reputation.get("garde") == 180
+	var gold_ok = loaded.gold == 333
+	print("TEST_RESULT pos_persisted=%s hp_mana_persisted=%s unlocked_zones_persisted=%s reputation_persisted=%s gold_persisted=%s"
+		% [pos_ok, hp_ok, zones_ok, rep_ok, gold_ok])
+
+	# simule le respawn dans un nouveau monde à partir de cette sauvegarde
+	# (le chemin exact utilisé par spawn_local_player() en jeu réel)
+	var would_spawn_at = Vector2(loaded.last_x, loaded.last_y) if loaded.has("last_x") and loaded.last_x != null else inst.get_zone_spawn("village")
+	print("TEST_RESULT2 would_respawn_in_caverne=%s" % [would_spawn_at.distance_to(target_pos) < 1.0])
+	gs.delete_save()
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")

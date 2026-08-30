@@ -184,6 +184,10 @@ func _process(delta: float) -> bool:
 			_run_minimap_test()
 		elif test_mode == "test_hotbar":
 			_run_hotbar_test()
+		elif test_mode == "test_player_hit_flash":
+			_run_player_hit_flash_test()
+		elif test_mode == "show_player_hit_flash":
+			inst.player.take_damage(30.0)
 		elif test_mode == "show_hotbar":
 			var gs_hb = root.get_node("/root/GameState")
 			var hud_hb = inst.get_node("Hud")
@@ -1669,6 +1673,41 @@ func _run_hotbar_test() -> void:
 	var all_ok = slots_built and ready_before_use and cooldown_shown_after_use and other_slot_unaffected and overlay_clears_after_cooldown_expires and dimmed_when_cant_afford
 	print("TEST_RESULT all_ok=%s slots_built=%s ready_before_use=%s cooldown_shown_after_use=%s other_slot_unaffected=%s overlay_clears_after_cooldown_expires=%s dimmed_when_cant_afford=%s"
 		% [all_ok, slots_built, ready_before_use, cooldown_shown_after_use, other_slot_unaffected, overlay_clears_after_cooldown_expires, dimmed_when_cant_afford])
+
+func _run_player_hit_flash_test() -> void:
+	print("TEST_START:player_hit_flash")
+	# Les ennemis flashaient blanc en encaissant un coup (Enemy.take_damage)
+	# mais le joueur n'avait aucun retour visuel du tout à part le texte
+	# flottant "-X". Vérifie le flash rouge + restauration de la teinte
+	# d'origine (raciale/équipement, PAS un blanc fixe comme les ennemis qui
+	# n'ont pas de teinte persistante), et qu'il ne se déclenche pas quand
+	# aucun dégât réel n'est infligé (invulnérabilité, bouclier absorbant tout).
+	var p = inst.player
+	p.hp = p.stats.max_hp
+	p.invuln_until = 0.0
+	p.shield = 0.0
+	var original_modulate = p.body_sprite.modulate
+
+	p.take_damage(30.0)
+	var flashes_on_real_damage = p.body_sprite.modulate != original_modulate
+
+	for i in range(40): await process_frame
+	var restores_original_tint = p.body_sprite.modulate == original_modulate
+
+	p.hp = p.stats.max_hp
+	p.invuln_until = Time.get_ticks_msec() / 1000.0 + 5.0
+	p.take_damage(30.0)
+	var no_flash_while_invulnerable = p.body_sprite.modulate == original_modulate
+	p.invuln_until = 0.0
+
+	p.hp = p.stats.max_hp
+	p.shield = 9999.0
+	p.take_damage(10.0)
+	var no_flash_when_shield_absorbs_all = p.body_sprite.modulate == original_modulate
+	p.shield = 0.0
+
+	print("TEST_RESULT flashes_on_real_damage=%s restores_original_tint=%s no_flash_while_invulnerable=%s no_flash_when_shield_absorbs_all=%s"
+		% [flashes_on_real_damage, restores_original_tint, no_flash_while_invulnerable, no_flash_when_shield_absorbs_all])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

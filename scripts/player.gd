@@ -166,8 +166,23 @@ func take_damage(dmg: float) -> float:
 		shield -= absorbed
 		to_hp -= absorbed
 	hp = max(0.0, hp - to_hp)
+	if to_hp > 0: _flash_hit()
 	if hp <= 0: die()
 	return mitig
+
+# Les ennemis avaient un flash blanc au coup (voir Enemy.take_damage) mais le
+# joueur n'avait AUCUN retour visuel en encaissant des dégâts — seul le texte
+# flottant "-X" au-dessus de la tête. Flash rouge bref sur tous les sprites,
+# en restaurant la teinte d'origine (race/équipement) au lieu d'un blanc fixe.
+func _flash_hit() -> void:
+	var parts = [body_sprite, head_sprite, legs_sprite, vest_sprite, hair_sprite]
+	var originals = []
+	for s in parts:
+		originals.append(s.modulate if s else Color.WHITE)
+		if s: s.modulate = Color(2.2, 0.35, 0.35)
+	get_tree().create_timer(0.1).timeout.connect(func():
+		for i in range(parts.size()):
+			if parts[i] and is_instance_valid(parts[i]): parts[i].modulate = originals[i])
 
 func heal(amount: float) -> void:
 	if dead: return

@@ -1088,18 +1088,19 @@ func request_bounty() -> void:
 	cd.bounty = data.random_bounty(cd.level)
 	render_npc_dialogue()
 
-func collect_bounty() -> void:
+func collect_bounty() -> Dictionary:
 	var cd = world.char_data
 	var b = cd.bounty
-	if b == null or b.progress < b.count: return
+	if b == null or b.progress < b.count: return {}
 	cd.gold += b.reward_gold
-	world.player.gain_xp(b.reward_xp)
+	var xp_res = world.player.gain_xp(b.reward_xp)
 	cd.bounties_done += 1
 	cd.bounty = null
 	world.float_text(world.player.global_position + Vector2(0,-60), "Prime encaissée !", Color(1,0.75,0.3))
 	world.emit_signal("hud_update", world.make_hud_data())
 	world.save_now()
 	render_npc_dialogue()
+	return xp_res
 
 func craft_recipe(rid: String) -> void:
 	var cd = world.char_data

@@ -1199,6 +1199,29 @@ func _adjust_camera_zoom(delta: float) -> void:
 	var z = clampf(player_camera.zoom.x + delta, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
 	player_camera.zoom = Vector2(z, z)
 
+func _shake_offsets(strength: float) -> Array:
+	# Suite de décalages d'amplitude décroissante pour une secousse caméra qui
+	# s'estompe naturellement, toujours terminée par un retour exact à zéro
+	# (sinon la caméra pourrait rester décalée si l'appel est interrompu).
+	var steps = 6
+	var offs = []
+	for i in range(steps):
+		var mag = strength * (1.0 - float(i) / steps)
+		offs.append(Vector2(randf_range(-mag, mag), randf_range(-mag, mag)))
+	offs.append(Vector2.ZERO)
+	return offs
+
+func _camera_shake(strength: float = 6.0, duration: float = 0.18) -> void:
+	# Les coups critiques (et autres gros impacts) n'avaient aucun "punch" —
+	# seul le texte de dégâts changeait de couleur. Une petite secousse caméra
+	# donne un vrai retour physique, sans exagérer au point de gêner la lisibilité.
+	if player_camera == null: return
+	var offsets = _shake_offsets(strength)
+	var tw = create_tween()
+	var step_time = duration / offsets.size()
+	for off in offsets:
+		tw.tween_property(player_camera, "offset", off, step_time)
+
 # ---------------- Combat ----------------
 func find_enemies_in_range(range_px: float) -> Array:
 	var list := []
@@ -1220,9 +1243,9 @@ func basic_attack() -> void:
 	player.play_attack_anim(player.dir)
 	var targets = find_enemies_in_range(range_px)
 	if targets.is_empty(): return
-	var dmg = roll_damage(player.stats.atk, 1.0, 0.0)
-	deal_damage_to_enemy(targets[0].e, dmg)
-	spawn_hit_particles(targets[0].e.global_position, Color(1, 0.9, 0.7), 6)
+	var roll = roll_damage(player.stats.atk, 1.0, 0.0)
+	deal_damage_to_enemy(targets[0].e, roll.dmg, roll.crit)
+	spawn_hit_particles(targets[0].e.global_position, Color(1, 0.9, 0.7) if not roll.crit else Color(1, 0.5, 0.15), 6 if not roll.crit else 14)
 	Audio.play("attack_hit", -4.0, 0.1)
 
 func use_skill(idx: int) -> void:
@@ -1295,9 +1318,9 @@ func use_skill(idx: int) -> void:
 				# Le projectile a un temps de vol : la cible a pu mourir/être libérée
 				# entre-temps (tuée par un allié, changement de zone...).
 				if not is_instance_valid(t.e) or t.e.dead: continue
-				var dmg = roll_damage(player.stats.atk, skill.dmg_mult, skill.get("crit_bonus", 0.0))
-				deal_damage_to_enemy(t.e, dmg)
-				spawn_hit_particles(t.e.global_position, fx_color)
+				var roll = roll_damage(player.stats.atk, skill.dmg_mult, skill.get("crit_bonus", 0.0))
+				deal_damage_to_enemy(t.e, roll.dmg, roll.crit)
+				spawn_hit_particles(t.e.global_position, fx_color, 10 if not roll.crit else 18)
 				if skill.has("immobilize") and not t.e.dead: t.e.apply_immobilize(skill.immobilize)
 				if skill.has("slow_pct") and not t.e.dead: t.e.apply_slow(1.0 - skill.slow_pct, skill.slow_duration)
 		if skill.get("projectile", false) and hits.size() > 0:
@@ -1412,12 +1435,17 @@ func net_apply_buff(b: Dictionary) -> void:
 	_apply_buff_to(player, b)
 	emit_signal("hud_update", make_hud_data())
 
-func roll_damage(atk: float, mult: float, extra_crit: float) -> float:
+func roll_damage(atk: float, mult: float, extra_crit: float) -> Dictionary:
+	# Les critiques existaient déjà (8%+ de chance, x1.8 dégâts) mais étaient
+	# invisibles : même texte blanc, même nombre de particules qu'un coup normal.
+	# Renvoie maintenant si le coup est critique pour que l'appelant puisse le
+	# faire ressentir (texte distinct, plus de particules, secousse caméra).
 	var race = Data.RACES[char_data.race]
 	var crit_chance = 0.08 + extra_crit + race.get("crit_bonus", 0.0)
 	var dmg = atk * mult * randf_range(0.85, 1.15)
-	if randf() < crit_chance: dmg *= 1.8
-	return dmg
+	var is_crit = randf() < crit_chance
+	if is_crit: dmg *= 1.8
+	return {"dmg": dmg, "crit": is_crit}
 
 func flash_attack_fx(range_px: float, color: Color = Color(1, 1, 1)) -> void:
 	# Anneau qui s'étend rapidement depuis le joueur pour matérialiser la portée de l'attaque,
@@ -1495,14 +1523,22 @@ func _ring_points(radius: float) -> PackedVector2Array:
 		pts.append(Vector2(cos(a), sin(a)) * radius)
 	return pts
 
-func deal_damage_to_enemy(e: Enemy, dmg: float) -> void:
+func deal_damage_to_enemy(e: Enemy, dmg: float, is_crit: bool = false) -> void:
 	if is_sim:
 		var applied = e.take_damage(dmg)
-		float_text(e.global_position + Vector2(0,-40), "-%d" % int(round(applied)), Color(1,1,1))
+		if is_crit:
+			float_text(e.global_position + Vector2(0,-46), "-%d CRITIQUE !" % int(round(applied)), Color(1,0.35,0.1))
+			_camera_shake(6.0, 0.18)
+		else:
+			float_text(e.global_position + Vector2(0,-40), "-%d" % int(round(applied)), Color(1,1,1))
 		if e.dead: on_enemy_killed(e, multiplayer.get_unique_id())
 	else:
 		rpc_id(1, "net_attack_request", e.uid, dmg)
-		float_text(e.global_position + Vector2(0,-40), "-%d" % int(round(dmg)), Color(1,1,1,0.6))
+		if is_crit:
+			float_text(e.global_position + Vector2(0,-46), "-%d CRITIQUE !" % int(round(dmg)), Color(1,0.35,0.1,0.6))
+			_camera_shake(6.0, 0.18)
+		else:
+			float_text(e.global_position + Vector2(0,-40), "-%d" % int(round(dmg)), Color(1,1,1,0.6))
 
 @rpc("any_peer", "reliable")
 func net_attack_request(uid: String, dmg: float) -> void:

@@ -206,6 +206,8 @@ func _process(delta: float) -> bool:
 			_run_teleporter_test()
 		elif test_mode == "test_camera_zoom":
 			_run_camera_zoom_test()
+		elif test_mode == "test_crit_feedback":
+			_run_crit_feedback_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
@@ -375,8 +377,8 @@ func _run_combat_test() -> void:
 	var start_xp = inst.char_data.xp
 	var hits = 0
 	while not e.dead and hits < 30:
-		var dmg = inst.roll_damage(inst.player.stats.atk, 1.0, 0.0)
-		inst.deal_damage_to_enemy(e, dmg)
+		var roll = inst.roll_damage(inst.player.stats.atk, 1.0, 0.0)
+		inst.deal_damage_to_enemy(e, roll.dmg, roll.crit)
 		hits += 1
 	print("TEST_RESULT hits=%d enemy_dead=%s hp_left=%s player_xp_before=%s player_xp_after=%s player_level=%s inventory=%s"
 		% [hits, e.dead, e.hp, start_xp, inst.char_data.xp, inst.char_data.level, JSON.stringify(inst.char_data.inventory)])
@@ -411,11 +413,16 @@ func _run_bounty_test() -> void:
 		% [inst.char_data.bounty.progress if inst.char_data.bounty else -1, b.count, gold_before, inst.char_data.gold, inst.char_data.bounty == null])
 	# la progression seule ne paie rien : il faut encaisser via collect_bounty() (bouton PNJ "Chasseur")
 	var hud = inst.get_node("Hud")
-	var xp_before = inst.char_data.xp
+	var gold_before_collect = inst.char_data.gold
 	var bounties_done_before = inst.char_data.bounties_done
-	hud.collect_bounty()
-	print("TEST_RESULT2 collected=%s gold_gained=%d xp_gained=%d bounties_done_incremented=%s bounty_now_null=%s"
-		% [true, inst.char_data.gold - gold_before, inst.char_data.xp - xp_before,
+	# BUG DE TEST trouvé en auditant : char_data.xp s'enroule à chaque niveau
+	# gagné (xp -= xp_for_level(level)), donc "xp_after - xp_before" peut
+	# devenir négatif si encaisser la prime fait monter de niveau — ce n'est
+	# pas un bug de jeu. collect_bounty() renvoie maintenant le résultat de
+	# gain_xp() (montant réel + a-t-il fait monter de niveau) pour un test fiable.
+	var xp_res = hud.collect_bounty()
+	print("TEST_RESULT2 collected=%s gold_gained=%d xp_gained=%d leveled=%s bounties_done_incremented=%s bounty_now_null=%s"
+		% [true, inst.char_data.gold - gold_before_collect, xp_res.get("amount", -1), xp_res.get("leveled", false),
 			inst.char_data.bounties_done == bounties_done_before + 1, inst.char_data.bounty == null])
 
 func _run_save_test() -> void:
@@ -2094,6 +2101,36 @@ func _run_camera_zoom_test() -> void:
 	var all_ok = camera_found and zoomed_in_on_wheel_up and zoomed_out_on_wheel_down and clamped_at_max and clamped_at_min
 	print("TEST_RESULT all_ok=%s camera_found=%s zoomed_in_on_wheel_up=%s zoomed_out_on_wheel_down=%s clamped_at_max=%s clamped_at_min=%s"
 		% [all_ok, camera_found, zoomed_in_on_wheel_up, zoomed_out_on_wheel_down, clamped_at_max, clamped_at_min])
+
+func _run_crit_feedback_test() -> void:
+	print("TEST_START:crit_feedback")
+	# roll_damage() calculait deja les critiques (8%+ de chance, x1.8 degats)
+	# mais c'etait invisible : meme texte blanc, meme nombre de particules
+	# qu'un coup normal, aucune secousse camera. Verifie le flag crit renvoye,
+	# le multiplicateur de degats, le texte distinct affiche, et que la
+	# secousse produit des decalages bornes qui reviennent bien a zero — sans
+	# dependre du minutage reel du Tween (qui ne s'ecoule pas de façon fiable
+	# en headless).
+	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+
+	var roll = inst.roll_damage(inst.player.stats.atk, 1.0, 1.0) # extra_crit=1.0 garantit crit_chance >= 1.0
+	var crit_always_true = roll.crit
+	var crit_dmg_multiplied = roll.dmg >= inst.player.stats.atk * 1.4 # x1.8 attendu, marge pour randf_range(0.85,1.15)
+
+	inst.deal_damage_to_enemy(e, 40.0, true)
+	var crit_label = _find_label_with_text(inst, "CRITIQUE")
+	var crit_text_shown = crit_label != null
+	var crit_color_distinct = crit_label != null and crit_label.get_theme_color("font_color").r > crit_label.get_theme_color("font_color").b
+
+	var offsets = inst._shake_offsets(6.0)
+	var shake_ends_at_zero = offsets[offsets.size() - 1] == Vector2.ZERO
+	var shake_bounded = true
+	for off in offsets:
+		if absf(off.x) > 6.01 or absf(off.y) > 6.01: shake_bounded = false
+
+	var all_ok = crit_always_true and crit_dmg_multiplied and crit_text_shown and crit_color_distinct and shake_ends_at_zero and shake_bounded
+	print("TEST_RESULT all_ok=%s crit_always_true=%s crit_dmg_multiplied=%s crit_text_shown=%s crit_color_distinct=%s shake_ends_at_zero=%s shake_bounded=%s"
+		% [all_ok, crit_always_true, crit_dmg_multiplied, crit_text_shown, crit_color_distinct, shake_ends_at_zero, shake_bounded])
 
 func _run_npc_wander_test() -> void:
 	print("TEST_START:npc_wander")

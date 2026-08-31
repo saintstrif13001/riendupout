@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_enemy_density":
+			_run_enemy_density_test()
 		elif test_mode == "test_save_slots":
 			_run_save_slots_test()
 		elif test_mode == "test_chat_placeholder_fits":
@@ -2291,6 +2293,45 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_enemy_density_test() -> void:
+	print("TEST_START:enemy_density")
+	# build_enemy_spawns() placait un nombre FIXE de 14 ennemis par zone, quelle
+	# que soit sa surface. Depuis la carte en croix les bras n'ont plus tous la
+	# meme taille : foret et marais (2.80 Mpx2) tombaient a 5.0 ennemis/Mpx2
+	# contre 6.5 pour la plaine (2.16 Mpx2) — les zones de milieu et fin de
+	# progression etaient donc les plus vides. Meme approche que TREE_DENSITY.
+	var data = root.get_node("/root/Data")
+	var per_zone = {}
+	for zid in data.ZONES.keys(): per_zone[zid] = 0
+	# On compte les points de spawn (enemy_spawns), pas les ennemis vivants :
+	# les hordes d'invasion en ajoutent sans passer par la population de base.
+	for sd in inst.enemy_spawns:
+		if sd.get("is_boss", false): continue # le boss est unique, hors densite
+		var z = data.zone_at(sd.x, sd.y)
+		if per_zone.has(z.id): per_zone[z.id] += 1
+
+	var densities = []
+	var lines = []
+	for zid in per_zone.keys():
+		if zid == "village": continue # zone sure, aucun ennemi
+		var z = data.ZONES[zid]
+		var area_m = ((z.x1 - z.x0) * (z.y1 - z.y0)) / 1000000.0
+		var d = per_zone[zid] / area_m
+		densities.append(d)
+		lines.append("%s=%d (%.1f/Mpx2)" % [zid, per_zone[zid], d])
+
+	var lo = densities.min()
+	var hi = densities.max()
+	# Ecart max/min : 1.30 avec le bug (6.5 vs 5.0), ~1.06 une fois
+	# proportionnel (l'arrondi entier empeche d'atteindre exactement 1.0).
+	var spread = hi / lo if lo > 0.0 else 999.0
+	var density_even = spread <= 1.15
+	var all_zones_populated = lo >= 4.0
+
+	var all_ok = density_even and all_zones_populated
+	print("TEST_RESULT all_ok=%s density_even=%s (ecart=%.2f, attendu <= 1.15) all_zones_populated=%s (min=%.1f/Mpx2) detail=%s"
+		% [all_ok, density_even, spread, all_zones_populated, lo, lines])
 
 func _run_save_slots_test() -> void:
 	print("TEST_START:save_slots")

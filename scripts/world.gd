@@ -155,6 +155,10 @@ const TREE_DENSITY := {
 	"marais": 34.0,  # arbres humides et bosquets
 }
 const WILDS_TREE_DENSITY := 12.0 # coins non revendiqués entre les bras de la croix
+## Ennemis pour 1M px². Valeur choisie pour laisser la population TOTALE
+## quasi inchangee (56 -> 58) : il s'agit de corriger la repartition inegale
+## introduite par la carte en croix, pas de rééquilibrer la difficulté.
+const ENEMY_DENSITY := 6.0
 const TUFT_DENSITY := 24.0       # touffes d'herbe pour 1M px², tout le monde confondu
 
 ## Teinte du sol par zone : la forêt réutilise la texture de terre du marais,
@@ -1091,7 +1095,15 @@ func build_enemy_spawns() -> void:
 	for zone_id in by_zone.keys():
 		var z = Data.ZONES[zone_id]
 		var types = by_zone[zone_id].filter(func(t): return not Data.MONSTER_TYPES[t].get("boss", false))
-		for i in range(14):
+		# Proportionnel a la surface, comme TREE_DENSITY. Un nombre FIXE (14)
+		# par zone donnait une densite tres inegale depuis que les bras de la
+		# croix n'ont plus tous la meme taille : foret et marais (1400x2000 =
+		# 2.80 Mpx2) tombaient a 5.0 ennemis/Mpx2 contre 6.5 pour la plaine
+		# (1800x1200 = 2.16), soit ~23% plus vides — alors que ce sont
+		# justement les zones de milieu et de fin de progression.
+		var area_m = ((z.x1 - z.x0) * (z.y1 - z.y0)) / 1000000.0
+		var count = maxi(1, int(area_m * ENEMY_DENSITY))
+		for i in range(count):
 			var x = randi_range(int(z.x0) + 80, int(z.x1) - 80)
 			var y = randi_range(int(z.y0) + 120, int(z.y1) - 60)
 			var tid = types[i % types.size()]

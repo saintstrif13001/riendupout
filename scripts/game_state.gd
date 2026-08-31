@@ -115,6 +115,34 @@ func pending_talent(cd: Dictionary) -> Dictionary:
 			return tier
 	return {}
 
+## ---------------- Quetes ----------------
+## Les quetes "deliver" ne progressent PAS via quests_active : rien
+## n'incremente ce compteur pour ce type, leur avancement suit l'INVENTAIRE.
+## Trois endroits calculaient cela separement (dialogue PNJ, icone au-dessus
+## du PNJ, suivi de quetes du HUD) et le troisieme avait diverge : le suivi
+## affichait "0/1" en permanence pour les deux quetes de livraison, meme en
+## ayant l'objet en main et avec l'icone "a rendre" affichee sur le PNJ.
+## Centralise ici pour qu'un quatrieme endroit ne puisse pas re-diverger.
+func quest_progress(cd: Dictionary, qid: String) -> int:
+	var q = Data.get_quest(qid)
+	if q.is_empty(): return 0
+	if q.obj.type == "deliver":
+		return mini(q.obj.count, cd.inventory.get(q.obj.item, 0))
+	return cd.quests_active.get(qid, 0)
+
+func quest_is_ready(cd: Dictionary, qid: String) -> bool:
+	var q = Data.get_quest(qid)
+	if q.is_empty(): return false
+	return quest_progress(cd, qid) >= q.obj.count
+
+## PNJ aupres de qui rendre la quete : les "deliver" se rendent a obj.target,
+## pas au donneur (ex: q_relique est donnee par le pretre mais se rend a
+## l'Ancien).
+func quest_turnin_npc(qid: String) -> String:
+	var q = Data.get_quest(qid)
+	if q.is_empty(): return ""
+	return q.obj.target if q.obj.type == "deliver" else q.giver
+
 ## ---------------- Sac / capacite ----------------
 ## Centralise ici plutot que disperse sur les 7 endroits qui ajoutaient
 ## directement dans cd.inventory : c'est exactement le genre de constante

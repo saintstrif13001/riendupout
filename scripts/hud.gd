@@ -731,7 +731,10 @@ func _render_quests() -> void:
 	for qid in cd.quests_active.keys():
 		var q = Data.get_quest(qid)
 		if q.is_empty(): continue
-		var prog = cd.quests_active[qid]
+		# Passe par GameState : lire quests_active directement affichait "0/1"
+		# a vie pour les quetes de livraison, dont l'avancement suit
+		# l'inventaire et non ce compteur.
+		var prog = GameState.quest_progress(cd, qid)
 		var mark = "[OK] " if prog >= q.obj.count else "- "
 		lines.append(mark + q.name + "  " + str(prog) + "/" + str(q.obj.count))
 	quest_label.text = "\n".join(lines)
@@ -872,14 +875,10 @@ func render_npc_dialogue() -> void:
 		var q = Data.get_quest(qid)
 		if q.is_empty(): continue
 		# Les quêtes "deliver" se rendent au PNJ cible (obj.target), pas forcément
-		# au donneur (ex: q_relique est donnée par le prêtre mais se rend à
-		# l'Ancien) ; leur progression suit l'inventaire, pas un compteur d'events
-		# (rien n'incrémente quests_active[qid] pour ce type, donc l'ancienne
-		# condition >= count restait bloquée à 0 pour toujours).
-		var turnin_npc = q.obj.target if q.obj.type == "deliver" else q.giver
-		if turnin_npc != npc.id: continue
-		var ready = cd.inventory.get(q.obj.item, 0) >= q.obj.count if q.obj.type == "deliver" else cd.quests_active[qid] >= q.obj.count
-		if ready: to_turnin.append(qid)
+		# au donneur, et leur progression suit l'inventaire — voir GameState,
+		# qui centralise ce calcul pour les trois endroits qui en dependent.
+		if GameState.quest_turnin_npc(qid) != npc.id: continue
+		if GameState.quest_is_ready(cd, qid): to_turnin.append(qid)
 	var available = []
 	for q in Data.QUESTS:
 		if q.giver != npc.id: continue

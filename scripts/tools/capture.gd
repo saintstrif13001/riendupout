@@ -218,6 +218,10 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_enemy_telegraph":
+			_run_enemy_telegraph_test()
+		elif test_mode == "test_quest_tracker":
+			_run_quest_tracker_test()
 		elif test_mode == "test_enemy_density":
 			_run_enemy_density_test()
 		elif test_mode == "test_save_slots":
@@ -2293,6 +2297,99 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_enemy_telegraph_test() -> void:
+	print("TEST_START:enemy_telegraph")
+	# Retour du joueur : "le jeu est vraiment pas ouf". Le coeur du probleme
+	# etait le combat : les attaques ennemies etaient INSTANTANEES (degats
+	# appliques des l'expiration du minuteur, l'animation jouant au meme
+	# instant), donc impossibles a esquiver. Le placement ne servait a rien et
+	# un combat se resumait a comparer des statistiques. L'ennemi s'arme
+	# desormais visiblement puis frappe, et RATE si la cible a recule.
+	var inst_w = inst
+	var e = inst_w.spawn_enemy({"x": inst_w.player.global_position.x + 30, "y": inst_w.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	inst_w.player.hp = inst_w.player.stats.max_hp
+	inst_w.player.invuln_until = 0.0
+	e.last_attack = 0.0
+	e.windup_until = 0.0
+
+	# 1) l'IA doit ARMER l'attaque, pas infliger de degats immediatement
+	var hp_before = inst_w.player.hp
+	inst_w.update_enemies(0.016)
+	var winds_up = e.windup_until > 0.0
+	var no_instant_damage = inst_w.player.hp == hp_before
+
+	# 2) rester a portee => le coup porte a la fin de l'armement
+	e.windup_until = Time.get_ticks_msec() / 1000.0 - 0.01 # arme, echu
+	inst_w._resolve_enemy_strike(e, inst_w.player)
+	var hits_when_in_range = inst_w.player.hp < hp_before
+
+	# 3) reculer pendant l'armement => l'attaque RATE (c'est toute la fenetre
+	# d'esquive : sans ce test, la telegraphie serait purement cosmetique)
+	inst_w.player.hp = inst_w.player.stats.max_hp
+	inst_w.player.invuln_until = 0.0
+	var hp_before_dodge = inst_w.player.hp
+	e.global_position = inst_w.player.global_position + Vector2(inst_w.ENEMY_STRIKE_RANGE + 25.0, 0)
+	inst_w._resolve_enemy_strike(e, inst_w.player)
+	var misses_when_out_of_range = inst_w.player.hp == hp_before_dodge
+
+	# 4) l'ennemi ne poursuit pas pendant l'armement, sinon l'esquive serait
+	# impossible : il doit rester immobile
+	e.global_position = inst_w.player.global_position + Vector2(28, 0)
+	e.windup_until = Time.get_ticks_msec() / 1000.0 + 10.0 # armement long
+	e.velocity = Vector2(999, 999)
+	inst_w.update_enemies(0.016)
+	var frozen_while_winding = e.velocity == Vector2.ZERO
+
+	# 5) la fenetre doit etre reellement esquivable : a la vitesse de base du
+	# joueur, le recul possible pendant l'armement doit depasser la portee.
+	var reach = inst_w.player.stats.spd * inst_w.ENEMY_WINDUP
+	var window_is_dodgeable = reach > inst_w.ENEMY_STRIKE_RANGE
+
+	var all_ok = winds_up and no_instant_damage and hits_when_in_range and misses_when_out_of_range and frozen_while_winding and window_is_dodgeable
+	print("TEST_RESULT all_ok=%s winds_up=%s no_instant_damage=%s hits_when_in_range=%s misses_when_out_of_range=%s frozen_while_winding=%s window_is_dodgeable=%s (recul=%.0fpx pour portee=%.0fpx)"
+		% [all_ok, winds_up, no_instant_damage, hits_when_in_range, misses_when_out_of_range, frozen_while_winding, window_is_dodgeable, reach, inst_w.ENEMY_STRIKE_RANGE])
+
+func _run_quest_tracker_test() -> void:
+	print("TEST_START:quest_tracker")
+	# Le suivi de quetes du HUD lisait quests_active[qid] pour TOUS les types.
+	# Or rien n'incremente ce compteur pour les quetes "deliver" (leur
+	# avancement suit l'inventaire) : les deux quetes de livraison du jeu
+	# (q_relique 500 XP, q_marais_final 600 XP) affichaient donc "0/1" a vie,
+	# meme objet en main et meme avec l'icone "a rendre" sur le PNJ.
+	var gs = root.get_node("/root/GameState")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	cd.quests_active = {}
+	cd.quests_completed = []
+	cd.inventory = {}
+
+	cd.quests_active["q_relique"] = 0 # deliver : relique_ossements -> ancien
+	hud._render_quests()
+	var shows_zero_without_item = "0/1" in hud.quest_label.text
+	var not_ready_without_item = not gs.quest_is_ready(cd, "q_relique")
+
+	cd.inventory["relique_ossements"] = 1
+	hud._render_quests()
+	var shows_one_with_item = "1/1" in hud.quest_label.text
+	var marked_ok = "[OK]" in hud.quest_label.text
+	var ready_with_item = gs.quest_is_ready(cd, "q_relique")
+
+	# Le suivi doit concorder avec l'icone au-dessus du PNJ et avec le dialogue
+	# — c'est precisement leur divergence qui constituait le bug.
+	var icon_agrees = inst.npc_quest_icon_state("ancien") == "turnin"
+
+	# Une quete "kill" normale continue de suivre son compteur d'evenements
+	cd.quests_active = {"q_slime1": 0}
+	cd.inventory = {}
+	hud._render_quests()
+	var kill_quest_zero = "0/" in hud.quest_label.text
+	cd.quests_active["q_slime1"] = 99
+	var kill_quest_uses_counter = gs.quest_progress(cd, "q_slime1") == 99
+
+	var all_ok = shows_zero_without_item and not_ready_without_item and shows_one_with_item and marked_ok and ready_with_item and icon_agrees and kill_quest_zero and kill_quest_uses_counter
+	print("TEST_RESULT all_ok=%s shows_zero_without_item=%s not_ready_without_item=%s shows_one_with_item=%s marked_ok=%s ready_with_item=%s icon_agrees=%s kill_quest_zero=%s kill_quest_uses_counter=%s"
+		% [all_ok, shows_zero_without_item, not_ready_without_item, shows_one_with_item, marked_ok, ready_with_item, icon_agrees, kill_quest_zero, kill_quest_uses_counter])
 
 func _run_enemy_density_test() -> void:
 	print("TEST_START:enemy_density")

@@ -23,6 +23,13 @@ var slow_until: float = 0.0
 var slow_factor: float = 1.0
 var dir: String = "down"
 var last_attack: float = 0.0
+## Timestamp de resolution d'une attaque en cours d'armement (0 = aucune).
+## Les attaques ennemies etaient INSTANTANEES : des que le minuteur expirait
+## et qu'on etait a portee, les degats tombaient, sans aucune fenetre pour
+## reagir. Le combat se resumait donc a un echange de statistiques ou le
+## placement ne servait a rien. L'ennemi s'arme desormais visiblement, puis
+## frappe — et rate si la cible est sortie de portee entre-temps.
+var windup_until: float = 0.0
 var last_seen_atk_t: float = 0.0 # côté client réseau : détecte une nouvelle attaque via net_enemy_snapshot
 var spawn_pos: Vector2
 var triggered_phases: Dictionary = {}

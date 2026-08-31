@@ -159,6 +159,17 @@ const WILDS_TREE_DENSITY := 12.0 # coins non revendiqués entre les bras de la c
 ## quasi inchangee (56 -> 58) : il s'agit de corriger la repartition inegale
 ## introduite par la carte en croix, pas de rééquilibrer la difficulté.
 const ENEMY_DENSITY := 6.0
+
+## Combat : les attaques ennemies etaient instantanees et donc inevitables.
+## L'ennemi s'arme maintenant pendant ENEMY_WINDUP (fenetre d'esquive), reste
+## immobile pendant ce temps, puis ne touche que si la cible est encore dans
+## ENEMY_STRIKE_RANGE. Il approche jusqu'a 34px : la portee de frappe est un
+## peu plus large, donc il faut vraiment reculer, pas juste bouger d'un pixel.
+## A 150-195 px/s, 0.45s laissent 67-88px de recul : l'esquive est faisable
+## mais demande de reagir.
+const ENEMY_WINDUP := 0.45
+const ENEMY_STRIKE_RANGE := 48.0
+const ENEMY_ATTACK_COOLDOWN := 1.0
 const TUFT_DENSITY := 24.0       # touffes d'herbe pour 1M px², tout le monde confondu
 
 ## Teinte du sol par zone : la forêt réutilise la texture de terre du marais,
@@ -1533,18 +1544,11 @@ func net_apply_heal(amount: float) -> void:
 
 @rpc("authority", "reliable")
 func net_enemy_attack(dmg: float) -> void:
-	# L'hote a decide qu'un ennemi nous attaque (IA cote hote uniquement) ; la
-	# mitigation reelle (def, bouclier, invulnerabilite) s'applique ici avec
-	# NOS propres stats, exactement comme pour un coup subi localement.
-	var applied = player.take_damage(dmg)
-	if applied > 0:
-		float_text(player.global_position + Vector2(0,-20), "-%d" % int(round(applied)), Color(1,0.4,0.4))
-	emit_signal("hud_update", make_hud_data())
-	if player.dead:
-		float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
-		Audio.play("death")
-		on_player_died()
-		if hud: hud.fade_out(0.5)
+	# L'hote a decide qu'un ennemi nous touche (IA cote hote uniquement, et il
+	# a deja verifie la portee a la fin de l'armement) ; la mitigation reelle
+	# (def, bouclier, invulnerabilite) s'applique ici avec NOS propres stats,
+	# exactement comme pour un coup subi localement — d'ou le helper commun.
+	apply_enemy_hit_to_local(dmg)
 
 @rpc("any_peer", "reliable")
 func net_apply_buff(b: Dictionary) -> void:
@@ -1773,44 +1777,95 @@ func update_enemies(delta: float) -> void:
 			var d = e.global_position.distance_to(rp.global_position)
 			if d < best_d: best_d = d; target = rp
 		var aggro_range = 260.0 if e.mdef.get("boss", false) else 150.0
+		var now_t = Time.get_ticks_msec() / 1000.0
+		# Une attaque armee se resout meme si la cible s'est eloignee : c'est
+		# exactement ce qui permet de l'esquiver en reculant. Resolu AVANT les
+		# branches de portee, sinon fuir laisserait l'armement en suspens et
+		# l'attaque tomberait des le retour du joueur.
+		if e.windup_until > 0.0 and now_t >= e.windup_until:
+			e.windup_until = 0.0
+			_resolve_enemy_strike(e, target)
+		var winding_up = e.windup_until > 0.0
 		if best_d < aggro_range and not target.dead:
 			var diff = target.global_position - e.global_position
-			if best_d > 34:
+			if winding_up:
+				# Engage dans son attaque : il ne poursuit pas pendant
+				# l'armement, sans quoi l'esquive serait impossible.
+				e.velocity = Vector2.ZERO
+				e.set_anim(e.dir, false)
+			elif best_d > 34:
 				var v = diff.normalized() * e.effective_speed()
 				e.velocity = v
 				e.move_and_slide()
 				e.set_anim("right" if diff.x>0 else "left" if abs(diff.x)>abs(diff.y) else ("down" if diff.y>0 else "up"), v != Vector2.ZERO)
 			else:
 				e.velocity = Vector2.ZERO
-				var now = Time.get_ticks_msec()/1000.0
-				if now > e.last_attack + 1.0:
-					e.last_attack = now
+				if now_t > e.last_attack + ENEMY_ATTACK_COOLDOWN:
+					# Arme l'attaque au lieu de frapper immediatement : les degats
+					# seront resolus apres ENEMY_WINDUP, et seulement si la cible
+					# est encore a portee (voir _resolve_enemy_strike).
+					e.last_attack = now_t
+					e.windup_until = now_t + ENEMY_WINDUP
 					e.play_attack_anim()
-					if target == player:
-						var applied = player.take_damage(e.atk)
-						if applied > 0:
-							float_text(player.global_position + Vector2(0,-20), "-%d" % int(round(applied)), Color(1,0.4,0.4))
-						emit_signal("hud_update", make_hud_data())
-						if player.dead:
-							float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
-							Audio.play("death")
-							on_player_died()
-							if hud: hud.fade_out(0.5)
-					elif Net.is_online:
-						# BUG CRITIQUE trouvé en auditant le combat cote client : l'IA des
-						# ennemis (update_enemies, cote hote uniquement) ne faisait
-						# JAMAIS rien quand la cible la plus proche était un allié
-						# distant plutot que le joueur hote lui-meme — aucun degat,
-						# aucun RPC, rien. En pratique, seul l'hote pouvait etre
-						# blesse par les monstres ; les autres joueurs du groupe
-						# etaient invulnerables aux monstres, meme ciblés et "frappés".
-						# La mitigation depend des stats propres a chaque joueur, donc
-						# c'est au pair concerné d'appliquer les degats chez lui.
-						rpc_id(target.peer_id, "net_enemy_attack", e.atk)
+					spawn_telegraph_fx(e)
 		else:
 			e.velocity = Vector2.ZERO
 			e.set_anim(e.dir, false)
 		e.update_visuals()
+
+## Resout une attaque ennemie armee. Le coup ne porte QUE si la cible est
+## encore a portee : reculer pendant l'armement fait rater l'attaque, ce qui
+## donne enfin un interet au placement.
+func _resolve_enemy_strike(e: Enemy, target: Player) -> void:
+	if e.dead: return
+	if target == null or not is_instance_valid(target) or target.dead: return
+	if e.global_position.distance_to(target.global_position) > ENEMY_STRIKE_RANGE:
+		float_text(e.global_position + Vector2(0, -30), "Esquive !", Color(0.65, 0.9, 1))
+		Audio.play("ui_click", -14.0, 0.2)
+		return
+	if target == player:
+		apply_enemy_hit_to_local(e.atk)
+	elif Net.is_online:
+		# BUG CRITIQUE trouvé en auditant le combat cote client : l'IA des
+		# ennemis (update_enemies, cote hote uniquement) ne faisait JAMAIS rien
+		# quand la cible la plus proche était un allié distant plutot que le
+		# joueur hote lui-meme — aucun degat, aucun RPC, rien. En pratique,
+		# seul l'hote pouvait etre blesse par les monstres. La mitigation
+		# depend des stats propres a chaque joueur, donc c'est au pair
+		# concerné d'appliquer les degats chez lui.
+		rpc_id(target.peer_id, "net_enemy_attack", e.atk)
+
+## Encaissement d'un coup ennemi par le joueur LOCAL, du degat a la mort.
+## Regroupe ici parce que la sequence (degats + texte + HUD + mort + fondu)
+## etait dupliquee entre l'IA locale et la reception RPC : une troisieme
+## source de degats aurait du re-deviner les quatre etapes.
+func apply_enemy_hit_to_local(dmg: float) -> void:
+	var applied = player.take_damage(dmg)
+	if applied > 0:
+		float_text(player.global_position + Vector2(0,-20), "-%d" % int(round(applied)), Color(1,0.4,0.4))
+	emit_signal("hud_update", make_hud_data())
+	if player.dead:
+		float_text(player.global_position + Vector2(0,-40), "K.O.", Color(1,0.13,0.13))
+		Audio.play("death")
+		on_player_died()
+		if hud: hud.fade_out(0.5)
+
+## Cercle qui se resserre sur l'ennemi pendant l'armement : montre A LA FOIS
+## la zone dangereuse et le temps restant avant l'impact.
+func spawn_telegraph_fx(e: Enemy) -> void:
+	var ring = Node2D.new()
+	ring.position = e.global_position
+	ring.z_index = 61
+	add_child(ring)
+	var line = Line2D.new()
+	line.width = 2.5
+	line.default_color = Color(1, 0.45, 0.2, 0.95)
+	line.points = _ring_points(ENEMY_STRIKE_RANGE)
+	ring.add_child(line)
+	var tw = create_tween()
+	tw.tween_method(func(r): line.points = _ring_points(r), ENEMY_STRIKE_RANGE, 8.0, ENEMY_WINDUP)
+	tw.parallel().tween_property(line, "default_color:a", 0.3, ENEMY_WINDUP)
+	tw.tween_callback(ring.queue_free)
 
 var bloodstain_node: Node2D = null
 
@@ -1987,10 +2042,8 @@ func npc_quest_icon_state(npc_id: String) -> String:
 	for qid in char_data.quests_active.keys():
 		var q = Data.get_quest(qid)
 		if q.is_empty(): continue
-		var turnin_npc = q.obj.target if q.obj.type == "deliver" else q.giver
-		if turnin_npc != npc_id: continue
-		var ready = char_data.inventory.get(q.obj.item, 0) >= q.obj.count if q.obj.type == "deliver" else char_data.quests_active[qid] >= q.obj.count
-		if ready: return "turnin"
+		if GameState.quest_turnin_npc(qid) != npc_id: continue
+		if GameState.quest_is_ready(char_data, qid): return "turnin"
 	for q in Data.QUESTS:
 		if q.giver != npc_id: continue
 		if char_data.quests_active.has(q.id) or char_data.quests_completed.has(q.id): continue

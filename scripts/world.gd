@@ -1777,10 +1777,11 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 		for drop in e.mdef.get("loot", []):
 			if randf() < drop.chance:
 				if GameState.add_item(p.char_data, drop.id, 1) > 0:
-					float_text(p.global_position + Vector2(0,-20), "+1 " + Data.ITEMS[drop.id].name, Color(0.75,1,0.75))
+					float_text(p.global_position + Vector2(0,-20), "+1 " + Data.idef(drop.id).name, Color(0.75,1,0.75))
 					register_drop_for_quests(drop.id)
 				elif p == player:
-					float_text(p.global_position + Vector2(0,-20), "Sac plein ! (%s perdu)" % Data.ITEMS[drop.id].name, Color(1,0.5,0.35))
+					float_text(p.global_position + Vector2(0,-20), "Sac plein ! (%s perdu)" % Data.idef(drop.id).name, Color(1,0.5,0.35))
+		_roll_gear_drop(p, e)
 	update_quest_progress("kill", e.type_id)
 	if e.mdef.get("boss", false): update_quest_progress("boss", e.type_id)
 	if p.char_data.bounty != null and p.char_data.bounty.target == e.type_id and p == player:
@@ -1861,6 +1862,26 @@ func update_enemies(delta: float) -> void:
 			e.velocity = Vector2.ZERO
 			e.set_anim(e.dir, false)
 		e.update_visuals()
+
+## Tire un eventuel equipement sur la mort d'un ennemi. Avant, AUCUNE arme ni
+## armure ne pouvait tomber de tout le jeu : le butin n'etait fait que de
+## materiaux et d'objets de quete, donc tuer un boss ne rapportait jamais de
+## piece a equiper. Les boss en laissent toujours une, avec plus de chance
+## d'obtenir une rarete elevee.
+func _roll_gear_drop(p: Player, e: Enemy) -> void:
+	var zone_id = e.mdef.get("zone", "")
+	var pool = Data.GEAR_DROPS.get(zone_id, [])
+	if pool.is_empty(): return
+	var is_boss = e.mdef.get("boss", false)
+	if not is_boss and randf() > Data.GEAR_DROP_CHANCE: return
+	var base_id = pool[randi() % pool.size()]
+	var key = Data.item_key(base_id, Data.roll_rarity(Data.BOSS_GEAR_LUCK if is_boss else 0.0))
+	if GameState.add_item(p.char_data, key, 1) > 0:
+		if p == player:
+			float_text(p.global_position + Vector2(0, -40), "✦ " + Data.item_display_name(key), Data.item_color(key))
+			Audio.play("gold_pickup", -4.0)
+	elif p == player:
+		float_text(p.global_position + Vector2(0, -40), "Sac plein ! (%s perdu)" % Data.item_display_name(key), Color(1, 0.5, 0.35))
 
 ## Resout une attaque ennemie armee. Le coup ne porte QUE si la cible est
 ## encore a portee : reculer pendant l'armement fait rater l'attaque, ce qui
@@ -2061,7 +2082,7 @@ func try_interact() -> void:
 		g.depleted = true
 		g.respawn_at = Time.get_ticks_msec()/1000.0 + 15.0
 		g.label.modulate.a = 0.25
-		float_text(Vector2(g.node.x, g.node.y - 20), "+1 " + Data.ITEMS[mat].name, Color(0.75,1,0.75))
+		float_text(Vector2(g.node.x, g.node.y - 20), "+1 " + Data.idef(mat).name, Color(0.75,1,0.75))
 		char_data.gather_counts[mat] = char_data.gather_counts.get(mat, 0) + 1
 		update_quest_progress("gather", mat)
 		Audio.play("item_pickup", 0.0, 0.08)

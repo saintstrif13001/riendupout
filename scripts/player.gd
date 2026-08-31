@@ -107,12 +107,12 @@ func _update_equip_icons() -> void:
 	var w = char_data.equipment.get("weapon", "")
 	var a = char_data.equipment.get("armor", "")
 	if w != "" and w != null:
-		equip_icon_weapon.texture = load(Data.ICON_PATH + Data.ITEMS[w].icon)
+		equip_icon_weapon.texture = load(Data.ICON_PATH + Data.idef(w).icon)
 		equip_icon_weapon.visible = true
 	else:
 		equip_icon_weapon.visible = false
 	if a != "" and a != null:
-		equip_icon_armor.texture = load(Data.ICON_PATH + Data.ITEMS[a].icon)
+		equip_icon_armor.texture = load(Data.ICON_PATH + Data.idef(a).icon)
 		equip_icon_armor.visible = true
 	else:
 		equip_icon_armor.visible = false

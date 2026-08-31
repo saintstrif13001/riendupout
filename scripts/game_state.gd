@@ -154,8 +154,8 @@ func inventory_load(cd: Dictionary) -> int:
 	for id in cd.inventory.keys():
 		var qty = cd.inventory[id]
 		if qty <= 0: continue
-		if not Data.ITEMS.has(id): continue
-		if Data.ITEMS[id].type == "quest": continue
+		if Data.idef(id).is_empty(): continue # idef gere les cles suffixees par la rarete
+		if Data.idef(id).type == "quest": continue
 		total += qty
 	return total
 
@@ -169,7 +169,7 @@ func inventory_is_full(cd: Dictionary) -> bool:
 ## ajoutes (0 si le sac est plein). Les objets de quete passent toujours.
 func add_item(cd: Dictionary, id: String, count: int = 1) -> int:
 	if count <= 0: return 0
-	var is_quest = Data.ITEMS.has(id) and Data.ITEMS[id].type == "quest"
+	var is_quest = not Data.idef(id).is_empty() and Data.idef(id).type == "quest"
 	var added = count if is_quest else mini(count, inventory_space_left(cd))
 	if added <= 0: return 0
 	cd.inventory[id] = cd.inventory.get(id, 0) + added
@@ -187,8 +187,10 @@ func compute_stats(cd: Dictionary) -> Dictionary:
 	for slot in cd.equipment.keys():
 		var item_id = cd.equipment[slot]
 		if item_id == "" or item_id == null: continue
-		var it = Data.ITEMS.get(item_id, {})
-		var bonus = it.get("bonus", {})
+		# item_bonus applique le multiplicateur de rarete : une "Épée de Fer
+		# (Épique)" vaut reellement plus qu'une commune, et gere aussi les
+		# cles sans suffixe (rarete commune, multiplicateur 1.0).
+		var bonus = Data.item_bonus(item_id)
 		hp += bonus.get("hp", 0); mana += bonus.get("mana", 0)
 		atk += bonus.get("atk", 0); def += bonus.get("def", 0); spd += bonus.get("spd", 0)
 	# talents (bonus en %, appliqués après l'équipement)

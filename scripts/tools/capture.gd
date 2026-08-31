@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_gear_drops":
+			_run_gear_drops_test()
 		elif test_mode == "test_enemy_behaviors":
 			_run_enemy_behaviors_test()
 		elif test_mode == "test_enemy_telegraph":
@@ -2299,6 +2301,79 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_gear_drops_test() -> void:
+	print("TEST_START:gear_drops")
+	# Retour du joueur : "le jeu est vraiment pas ouf". En listant les tables de
+	# butin : AUCUNE arme ni armure ne pouvait tomber de tout le jeu — que des
+	# materiaux et des objets de quete. Tuer le boss le plus coriace rapportait
+	# un croc et un totem. Le combat ne produisait donc jamais d'equipement.
+	var data = root.get_node("/root/Data")
+	var gs = root.get_node("/root/GameState")
+	var cd = inst.char_data
+
+	# La rarete est encodee dans la cle : l'inventaire et les emplacements
+	# d'equipement restent de simples chaines (sauvegardes inchangees).
+	var k = data.item_key("epee_fer", "epique")
+	var round_trips = data.base_of(k) == "epee_fer" and data.rarity_of(k) == "epique"
+	var plain_is_common = data.rarity_of("epee_fer") == "commun" and data.base_of("epee_fer") == "epee_fer"
+	# idef doit resoudre les deux formes, sinon tout le code d'affichage plante
+	var idef_handles_both = data.idef(k).name == data.idef("epee_fer").name and not data.idef(k).is_empty()
+	var name_shows_rarity = "Épique" in data.item_display_name(k) and data.item_display_name("epee_fer") == data.idef("epee_fer").name
+
+	# Une piece rare doit valoir REELLEMENT plus, pas seulement s'appeler autrement
+	var base_atk = data.item_bonus("epee_fer").get("atk", 0)
+	var epic_atk = data.item_bonus(k).get("atk", 0)
+	var rarity_scales_stats = epic_atk > base_atk
+
+	# ... y compris a travers compute_stats (le vrai chemin du jeu)
+	cd.equipment = {"weapon": "epee_fer", "armor": ""}
+	var atk_common = gs.compute_stats(cd).atk
+	cd.equipment = {"weapon": k, "armor": ""}
+	var atk_epic = gs.compute_stats(cd).atk
+	var stats_reflect_rarity = atk_epic > atk_common
+
+	# ... et a la revente
+	var hud = inst.get_node("Hud")
+	var sell_scales = hud.sell_value(k) > hud.sell_value("epee_fer")
+
+	# Chaque zone dangereuse doit avoir un vivier d'equipement, et ces pieces
+	# doivent exister et ne pas etre des objets de faction (reserves a la
+	# reputation, pas au hasard).
+	var pools_valid = true
+	var zones_covered = 0
+	for zid in ["plaine", "foret", "caverne", "marais"]:
+		var pool = data.GEAR_DROPS.get(zid, [])
+		if pool.is_empty(): pools_valid = false
+		else: zones_covered += 1
+		for bid in pool:
+			var d = data.ITEMS.get(bid, {})
+			if d.is_empty() or not (d.type == "weapon" or d.type == "armor"): pools_valid = false
+			if d.has("rep_req"): pools_valid = false
+
+	# Un boss doit TOUJOURS laisser une piece (c'est tout l'interet)
+	cd.inventory = {}
+	var boss = inst.spawn_enemy({"x": inst.player.global_position.x, "y": inst.player.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	inst._roll_gear_drop(inst.player, boss)
+	var boss_gear = 0
+	for key in cd.inventory.keys():
+		var d2 = data.idef(key)
+		if not d2.is_empty() and (d2.type == "weapon" or d2.type == "armor"): boss_gear += 1
+	var boss_always_drops = boss_gear >= 1
+
+	# ... et sur de nombreux kills de trash, il doit finir par en tomber
+	cd.inventory = {}
+	var slime = inst.spawn_enemy({"x": inst.player.global_position.x, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	for i in range(400): inst._roll_gear_drop(inst.player, slime)
+	var trash_gear = 0
+	for key in cd.inventory.keys():
+		var d3 = data.idef(key)
+		if not d3.is_empty() and (d3.type == "weapon" or d3.type == "armor"): trash_gear += cd.inventory[key]
+	var trash_drops_sometimes = trash_gear > 0
+
+	var all_ok = round_trips and plain_is_common and idef_handles_both and name_shows_rarity and rarity_scales_stats and stats_reflect_rarity and sell_scales and pools_valid and zones_covered == 4 and boss_always_drops and trash_drops_sometimes
+	print("TEST_RESULT all_ok=%s cle(aller_retour=%s simple_commune=%s idef_gere_les_deux=%s nom_affiche_rarete=%s) valeur(stats=%s via_compute_stats=%s revente=%s) viviers(valides=%s zones=%d) drops(boss_garanti=%s trash_parfois=%s sur400=%d)"
+		% [all_ok, round_trips, plain_is_common, idef_handles_both, name_shows_rarity, rarity_scales_stats, stats_reflect_rarity, sell_scales, pools_valid, zones_covered, boss_always_drops, trash_drops_sometimes, trash_gear])
 
 func _run_enemy_behaviors_test() -> void:
 	print("TEST_START:enemy_behaviors")

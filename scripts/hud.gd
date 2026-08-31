@@ -576,7 +576,7 @@ func render_stats() -> void:
 		var item_id = cd.equipment.get(slot, "")
 		if item_id == "" or item_id == null: continue
 		any_equipped = true
-		_add_item_row(stats_box, item_id, Data.ITEMS[item_id].name, null)
+		_add_item_row(stats_box, item_id, Data.item_display_name(item_id), null)
 	if not any_equipped:
 		var none_lbl = Label.new()
 		none_lbl.text = "Aucun objet équipé — les bonus d'attaque/défense ci-dessus sont les valeurs de base."
@@ -770,7 +770,7 @@ func _wrap_card(box, content: Control) -> PanelContainer:
 
 func _icon_tex(item_id: String) -> TextureRect:
 	var t = TextureRect.new()
-	t.texture = load(Data.ICON_PATH + Data.ITEMS[item_id].icon)
+	t.texture = load(Data.ICON_PATH + Data.idef(item_id).icon)
 	t.custom_minimum_size = Vector2(28, 28)
 	t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	t.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
@@ -949,12 +949,12 @@ func render_npc_dialogue() -> void:
 		stock_lbl.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
 		dialogue_box.add_child(stock_lbl)
 		for key in ["potion_vie", "potion_mana"]:
-			var it = Data.ITEMS[key]
+			var it = Data.idef(key)
 			var btn = _add_item_row(dialogue_box, key, "%s - %d or" % [it.name, eco.potion_price], func(): buy_item(key))
 			btn.disabled = eco.potion_stock <= 0
 		_add_title(dialogue_box, "Objets de faction", 14)
 		for key in ["cape_heros", "arc_rangers", "robe_cercle"]:
-			var it = Data.ITEMS[key]
+			var it = Data.idef(key)
 			var req = it.rep_req
 			var have_rep = cd.reputation.get(req.faction, 0)
 			var unlocked = have_rep >= req.min
@@ -966,12 +966,12 @@ func render_npc_dialogue() -> void:
 		# equipement obsolete) en or : l'inventaire ne pouvait que grossir.
 		var sellable = []
 		for id in cd.inventory.keys():
-			if cd.inventory[id] > 0 and Data.ITEMS[id].type != "quest": sellable.append(id)
+			if cd.inventory[id] > 0 and Data.idef(id).type != "quest": sellable.append(id)
 		if not sellable.is_empty():
 			_add_title(dialogue_box, "Vendre tes objets", 14)
 			for id in sellable:
 				var price = sell_value(id)
-				_add_item_row(dialogue_box, id, "%s x%d — %d or/unité" % [Data.ITEMS[id].name, cd.inventory[id], price], func(): sell_item(id))
+				_add_item_row(dialogue_box, id, "%s x%d — %d or/unité" % [Data.item_display_name(id), cd.inventory[id], price], func(): sell_item(id))
 
 	if npc.id == "forgeron_pnj":
 		var eco2 = world.village_economy
@@ -995,7 +995,7 @@ func render_npc_dialogue() -> void:
 				var cost_str = []
 				var has = true
 				for k in r.cost.keys():
-					cost_str.append(str(r.cost[k]) + " " + Data.ITEMS[k].name)
+					cost_str.append(str(r.cost[k]) + " " + Data.idef(k).name)
 					if cd.inventory.get(k, 0) < r.cost[k]: has = false
 				var label = "%s — Coût : %s" % [r.name, ", ".join(cost_str)]
 				var btn = _add_item_row(dialogue_box, r.result, label, func(): craft_recipe(r.id))
@@ -1100,14 +1100,16 @@ func turn_in_quest(qid: String) -> void:
 	world.refresh_quest_icons()
 
 func sell_value(item_id: String) -> int:
-	var it = Data.ITEMS[item_id]
+	var it = Data.idef(item_id)
 	if it.has("price"): return maxi(1, int(it.price * 0.4))
 	match it.type:
 		"mat": return 2
 		"consumable": return 8
 		"weapon", "armor":
+			# Bonus REELS (rarete comprise) : une piece epique doit se revendre
+			# nettement mieux qu'une commune du meme modele.
 			var total = 0
-			for v in it.get("bonus", {}).values(): total += absi(v)
+			for v in Data.item_bonus(item_id).values(): total += absi(v)
 			return maxi(3, int(total * 1.5))
 		_: return 0
 
@@ -1157,7 +1159,7 @@ func buy_forged_weapon() -> void:
 
 func buy_faction_item(key: String) -> void:
 	var cd = world.char_data
-	var it = Data.ITEMS[key]
+	var it = Data.idef(key)
 	var req = it.rep_req
 	if cd.reputation.get(req.faction, 0) < req.min: return
 	if cd.gold < it.price: return
@@ -1292,7 +1294,7 @@ func _render_inventory_results() -> void:
 			Color(1, 0.45, 0.35) if ratio >= 1.0 else (Color(1, 0.85, 0.4) if ratio >= 0.85 else Color(0.75, 0.8, 0.75)))
 
 	var filter = _normalize_search(inv_search_text)
-	var matches = func(id): return filter == "" or _normalize_search(Data.ITEMS[id].name).contains(filter)
+	var matches = func(id): return filter == "" or _normalize_search(Data.item_display_name(id)).contains(filter)
 
 	if filter == "":
 		_add_title(inventory_box, "Progression", 15)
@@ -1317,7 +1319,7 @@ func _render_inventory_results() -> void:
 			var parts = []
 			for mat in cd.gather_counts.keys():
 				if cd.gather_counts[mat] > 0:
-					parts.append("%d %s" % [cd.gather_counts[mat], Data.ITEMS[mat].name])
+					parts.append("%d %s" % [cd.gather_counts[mat], Data.idef(mat).name])
 			stats_lbl.text = ", ".join(parts) if not parts.is_empty() else "(rien récolté pour l'instant)"
 			stats_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD
 			inventory_box.add_child(stats_lbl)
@@ -1327,37 +1329,37 @@ func _render_inventory_results() -> void:
 			var item_id = cd.equipment.get(slot, "")
 			var slot_name = "Arme" if slot == "weapon" else "Armure"
 			if item_id != "":
-				_add_item_row(inventory_box, item_id, slot_name + ": " + Data.ITEMS[item_id].name, null)
+				_add_item_row(inventory_box, item_id, slot_name + ": " + Data.item_display_name(item_id), null)
 			else:
 				var lbl = Label.new(); lbl.text = slot_name + ": Aucun"; inventory_box.add_child(lbl)
 
 	var equipable = []
 	for id in cd.inventory.keys():
-		if cd.inventory[id] > 0 and (Data.ITEMS[id].type == "weapon" or Data.ITEMS[id].type == "armor") and matches.call(id):
+		if cd.inventory[id] > 0 and (Data.idef(id).type == "weapon" or Data.idef(id).type == "armor") and matches.call(id):
 			equipable.append(id)
 	if not equipable.is_empty():
 		_add_title(inventory_box, "A equiper", 15)
 		for id in equipable:
-			_add_item_row(inventory_box, id, Data.ITEMS[id].name, func(): equip_item(id))
+			_add_item_row(inventory_box, id, Data.item_display_name(id), func(): equip_item(id))
 
 	var consumables = []
 	for id in cd.inventory.keys():
-		if cd.inventory[id] > 0 and Data.ITEMS[id].type == "consumable" and matches.call(id):
+		if cd.inventory[id] > 0 and Data.idef(id).type == "consumable" and matches.call(id):
 			consumables.append(id)
 	if not consumables.is_empty():
 		_add_title(inventory_box, "Consommables", 15)
 		for id in consumables:
-			_add_item_row(inventory_box, id, "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]], func(): use_item(id))
+			_add_item_row(inventory_box, id, "%s x%d" % [Data.item_display_name(id), cd.inventory[id]], func(): use_item(id))
 
 	var mats = []
 	for id in cd.inventory.keys():
-		if cd.inventory[id] > 0 and (Data.ITEMS[id].type == "mat" or Data.ITEMS[id].type == "quest") and matches.call(id):
+		if cd.inventory[id] > 0 and (Data.idef(id).type == "mat" or Data.idef(id).type == "quest") and matches.call(id):
 			mats.append(id)
 	_add_title(inventory_box, "Materiaux", 15)
 	if mats.is_empty():
 		var l = Label.new(); l.text = "(vide)" if filter == "" else "(aucun résultat)"; inventory_box.add_child(l)
 	for id in mats:
-		_add_item_row(inventory_box, id, "%s x%d" % [Data.ITEMS[id].name, cd.inventory[id]], null)
+		_add_item_row(inventory_box, id, "%s x%d" % [Data.item_display_name(id), cd.inventory[id]], null)
 
 	if equipable.is_empty() and consumables.is_empty() and mats.is_empty() and filter != "":
 		var none = Label.new(); none.text = "Aucun objet ne correspond à \"%s\"." % filter
@@ -1368,7 +1370,7 @@ func _render_inventory_results() -> void:
 func equip_item(id: String) -> void:
 	if world.player.dead: return
 	var cd = world.char_data
-	var it = Data.ITEMS[id]
+	var it = Data.idef(id)
 	var slot = "weapon" if it.type == "weapon" else "armor"
 	cd.equipment[slot] = id
 	world.player.stats = GameState.compute_stats(cd)
@@ -1383,7 +1385,7 @@ func use_item(id: String) -> void:
 		return
 	var cd = world.char_data
 	if cd.inventory.get(id, 0) <= 0: return
-	var it = Data.ITEMS[id]
+	var it = Data.idef(id)
 	var now = Time.get_ticks_msec() / 1000.0
 	if it.has("use_cd"):
 		if now < world.player.cooldowns.get("item_" + id, 0.0):

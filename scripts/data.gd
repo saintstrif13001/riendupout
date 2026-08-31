@@ -125,6 +125,96 @@ const MONSTER_TYPES := {
 
 const ICON_PATH := "res://assets/icons/"
 
+## ---------------- Butin : raretes d'equipement ----------------
+## Les ennemis ne laissaient tomber QUE des materiaux et des objets de quete :
+## AUCUNE arme ni armure ne pouvait tomber de tout le jeu. Tuer le boss le plus
+## coriace rapportait un croc et un totem. Le combat ne produisait donc jamais
+## de recompense directe qui donne envie.
+## Une piece qui tombe est desormais tiree avec une RARETE qui multiplie ses
+## bonus. La rarete est encodee DANS la cle de l'objet ("epee_fer@rare") : ainsi
+## l'inventaire {cle: quantite}, les emplacements d'equipement et les
+## sauvegardes restent de simples chaines, et deux epees de raretes
+## differentes s'empilent separement — ce qui est le comportement voulu.
+const RARITY_SEP := "@"
+const RARITIES := {
+	"commun": {"name": "", "mult": 1.0, "weight": 58, "color": Color(0.86, 0.86, 0.86)},
+	"rare": {"name": "Rare", "mult": 1.4, "weight": 28, "color": Color(0.45, 0.72, 1.0)},
+	"epique": {"name": "Épique", "mult": 1.9, "weight": 11, "color": Color(0.76, 0.45, 0.96)},
+	"legendaire": {"name": "Légendaire", "mult": 2.6, "weight": 3, "color": Color(1.0, 0.66, 0.2)},
+}
+
+## Identifiant de base d'une cle, avec ou sans suffixe de rarete.
+func base_of(key: String) -> String:
+	var i = key.find(RARITY_SEP)
+	return key if i < 0 else key.substr(0, i)
+
+func rarity_of(key: String) -> String:
+	var i = key.find(RARITY_SEP)
+	if i < 0: return "commun"
+	var r = key.substr(i + 1)
+	return r if RARITIES.has(r) else "commun"
+
+func item_key(base_id: String, rarity: String) -> String:
+	return base_id if rarity == "commun" else base_id + RARITY_SEP + rarity
+
+## Definition de base d'un objet. TOUT le code passe par ici plutot que
+## d'indexer ITEMS directement, sinon une cle avec suffixe planterait.
+func idef(key: String) -> Dictionary:
+	return ITEMS.get(base_of(key), {})
+
+func item_display_name(key: String) -> String:
+	var d = idef(key)
+	var n = d.get("name", key)
+	var r = rarity_of(key)
+	return n if r == "commun" else "%s (%s)" % [n, RARITIES[r].name]
+
+func item_color(key: String) -> Color:
+	return RARITIES[rarity_of(key)].color
+
+## Bonus reels, mis a l'echelle par la rarete. Arrondi a l'entier le plus
+## proche pour rester lisible, et jamais en dessous de 1 quand le bonus de
+## base est positif (une piece rare ne doit pas paraitre pire).
+func item_bonus(key: String) -> Dictionary:
+	var base = idef(key).get("bonus", {})
+	var mult = RARITIES[rarity_of(key)].mult
+	if mult == 1.0: return base
+	var out = {}
+	for k in base.keys():
+		var v = base[k]
+		out[k] = maxi(1, int(round(v * mult))) if v > 0 else int(round(v))
+	return out
+
+## Equipement susceptible de tomber, par zone, adapte au niveau du secteur.
+## Les objets de faction (rep_req) en sont exclus : ils doivent rester la
+## recompense d'une reputation, pas un coup de chance.
+const GEAR_DROPS := {
+	"plaine": ["epee_fer", "arc_chasse", "armure_cuir"],
+	"foret": ["arc_chasse", "baton_novice", "bottes_loup", "armure_cuir"],
+	"caverne": ["epee_fer", "armure_plates", "bottes_loup", "baton_novice"],
+	"marais": ["hache_orc", "armure_plates", "armure_ecailles", "amulette_marais"],
+}
+## Un ennemi normal laisse rarement une piece ; un boss en laisse toujours une,
+## et tire sa rarete avec de la chance en plus.
+const GEAR_DROP_CHANCE := 0.12
+const BOSS_GEAR_LUCK := 1.6
+
+## Tirage pondere d'une rarete. `bonus_luck` decale le tirage vers le haut
+## (utilise pour les boss, qui doivent laisser mieux que du trash).
+func roll_rarity(bonus_luck: float = 0.0) -> String:
+	var keys = RARITIES.keys()
+	var total = 0.0
+	var weights = []
+	for i in range(keys.size()):
+		# Les raretes superieures (indices plus eleves) profitent de la chance.
+		var w = RARITIES[keys[i]].weight * (1.0 + bonus_luck * i)
+		weights.append(w)
+		total += w
+	var pick = randf() * total
+	for i in range(keys.size()):
+		pick -= weights[i]
+		if pick <= 0.0: return keys[i]
+	return "commun"
+
 ## Capacite du sac, en nombre total d'objets (toutes piles confondues).
 ## L'inventaire etait totalement illimite : on pouvait accumuler sans fin, ce
 ## qui retirait tout interet a la vente chez Bosk et a l'arbitrage "que

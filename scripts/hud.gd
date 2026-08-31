@@ -911,7 +911,15 @@ func render_npc_dialogue() -> void:
 			var q = Data.get_quest(qid)
 			if not q.is_empty() and q.giver == npc.id: has_active = true
 		var msg = Label.new()
-		msg.text = "\"Reviens me voir plus tard.\"" if has_active else "\"Je n'ai rien pour toi.\""
+		# Ce message ne parle QUE des quetes, mais disait "Je n'ai rien pour
+		# toi." — affiche juste au-dessus de la boutique de Bosk, de l'armurerie
+		# de Grondar, des primes de Kessler, etc. Tous les PNJ de service
+		# accueillaient donc le joueur par "je n'ai rien pour toi" suivi de leur
+		# menu complet, ce qui se contredisait a l'ecran. Et depuis que tous les
+		# PNJ ont du lore, la section "Discuter" suit toujours : le message
+		# n'etait jamais litteralement vrai.
+		msg.text = "\"Reviens me voir quand ce sera fait.\"" if has_active else "\"Je n'ai pas de quête pour toi en ce moment.\""
+		msg.autowrap_mode = TextServer.AUTOWRAP_WORD
 		_wrap_card(dialogue_box, msg)
 
 	if npc.id == "garde":
@@ -927,7 +935,11 @@ func render_npc_dialogue() -> void:
 		var eco = world.village_economy
 		_add_title(dialogue_box, "Boutique", 15)
 		var stock_lbl = Label.new()
-		stock_lbl.text = "Yvenne a %d potions en stock (prix ajusté selon la demande)." % eco.potion_stock
+		# C'est la boutique de BOSK : annoncer "Yvenne a X potions en stock"
+		# ici laissait croire qu'on achetait a quelqu'un d'autre. Yvenne reste
+		# la fournisseuse (elle brasse, Bosk revend), mais formule du point de
+		# vue du marchand a qui on parle reellement.
+		stock_lbl.text = "Yvenne m'a livré %d potions (prix ajusté selon la demande)." % eco.potion_stock
 		stock_lbl.add_theme_font_size_override("font_size", 12)
 		stock_lbl.add_theme_color_override("font_color", Color(0.7,0.7,0.7))
 		dialogue_box.add_child(stock_lbl)

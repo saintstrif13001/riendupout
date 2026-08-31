@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_npc_dialogue_text":
+			_run_npc_dialogue_text_test()
 		elif test_mode == "test_inventory_capacity":
 			_run_inventory_capacity_test()
 		elif test_mode == "test_inventory_search":
@@ -2266,6 +2268,44 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_npc_dialogue_text_test() -> void:
+	print("TEST_START:npc_dialogue_text")
+	# Trouve en capturant show_shop_sell : Bosk accueillait le joueur par
+	# "Je n'ai rien pour toi." AFFICHE JUSTE AU-DESSUS de sa boutique complete.
+	# Ce message ne concernait que les quetes, mais etait formule comme une
+	# negation generale — donc tous les PNJ de service (marchand, forgeron,
+	# maitre d'armes, chasseur de primes) se contredisaient a l'ecran. Et
+	# depuis que tous les PNJ ont du lore, une section "Discuter" suit
+	# toujours : le message n'etait jamais litteralement vrai.
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	cd.quests_active = {}
+	cd.quests_completed = []
+
+	hud._on_open_npc(data.get_npc("marchand"))
+	for i in range(2): await process_frame
+	var no_blanket_denial = _find_label_with_text(hud.dialogue_box, "rien pour toi") == null
+	var mentions_quest = _find_label_with_text(hud.dialogue_box, "quête") != null
+	# la boutique est bien la, ce qui rendait la negation absurde
+	var shop_present = _find_label_with_text(hud.dialogue_box, "potions") != null
+
+	# La ligne de stock doit parler du marchand a qui on parle (Bosk), pas
+	# donner le stock d'un AUTRE PNJ comme si on lui achetait.
+	var stock_from_seller = _find_label_with_text(hud.dialogue_box, "m'a livré") != null
+	var not_other_npc_stock = _find_label_with_text(hud.dialogue_box, "Yvenne a ") == null
+
+	# Grondar formulait deja correctement (son propre nom, sa propre forge) :
+	# verifie qu'on ne l'a pas casse.
+	for c in hud.dialogue_box.get_children(): c.free()
+	hud._on_open_npc(data.get_npc("forgeron_pnj"))
+	for i in range(2): await process_frame
+	var forge_stock_ok = _find_label_with_text(hud.dialogue_box, "Grondar a") != null
+
+	var all_ok = no_blanket_denial and mentions_quest and shop_present and stock_from_seller and not_other_npc_stock and forge_stock_ok
+	print("TEST_RESULT all_ok=%s no_blanket_denial=%s mentions_quest=%s shop_present=%s stock_from_seller=%s not_other_npc_stock=%s forge_stock_ok=%s"
+		% [all_ok, no_blanket_denial, mentions_quest, shop_present, stock_from_seller, not_other_npc_stock, forge_stock_ok])
 
 func _run_inventory_capacity_test() -> void:
 	print("TEST_START:inventory_capacity")

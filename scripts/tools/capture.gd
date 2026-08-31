@@ -210,6 +210,8 @@ func _process(delta: float) -> bool:
 			_run_crit_feedback_test()
 		elif test_mode == "test_npc_lore":
 			_run_npc_lore_test()
+		elif test_mode == "test_float_text_centered":
+			_run_float_text_centered_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
@@ -2188,6 +2190,35 @@ func _run_npc_lore_test() -> void:
 	var all_ok = all_npcs_have_lore and first_line_shown and advance_button_found and second_line_shown and loops_back_to_first_line
 	print("TEST_RESULT all_ok=%s all_npcs_have_lore=%s npcs_missing_lore=%s first_line_shown=%s advance_button_found=%s second_line_shown=%s loops_back_to_first_line=%s"
 		% [all_ok, all_npcs_have_lore, npcs_missing_lore, first_line_shown, advance_button_found, second_line_shown, loops_back_to_first_line])
+
+func _run_float_text_centered_test() -> void:
+	print("TEST_START:float_text_centered")
+	# Retour direct : "certaine choses ne sont pas centre". float_text() (degats,
+	# XP, "CRITIQUE !", soins...) fixait position=pos directement, soit le coin
+	# SUPERIEUR GAUCHE du Label — un texte long dérivait donc vers la droite au
+	# lieu de rester centré au-dessus de la cible. Vérifie qu'un texte court et
+	# un texte long sont tous deux centrés sur le même x que la cible visée.
+	var target = Vector2(1000, 1000)
+
+	var before = inst.get_children().duplicate()
+	inst.float_text(target, "-5", Color.WHITE)
+	var short_label = null
+	for c in inst.get_children():
+		if not before.has(c) and c is Label: short_label = c; break
+	var short_center_x = short_label.position.x + short_label.size.x / 2.0
+	var short_alignment_ok = short_label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER
+
+	var before2 = inst.get_children().duplicate()
+	inst.float_text(target, "-9999 CRITIQUE !", Color.WHITE)
+	var long_label = null
+	for c in inst.get_children():
+		if not before2.has(c) and c is Label: long_label = c; break
+	var long_center_x = long_label.position.x + long_label.size.x / 2.0
+
+	var both_centered_on_target_x = absf(short_center_x - target.x) < 1.0 and absf(long_center_x - target.x) < 1.0
+	var all_ok = short_alignment_ok and both_centered_on_target_x
+	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
+		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
 func _run_npc_wander_test() -> void:
 	print("TEST_START:npc_wander")

@@ -2016,9 +2016,16 @@ func _on_peer_left(pid: int) -> void:
 
 # ---------------- Utilitaires ----------------
 func float_text(pos: Vector2, text: String, color: Color) -> void:
+	# Le texte flottant (degats, XP, "CRITIQUE !"...) n'etait pas centre : pos
+	# devenait le coin superieur GAUCHE du Label, donc plus le texte etait
+	# long, plus il derivait vers la droite au lieu de rester au-dessus du
+	# personnage/ennemi vise. Boite large + alignement centre corrige ça pour
+	# n'importe quelle longueur de texte sans avoir à mesurer chaque chaîne.
 	var l = Label.new()
 	l.text = text
-	l.position = pos
+	l.size = Vector2(220, 20)
+	l.position = Vector2(pos.x - 110, pos.y)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	l.add_theme_color_override("font_color", color)
 	l.add_theme_font_size_override("font_size", 14)
 	l.z_index = 100

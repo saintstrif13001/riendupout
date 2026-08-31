@@ -42,6 +42,15 @@ var rage_atk: float = 1.0          # multiplicateur de degats (enrage)
 var rage_spd: float = 1.0          # multiplicateur de vitesse (enrage)
 var last_slam: float = -100.0      # derniere attaque puissante (-100 : dispo d'emblee)
 var pending_slam: bool = false     # l'armement en cours est une attaque puissante
+
+## --- Reaction aux coups (voir world._apply_hit_reaction) ---
+## Frapper un ennemi ne faisait que baisser des chiffres : il continuait
+## d'avancer sans broncher, donc un coup n'avait aucun poids.
+var stagger_until: float = 0.0     # sonne : n'agit pas
+var knockback_vel: Vector2 = Vector2.ZERO
+## Empeche de verrouiller un ennemi en enchainant les interruptions : une fois
+## son armement interrompu, il ne peut plus l'etre avant ce timestamp.
+var interrupt_ready_at: float = 0.0
 var last_seen_atk_t: float = 0.0 # côté client réseau : détecte une nouvelle attaque via net_enemy_snapshot
 var spawn_pos: Vector2
 var triggered_phases: Dictionary = {}

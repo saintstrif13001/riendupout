@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_hit_reaction":
+			_run_hit_reaction_test()
 		elif test_mode == "test_dodge":
 			_run_dodge_test()
 		elif test_mode == "test_boss_mechanics":
@@ -2305,6 +2307,104 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_hit_reaction_test() -> void:
+	print("TEST_START:hit_reaction")
+	# Frapper un ennemi ne faisait que baisser des chiffres : il continuait
+	# d'avancer sans broncher pendant qu'on le tapait. Aucun poids, aucune
+	# interaction — et surtout, depuis que les ennemis telegraphient leurs
+	# coups, rien ne permettait de PUNIR un armement une fois repere.
+	var p = inst.player
+	p.dead = false
+	p.hp = p.stats.max_hp
+	p.global_position = Vector2(2700, 2600)
+	var now = Time.get_ticks_msec() / 1000.0
+
+	# 1) Un coup repousse l'ennemi et le sonne.
+	var e = inst.spawn_enemy({"x": p.global_position.x + 40, "y": p.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	e.hp = 99999.0
+	e.max_hp = 99999.0
+	var before = e.global_position
+	inst.deal_damage_to_enemy(e, 5.0)
+	var got_knockback_vel = e.knockback_vel.length() > 50.0
+	var got_stagger = e.stagger_until > now
+	# Repousse a l'OPPOSE du joueur, pas dans une direction arbitraire.
+	var pushed_away = e.knockback_vel.normalized().dot((before - p.global_position).normalized()) > 0.9
+	# Le recul doit reellement deplacer l'ennemi via update_enemies (le vrai
+	# chemin du jeu), pas juste remplir une variable. Sans "await" entre les
+	# appels : sinon l'etourdissement expire en temps reel et le monstre a le
+	# temps de revenir vers le joueur, ce qui masquerait completement le recul.
+	for i in range(60):
+		inst.update_enemies(0.016)
+	var push_dist = e.global_position.distance_to(before)
+	var actually_pushed = push_dist > 15.0
+	# ... et s'amortir au lieu de le faire glisser indefiniment.
+	for i in range(40):
+		inst.update_enemies(0.016)
+	var knockback_decays = e.knockback_vel.length() < 20.0
+
+	# 2) Un boss encaisse mieux : meme coup, recul nettement plus faible.
+	var b = inst.spawn_enemy({"x": p.global_position.x + 40, "y": p.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	b.hp = 99999.0
+	b.max_hp = 99999.0
+	inst.deal_damage_to_enemy(b, 5.0)
+	var boss_resists = b.knockback_vel.length() < inst.HIT_KNOCKBACK * 0.5
+
+	# 3) Un critique repousse plus fort qu'un coup normal.
+	var e2 = inst.spawn_enemy({"x": p.global_position.x + 40, "y": p.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	e2.hp = 99999.0
+	e2.max_hp = 99999.0
+	inst.deal_damage_to_enemy(e2, 5.0, false)
+	var normal_force = e2.knockback_vel.length()
+	e2.knockback_vel = Vector2.ZERO
+	inst.deal_damage_to_enemy(e2, 5.0, true)
+	var crit_hits_harder = e2.knockback_vel.length() > normal_force + 1.0
+
+	# 4) Le coeur de la fonctionnalite : frapper pendant un armement l'INTERROMPT.
+	var e3 = inst.spawn_enemy({"x": p.global_position.x + 40, "y": p.global_position.y, "type_id": "orc_chef", "respawn_at": 0.0})
+	e3.hp = 99999.0
+	e3.max_hp = 99999.0
+	e3.interrupt_ready_at = 0.0
+	e3.windup_until = Time.get_ticks_msec() / 1000.0 + 5.0
+	e3.pending_slam = true
+	inst.deal_damage_to_enemy(e3, 5.0)
+	var interrupts_windup = e3.windup_until == 0.0
+	var clears_slam_flag = not e3.pending_slam
+
+	# 5) ...mais pas en boucle : sans temps de recharge on verrouillerait un
+	# ennemi a mort en le frappant en continu, ce qui supprimerait tout danger.
+	e3.windup_until = Time.get_ticks_msec() / 1000.0 + 5.0
+	e3.pending_slam = true
+	inst.deal_damage_to_enemy(e3, 5.0)
+	var interrupt_has_cooldown = e3.windup_until > 0.0 and e3.pending_slam
+
+	# 6) Un ennemi sonne ne decide rien : il ne doit pas attaquer pendant
+	# l'etourdissement, meme colle au joueur et cooldown pret.
+	var e4 = inst.spawn_enemy({"x": p.global_position.x + 20, "y": p.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	e4.hp = 99999.0
+	e4.max_hp = 99999.0
+	e4.last_attack = -100.0
+	e4.windup_until = 0.0
+	e4.stagger_until = Time.get_ticks_msec() / 1000.0 + 2.0
+	e4.knockback_vel = Vector2.ZERO
+	for i in range(5):
+		inst.update_enemies(0.016)
+		await process_frame
+	var stagger_blocks_action = e4.windup_until == 0.0
+
+	# ...et reprend normalement une fois l'etourdissement passe.
+	e4.stagger_until = 0.0
+	for i in range(5):
+		inst.update_enemies(0.016)
+		await process_frame
+	var resumes_after_stagger = e4.windup_until > 0.0
+
+	for x in [e, b, e2, e3, e4]:
+		if is_instance_valid(x): inst.enemies.erase(x.uid); x.queue_free()
+
+	var all_ok = got_knockback_vel and got_stagger and pushed_away and actually_pushed and knockback_decays and boss_resists and crit_hits_harder and interrupts_windup and clears_slam_flag and interrupt_has_cooldown and stagger_blocks_action and resumes_after_stagger
+	print("TEST_RESULT all_ok=%s recul(applique=%s oppose_au_joueur=%s deplace_vraiment=%s s_amortit=%s boss_resiste=%s crit_plus_fort=%s) etourdi(applique=%s bloque_l_action=%s reprend_apres=%s) interruption(annule_armement=%s annule_slam=%s a_un_cooldown=%s)"
+		% [all_ok, got_knockback_vel, pushed_away, "%s(%.0fpx)" % [actually_pushed, push_dist], knockback_decays, boss_resists, crit_hits_harder, got_stagger, stagger_blocks_action, resumes_after_stagger, interrupts_windup, clears_slam_flag, interrupt_has_cooldown])
 
 func _run_dodge_test() -> void:
 	print("TEST_START:dodge")

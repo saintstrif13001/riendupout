@@ -1327,6 +1327,23 @@ func quit_to_menu() -> void:
 ## telegraphient desormais leurs coups et que les boss posent de larges zones :
 ## il manquait la reponse ACTIVE a ces signaux. Les i-frames durent un peu plus
 ## longtemps que le deplacement lui-meme, pour couvrir la reception.
+## Reaction aux coups. Frapper un ennemi ne faisait que baisser des chiffres :
+## il continuait d'avancer sans broncher, donc un coup n'avait aucun poids et
+## rien ne recompensait le fait de frapper AU BON MOMENT.
+const HIT_KNOCKBACK := 320.0
+const HIT_KNOCKBACK_BOSS := 110.0 # un boss encaisse : on ne le repousse pas comme un slime
+# Amortissement du recul (par seconde) : la distance totale parcourue vaut
+# environ force / KNOCKBACK_DAMPING, soit ~45px pour un coup normal et ~16px
+# pour un boss — assez pour se lire a l'ecran sans envoyer le monstre a
+# l'autre bout de la zone.
+const KNOCKBACK_DAMPING := 7.0
+const HIT_STAGGER := 0.16
+## Une interruption annule l'armement adverse — y compris une attaque
+## puissante de boss. Ce delai empeche de neutraliser un ennemi en
+## l'interrompant a chaque coup, ce qui aurait vide les combats de boss de
+## tout enjeu juste apres les avoir etoffes.
+const INTERRUPT_COOLDOWN := 3.5
+
 const DODGE_SPEED := 1000.0
 const DODGE_TIME := 0.2
 const DODGE_INVULN := 0.35
@@ -1761,9 +1778,29 @@ func _ring_points(radius: float) -> PackedVector2Array:
 		pts.append(Vector2(cos(a), sin(a)) * radius)
 	return pts
 
+## Recul + sonnage a l'impact, et surtout INTERRUPTION d'un armement en cours.
+## C'est ce qui transforme "taper quand on peut" en "taper au bon moment" :
+## frapper un boss pendant qu'il prepare son coup devastateur l'annule.
+func _apply_hit_reaction(e: Enemy, is_crit: bool) -> void:
+	if e.dead: return
+	var now = Time.get_ticks_msec() / 1000.0
+	var dir = (e.global_position - player.global_position).normalized()
+	if dir == Vector2.ZERO: dir = Vector2.RIGHT
+	var force = HIT_KNOCKBACK_BOSS if e.mdef.get("boss", false) else HIT_KNOCKBACK
+	if is_crit: force *= 1.5
+	e.knockback_vel = dir * force
+	e.stagger_until = now + HIT_STAGGER
+	if e.windup_until > 0.0 and now >= e.interrupt_ready_at:
+		e.windup_until = 0.0
+		e.pending_slam = false
+		e.interrupt_ready_at = now + INTERRUPT_COOLDOWN
+		float_text(e.global_position + Vector2(0, -50), "Interrompu !", Color(1, 0.9, 0.35))
+		spawn_hit_particles(e.global_position, Color(1, 0.95, 0.5), 10)
+
 func deal_damage_to_enemy(e: Enemy, dmg: float, is_crit: bool = false) -> void:
 	if is_sim:
 		var applied = e.take_damage(dmg)
+		_apply_hit_reaction(e, is_crit)
 		if is_crit:
 			float_text(e.global_position + Vector2(0,-46), "-%d CRITIQUE !" % int(round(applied)), Color(1,0.35,0.1))
 			_camera_shake(6.0, 0.18)
@@ -1909,6 +1946,16 @@ func update_enemies(delta: float) -> void:
 			e.windup_until = 0.0
 			_resolve_enemy_strike(e, target)
 		var winding_up = e.windup_until > 0.0
+		# Sonne ou repousse : l'ennemi subit son recul et ne decide rien ce
+		# tick. Place APRES la resolution d'armement ci-dessus pour qu'un coup
+		# deja parti aboutisse normalement — seule une interruption l'annule.
+		if now_t < e.stagger_until or e.knockback_vel.length() > 8.0:
+			e.velocity = e.knockback_vel
+			e.move_and_slide()
+			e.knockback_vel = e.knockback_vel.lerp(Vector2.ZERO, minf(1.0, delta * KNOCKBACK_DAMPING))
+			e.set_anim(e.dir, false)
+			e.update_visuals()
+			continue
 		if best_d < aggro_range and not target.dead:
 			var diff = target.global_position - e.global_position
 			# Sens de deplacement voulu : +1 vers la cible, -1 pour s'en

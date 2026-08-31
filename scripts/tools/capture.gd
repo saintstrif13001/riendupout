@@ -1034,6 +1034,21 @@ func _run_modal_overlay_test() -> void:
 	var panel = hud.dialogue_overlay.get_child(1) # bg=0, panel=1
 	var panel_width_reasonable = panel.size.x < 700.0 # 560 de contenu + ~40 de marge du thème
 
+	# Retour direct : "certaine choses ne sont pas centre". set_anchors_preset(
+	# PRESET_CENTER) calcule son décalage de centrage une seule fois, à l'instant
+	# de l'appel — comme le panneau était encore vide (aucun enfant), Godot
+	# centrait une boîte 0x0 puis tout le contenu ajouté après le faisait dériver
+	# vers le bas/la droite au lieu de rester centré. grow_horizontal/vertical=
+	# GROW_DIRECTION_BOTH est ce qui garantit qu'il RESTE centré peu importe
+	# comment son contenu change de taille — plus fiable ici qu'une mesure en
+	# pixels contre root.size, qui n'est pas stable au moment du test (le
+	# pilote d'affichage headless ne respecte pas forcément le 1152x648 fixé
+	# dans _initialize() une fois la scène chargée).
+	var panel_is_centered = (panel.anchor_left == 0.5 and panel.anchor_right == 0.5
+		and panel.anchor_top == 0.5 and panel.anchor_bottom == 0.5
+		and panel.grow_horizontal == Control.GROW_DIRECTION_BOTH
+		and panel.grow_vertical == Control.GROW_DIRECTION_BOTH)
+
 	var outer = panel.get_child(0)
 	var header = outer.get_child(0)
 	var close_btn = header.get_child(header.get_child_count() - 1)
@@ -1056,9 +1071,9 @@ func _run_modal_overlay_test() -> void:
 	bg.gui_input.emit(ev)
 	var click_outside_closes_overlay = not hud.dialogue_overlay.visible
 
-	var all_ok = panel_width_reasonable and close_button_is_top_right and no_child_overflows_panel and close_button_closes_overlay and click_outside_closes_overlay
-	print("TEST_RESULT all_ok=%s panel_width_reasonable=%s (width=%.0f) close_button_is_top_right=%s no_child_overflows_panel=%s close_button_closes_overlay=%s click_outside_closes_overlay=%s"
-		% [all_ok, panel_width_reasonable, panel.size.x, close_button_is_top_right, no_child_overflows_panel, close_button_closes_overlay, click_outside_closes_overlay])
+	var all_ok = panel_width_reasonable and panel_is_centered and close_button_is_top_right and no_child_overflows_panel and close_button_closes_overlay and click_outside_closes_overlay
+	print("TEST_RESULT all_ok=%s panel_width_reasonable=%s (width=%.0f) panel_is_centered=%s close_button_is_top_right=%s no_child_overflows_panel=%s close_button_closes_overlay=%s click_outside_closes_overlay=%s"
+		% [all_ok, panel_width_reasonable, panel.size.x, panel_is_centered, close_button_is_top_right, no_child_overflows_panel, close_button_closes_overlay, click_outside_closes_overlay])
 
 func _run_sell_item_test() -> void:
 	print("TEST_START:sell_item")
@@ -1169,10 +1184,17 @@ func _run_talent_ui_flow_test() -> void:
 	# (c'est exactement le genre de trou qui cachait le bug des quêtes 'talk').
 	hud._on_talent_available(tier)
 	var overlay_shown = hud.talent_overlay.visible
+	# Retour direct : "certaine choses ne sont pas centre" — même bug que le
+	# modal helper et l'écran de mort (voir test_modal_overlay).
+	var talent_panel = hud.talent_overlay.get_child(1) # bg=0, panel=1
+	var talent_panel_is_centered = (talent_panel.anchor_left == 0.5 and talent_panel.anchor_right == 0.5
+		and talent_panel.anchor_top == 0.5 and talent_panel.anchor_bottom == 0.5
+		and talent_panel.grow_horizontal == Control.GROW_DIRECTION_BOTH
+		and talent_panel.grow_vertical == Control.GROW_DIRECTION_BOTH)
 	hud._choose_talent(tier, chosen.id)
 	var atk_after = inst.player.stats.atk
-	print("TEST_RESULT overlay_shown_before_choice=%s talent_recorded=%s stats_actually_updated_on_player=%s overlay_hidden_after=%s"
-		% [overlay_shown, inst.char_data.talents.get(str(tier.level)) == chosen.id,
+	print("TEST_RESULT overlay_shown_before_choice=%s talent_panel_is_centered=%s talent_recorded=%s stats_actually_updated_on_player=%s overlay_hidden_after=%s"
+		% [overlay_shown, talent_panel_is_centered, inst.char_data.talents.get(str(tier.level)) == chosen.id,
 			atk_after != atk_before, not hud.talent_overlay.visible])
 	print("TEST_RESULT2 hp_clamped_to_new_max=%s" % [inst.player.hp <= inst.player.stats.max_hp])
 
@@ -2313,6 +2335,17 @@ func _run_death_screen_test() -> void:
 	var shown_after_death = hud.death_overlay.visible
 	var shows_countdown = "3" in hud.death_countdown_label.text
 	var shows_gold_lost = "or" in hud.death_countdown_label.text and inst.char_data.bloodstain.gold > 0
+	# Retour direct : "certaine choses ne sont pas centre" — même bug que le
+	# modal helper (voir test_modal_overlay) : PRESET_CENTER calculé avant que
+	# les labels n'existent, la boîte dérivait donc hors du centre réel.
+	# grow_horizontal/vertical=GROW_DIRECTION_BOTH garantit qu'elle reste
+	# centrée peu importe la taille de son contenu (voir test_modal_overlay
+	# pour pourquoi une mesure en pixels contre root.size n'est pas fiable ici).
+	var death_box = hud.death_overlay.get_child(0)
+	var death_box_is_centered = (death_box.anchor_left == 0.5 and death_box.anchor_right == 0.5
+		and death_box.anchor_top == 0.5 and death_box.anchor_bottom == 0.5
+		and death_box.grow_horizontal == Control.GROW_DIRECTION_BOTH
+		and death_box.grow_vertical == Control.GROW_DIRECTION_BOTH)
 
 	# BUG DE TEST : "now - 1.0" peut devenir négatif si le moteur tourne depuis
 	# moins d'une seconde (fréquent en headless, qui traite les frames bien plus
@@ -2325,9 +2358,9 @@ func _run_death_screen_test() -> void:
 	var hidden_after_respawn = not hud.death_overlay.visible
 	var player_alive_again = not inst.player.dead
 
-	var all_ok = hidden_before_death and shown_after_death and shows_countdown and shows_gold_lost and hidden_after_respawn and player_alive_again
-	print("TEST_RESULT all_ok=%s hidden_before_death=%s shown_after_death=%s shows_countdown=%s shows_gold_lost=%s hidden_after_respawn=%s player_alive_again=%s"
-		% [all_ok, hidden_before_death, shown_after_death, shows_countdown, shows_gold_lost, hidden_after_respawn, player_alive_again])
+	var all_ok = hidden_before_death and shown_after_death and shows_countdown and shows_gold_lost and death_box_is_centered and hidden_after_respawn and player_alive_again
+	print("TEST_RESULT all_ok=%s hidden_before_death=%s shown_after_death=%s shows_countdown=%s shows_gold_lost=%s death_box_is_centered=%s hidden_after_respawn=%s player_alive_again=%s"
+		% [all_ok, hidden_before_death, shown_after_death, shows_countdown, shows_gold_lost, death_box_is_centered, hidden_after_respawn, player_alive_again])
 
 func _run_stats_screen_test() -> void:
 	print("TEST_START:stats_screen")

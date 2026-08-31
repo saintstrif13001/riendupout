@@ -1,4 +1,4 @@
-extends CanvasLayer
+﻿extends CanvasLayer
 
 const UiTheme = preload("res://scripts/ui_theme.gd")
 
@@ -86,6 +86,14 @@ func _build_death_overlay() -> void:
 	death_overlay.visible = false
 	var box = VBoxContainer.new()
 	box.set_anchors_preset(Control.PRESET_CENTER)
+	# set_anchors_preset() calcule le décalage de centrage une seule fois, à cet
+	# instant précis — comme la boîte est encore vide (aucun label ajouté), il
+	# centre une boîte de taille 0x0, puis tout le contenu ajouté après pousse
+	# la boîte vers le bas/la droite au lieu de rester centré (comportement de
+	# croissance par défaut de Godot). GROW_BOTH la recentre en continu autour
+	# de son ancre, peu importe quand/comment son contenu change de taille.
+	box.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	box.grow_vertical = Control.GROW_DIRECTION_BOTH
 	box.add_theme_constant_override("separation", 8)
 	death_overlay.add_child(box)
 	death_title_label = Label.new()
@@ -352,6 +360,13 @@ func _build_modal_overlay(width: float, scroll_height: float, dim_alpha: float, 
 
 	var panel = PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
+	# Voir le commentaire de _build_death_overlay() : sans ça, le panneau
+	# n'est centré qu'au moment de sa création (taille 0x0), puis dérive vers
+	# le bas/la droite dès que son contenu (liste de quêtes, boutons...) le
+	# fait grandir — touchait TOUS les dialogues utilisant ce helper partagé
+	# (PNJ, inventaire, voyage, options, stats).
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.custom_minimum_size = Vector2(width, 0)
 	var outer = VBoxContainer.new()
 	outer.add_theme_constant_override("separation", 4)
@@ -401,6 +416,8 @@ func _build_talent_overlay() -> void:
 	talent_overlay.add_child(bg)
 	var panel = PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH # voir le commentaire de _build_modal_overlay()
+	panel.grow_vertical = Control.GROW_DIRECTION_BOTH
 	panel.custom_minimum_size = Vector2(480, 0)
 	talent_box = VBoxContainer.new()
 	talent_box.add_theme_constant_override("separation", 10)

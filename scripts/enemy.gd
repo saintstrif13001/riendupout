@@ -30,6 +30,9 @@ var last_attack: float = 0.0
 ## placement ne servait a rien. L'ennemi s'arme desormais visiblement, puis
 ## frappe — et rate si la cible est sortie de portee entre-temps.
 var windup_until: float = 0.0
+## Archetype "charger" (loups) : decroche jusqu'a ce timestamp apres avoir
+## frappe, pour donner un rythme piquer/reculer au lieu d'un corps a corps colle.
+var retreat_until: float = 0.0
 var last_seen_atk_t: float = 0.0 # côté client réseau : détecte une nouvelle attaque via net_enemy_snapshot
 var spawn_pos: Vector2
 var triggered_phases: Dictionary = {}

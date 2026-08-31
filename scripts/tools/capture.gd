@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_enemy_behaviors":
+			_run_enemy_behaviors_test()
 		elif test_mode == "test_enemy_telegraph":
 			_run_enemy_telegraph_test()
 		elif test_mode == "test_quest_tracker":
@@ -2297,6 +2299,84 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_enemy_behaviors_test() -> void:
+	print("TEST_START:enemy_behaviors")
+	# Retour du joueur : "le jeu est vraiment pas ouf". TOUS les ennemis
+	# faisaient exactement la meme chose — foncer et taper au corps a corps —
+	# donc une zone se jouait comme une autre. Chaque archetype doit produire
+	# un COMPORTEMENT OBSERVABLE different, pas juste des statistiques.
+	var data = root.get_node("/root/Data")
+	var p = inst.player
+	p.hp = p.stats.max_hp
+	p.invuln_until = 0.0
+
+	# chaque monstre annote doit referencer un archetype qui existe
+	var all_behaviors_known = true
+	var annotated = []
+	for mid in data.MONSTER_TYPES.keys():
+		var b = data.MONSTER_TYPES[mid].get("behavior", "melee")
+		if not inst.ENEMY_BEHAVIOR.has(b): all_behaviors_known = false
+		if data.MONSTER_TYPES[mid].has("behavior"): annotated.append("%s:%s" % [mid, b])
+
+	# helper : place un ennemi a `dist` du joueur et avance d'une frame
+	var spawn_at = func(tid: String, dist: float) -> Enemy:
+		var en = inst.spawn_enemy({"x": p.global_position.x + dist, "y": p.global_position.y, "type_id": tid, "respawn_at": 0.0})
+		# -100 et pas 0 : en headless le moteur ne tourne que depuis ~1-2s, donc
+		# "now > last_attack + cooldown" restait faux pour l'archetype au plus
+		# long temps de recharge (ranged, 2.1s) — l'ennemi paraissait inerte
+		# alors que le jeu etait correct. Meme piege que le sentinel de respawn.
+		en.last_attack = -100.0
+		en.windup_until = 0.0
+		en.retreat_until = 0.0
+		return en
+
+	# SKITTISH (gobelin) : en bonne sante il avance, blesse il RECULE.
+	var gob = spawn_at.call("gobelin", 90.0)
+	gob.hp = gob.max_hp
+	var d0 = gob.global_position.distance_to(p.global_position)
+	inst.update_enemies(0.1)
+	var skittish_approaches = gob.global_position.distance_to(p.global_position) < d0
+	gob.hp = gob.max_hp * 0.1 # sous le seuil de fuite
+	var d1 = gob.global_position.distance_to(p.global_position)
+	inst.update_enemies(0.1)
+	var skittish_flees_when_hurt = gob.global_position.distance_to(p.global_position) > d1
+
+	# RANGED (squelette) : attaque de LOIN, la ou un melee ne pourrait pas.
+	var sq = spawn_at.call("squelette", 150.0)
+	var melee_reach = inst.ENEMY_BEHAVIOR["melee"].reach
+	var ranged_reach = inst.ENEMY_BEHAVIOR["ranged"].reach
+	inst.update_enemies(0.1)
+	var ranged_attacks_from_afar = sq.windup_until > 0.0 and 150.0 > melee_reach
+	var ranged_outranges_melee = ranged_reach > melee_reach
+
+	# BRUISER (orc) : armement plus long (plus lisible) mais frappe plus fort
+	# et de plus loin qu'un melee de base.
+	var mel = inst.ENEMY_BEHAVIOR["melee"]
+	var bru = inst.ENEMY_BEHAVIOR["bruiser"]
+	var bruiser_slower_windup = bru.windup > mel.windup
+	var bruiser_hits_harder = bru.get("dmg_mult", 1.0) > 1.0
+	var bruiser_longer_reach = bru.reach > mel.reach
+
+	# CHARGER (loup) : apres avoir frappe il DECROCHE au lieu de rester colle.
+	var wolf = spawn_at.call("loup", 30.0)
+	inst._resolve_enemy_strike(wolf, p)
+	var charger_retreats_after_hit = wolf.retreat_until > Time.get_ticks_msec() / 1000.0
+	var d2 = wolf.global_position.distance_to(p.global_position)
+	inst.update_enemies(0.1)
+	var charger_moves_away = wolf.global_position.distance_to(p.global_position) > d2
+	# ... alors qu'un melee de base, lui, reste au contact
+	var slime = spawn_at.call("slime_vert", 30.0)
+	inst._resolve_enemy_strike(slime, p)
+	var melee_does_not_retreat = slime.retreat_until == 0.0
+
+	var all_ok = all_behaviors_known and skittish_approaches and skittish_flees_when_hurt and ranged_attacks_from_afar and ranged_outranges_melee and bruiser_slower_windup and bruiser_hits_harder and bruiser_longer_reach and charger_retreats_after_hit and charger_moves_away and melee_does_not_retreat
+	print("TEST_RESULT all_ok=%s archetypes=%d annotes=%s known=%s | skittish(approche=%s fuit_blesse=%s) ranged(tire_de_loin=%s surpasse_melee=%s) bruiser(armement_long=%s frappe_fort=%s allonge=%s) charger(decroche=%s s_eloigne=%s) melee_reste=%s"
+		% [all_ok, inst.ENEMY_BEHAVIOR.size(), annotated, all_behaviors_known,
+			skittish_approaches, skittish_flees_when_hurt,
+			ranged_attacks_from_afar, ranged_outranges_melee,
+			bruiser_slower_windup, bruiser_hits_harder, bruiser_longer_reach,
+			charger_retreats_after_hit, charger_moves_away, melee_does_not_retreat])
 
 func _run_enemy_telegraph_test() -> void:
 	print("TEST_START:enemy_telegraph")

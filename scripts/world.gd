@@ -170,6 +170,36 @@ const ENEMY_DENSITY := 6.0
 const ENEMY_WINDUP := 0.45
 const ENEMY_STRIKE_RANGE := 48.0
 const ENEMY_ATTACK_COOLDOWN := 1.0
+
+## Archetypes de comportement. TOUS les ennemis du jeu faisaient exactement la
+## meme chose : foncer sur la cible et taper au corps a corps. Aucun n'avait
+## d'identite au-dela de ses statistiques, si bien qu'une zone se jouait
+## comme une autre. Chaque archetype se contente de parametrer le systeme
+## d'armement existant + une regle de deplacement, plutot que d'ajouter une
+## IA paralelle.
+##   windup   : duree d'armement (fenetre d'esquive)
+##   reach    : portee au moment de la frappe
+##   approach : distance a laquelle il cesse d'avancer
+##   cooldown : delai entre deux attaques
+const ENEMY_BEHAVIOR := {
+	# Referentiel : la brute de base, lisible et sans surprise.
+	"melee": {"windup": 0.45, "reach": 48.0, "approach": 34.0, "cooldown": 1.0},
+	# Lourd et lent a armer, mais frappe fort et de plus loin : tres
+	# telegraphie, donc esquivable si on regarde — punitif sinon.
+	"bruiser": {"windup": 0.85, "reach": 72.0, "approach": 40.0, "cooldown": 1.7, "dmg_mult": 1.3},
+	# Loups : piquent, frappent, puis DECROCHENT avant de revenir. Armement
+	# court (peu de temps pour reagir) compense par les temps de retrait.
+	"charger": {"windup": 0.30, "reach": 52.0, "approach": 34.0, "cooldown": 1.5, "retreat": 0.9, "standoff": 150.0},
+	# Gobelins : fuient sous un seuil de vie. Il faut les achever ou les
+	# laisser partir, au lieu de rester plante a echanger des coups.
+	"skittish": {"windup": 0.45, "reach": 48.0, "approach": 34.0, "cooldown": 1.0, "flee_below": 0.35},
+	# Squelettes : gardent leurs distances et tirent un projectile. Force a
+	# fermer la distance au lieu d'attendre que l'ennemi vienne a soi.
+	"ranged": {"windup": 0.70, "reach": 260.0, "approach": 180.0, "cooldown": 2.1, "projectile": true},
+}
+
+func enemy_behavior(e: Enemy) -> Dictionary:
+	return ENEMY_BEHAVIOR.get(e.mdef.get("behavior", "melee"), ENEMY_BEHAVIOR["melee"])
 const TUFT_DENSITY := 24.0       # touffes d'herbe pour 1M px², tout le monde confondu
 
 ## Teinte du sol par zone : la forêt réutilise la texture de terre du marais,
@@ -1776,7 +1806,11 @@ func update_enemies(delta: float) -> void:
 			if rp.dead: continue
 			var d = e.global_position.distance_to(rp.global_position)
 			if d < best_d: best_d = d; target = rp
-		var aggro_range = 260.0 if e.mdef.get("boss", false) else 150.0
+		var bh = enemy_behavior(e)
+		# L'aggro doit couvrir la portee de l'archetype : un tireur avec 260px
+		# de portee mais 150px d'aggro n'aurait JAMAIS pu s'en servir — il se
+		# serait comporte comme un corps a corps qui s'arrete trop loin.
+		var aggro_range = maxf(260.0 if e.mdef.get("boss", false) else 150.0, bh.reach + 40.0)
 		var now_t = Time.get_ticks_msec() / 1000.0
 		# Une attaque armee se resout meme si la cible s'est eloignee : c'est
 		# exactement ce qui permet de l'esquiver en reculant. Resolu AVANT les
@@ -1788,26 +1822,41 @@ func update_enemies(delta: float) -> void:
 		var winding_up = e.windup_until > 0.0
 		if best_d < aggro_range and not target.dead:
 			var diff = target.global_position - e.global_position
+			# Sens de deplacement voulu : +1 vers la cible, -1 pour s'en
+			# eloigner, 0 pour tenir sa position. Chaque archetype ne fait que
+			# choisir ce sens ; le reste du systeme est commun.
+			var move_dir = 0.0
 			if winding_up:
 				# Engage dans son attaque : il ne poursuit pas pendant
 				# l'armement, sans quoi l'esquive serait impossible.
-				e.velocity = Vector2.ZERO
-				e.set_anim(e.dir, false)
-			elif best_d > 34:
-				var v = diff.normalized() * e.effective_speed()
+				move_dir = 0.0
+			elif bh.has("flee_below") and e.hp < e.max_hp * bh.flee_below:
+				move_dir = -1.0 # blesse : decroche au lieu de mourir sur place
+			elif now_t < e.retreat_until:
+				move_dir = -1.0 # vient de frapper : recule avant de revenir
+			elif best_d > bh.approach:
+				move_dir = 1.0
+			# Un ennemi qui recule s'arrete une fois a bonne distance, sinon il
+			# traverserait la carte en fuyant indefiniment.
+			if move_dir < 0.0 and best_d > bh.get("standoff", aggro_range):
+				move_dir = 0.0
+			if move_dir != 0.0:
+				var v = diff.normalized() * e.effective_speed() * move_dir
 				e.velocity = v
 				e.move_and_slide()
-				e.set_anim("right" if diff.x>0 else "left" if abs(diff.x)>abs(diff.y) else ("down" if diff.y>0 else "up"), v != Vector2.ZERO)
+				var look = diff * move_dir
+				e.set_anim("right" if look.x>0 else "left" if abs(look.x)>abs(look.y) else ("down" if look.y>0 else "up"), true)
 			else:
 				e.velocity = Vector2.ZERO
-				if now_t > e.last_attack + ENEMY_ATTACK_COOLDOWN:
-					# Arme l'attaque au lieu de frapper immediatement : les degats
-					# seront resolus apres ENEMY_WINDUP, et seulement si la cible
-					# est encore a portee (voir _resolve_enemy_strike).
+				e.set_anim(e.dir, false)
+				# Arme l'attaque au lieu de frapper immediatement : les degats
+				# seront resolus apres le windup, et seulement si la cible est
+				# encore a portee (voir _resolve_enemy_strike).
+				if not winding_up and best_d <= bh.reach and now_t > e.last_attack + bh.cooldown:
 					e.last_attack = now_t
-					e.windup_until = now_t + ENEMY_WINDUP
+					e.windup_until = now_t + bh.windup
 					e.play_attack_anim()
-					spawn_telegraph_fx(e)
+					spawn_telegraph_fx(e, bh.reach, bh.windup)
 		else:
 			e.velocity = Vector2.ZERO
 			e.set_anim(e.dir, false)
@@ -1819,12 +1868,30 @@ func update_enemies(delta: float) -> void:
 func _resolve_enemy_strike(e: Enemy, target: Player) -> void:
 	if e.dead: return
 	if target == null or not is_instance_valid(target) or target.dead: return
-	if e.global_position.distance_to(target.global_position) > ENEMY_STRIKE_RANGE:
+	var bh = enemy_behavior(e)
+	# Les "charger" (loups) decrochent apres avoir frappe, qu'ils touchent ou
+	# non : c'est ce qui donne le rythme piquer/reculer plutot qu'un corps a
+	# corps colle.
+	if bh.has("retreat"):
+		e.retreat_until = Time.get_ticks_msec() / 1000.0 + bh.retreat
+	if e.global_position.distance_to(target.global_position) > bh.reach:
 		float_text(e.global_position + Vector2(0, -30), "Esquive !", Color(0.65, 0.9, 1))
 		Audio.play("ui_click", -14.0, 0.2)
 		return
+	var dmg = e.atk * bh.get("dmg_mult", 1.0)
+	# Les tireurs envoient un projectile visible : les degats ne tombent qu'a
+	# l'impact, ce qui laisse une seconde occasion de s'ecarter.
+	if bh.get("projectile", false):
+		var victim = target
+		spawn_projectile_fx(e.global_position, target.global_position, Color(0.85, 0.9, 0.95), func():
+			if is_instance_valid(victim) and not victim.dead:
+				_deal_enemy_damage(victim, dmg))
+		return
+	_deal_enemy_damage(target, dmg)
+
+func _deal_enemy_damage(target: Player, dmg: float) -> void:
 	if target == player:
-		apply_enemy_hit_to_local(e.atk)
+		apply_enemy_hit_to_local(dmg)
 	elif Net.is_online:
 		# BUG CRITIQUE trouvé en auditant le combat cote client : l'IA des
 		# ennemis (update_enemies, cote hote uniquement) ne faisait JAMAIS rien
@@ -1833,7 +1900,7 @@ func _resolve_enemy_strike(e: Enemy, target: Player) -> void:
 		# seul l'hote pouvait etre blesse par les monstres. La mitigation
 		# depend des stats propres a chaque joueur, donc c'est au pair
 		# concerné d'appliquer les degats chez lui.
-		rpc_id(target.peer_id, "net_enemy_attack", e.atk)
+		rpc_id(target.peer_id, "net_enemy_attack", dmg)
 
 ## Encaissement d'un coup ennemi par le joueur LOCAL, du degat a la mort.
 ## Regroupe ici parce que la sequence (degats + texte + HUD + mort + fondu)
@@ -1852,19 +1919,22 @@ func apply_enemy_hit_to_local(dmg: float) -> void:
 
 ## Cercle qui se resserre sur l'ennemi pendant l'armement : montre A LA FOIS
 ## la zone dangereuse et le temps restant avant l'impact.
-func spawn_telegraph_fx(e: Enemy) -> void:
+func spawn_telegraph_fx(e: Enemy, reach: float = ENEMY_STRIKE_RANGE, windup: float = ENEMY_WINDUP) -> void:
 	var ring = Node2D.new()
 	ring.position = e.global_position
 	ring.z_index = 61
 	add_child(ring)
 	var line = Line2D.new()
 	line.width = 2.5
-	line.default_color = Color(1, 0.45, 0.2, 0.95)
-	line.points = _ring_points(ENEMY_STRIKE_RANGE)
+	# Plus l'armement est long, plus le cercle tire vers le rouge : un coup de
+	# brute se distingue au premier coup d'oeil d'une morsure rapide de loup.
+	var heavy = clampf((windup - 0.3) / 0.6, 0.0, 1.0)
+	line.default_color = Color(1, 0.6 - 0.35 * heavy, 0.3 - 0.2 * heavy, 0.95)
+	line.points = _ring_points(reach)
 	ring.add_child(line)
 	var tw = create_tween()
-	tw.tween_method(func(r): line.points = _ring_points(r), ENEMY_STRIKE_RANGE, 8.0, ENEMY_WINDUP)
-	tw.parallel().tween_property(line, "default_color:a", 0.3, ENEMY_WINDUP)
+	tw.tween_method(func(r): line.points = _ring_points(r), reach, 8.0, windup)
+	tw.parallel().tween_property(line, "default_color:a", 0.3, windup)
 	tw.tween_callback(ring.queue_free)
 
 var bloodstain_node: Node2D = null

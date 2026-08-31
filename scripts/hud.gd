@@ -36,6 +36,9 @@ var chat_log_box: VBoxContainer
 var chat_input: LineEdit
 var chat_messages: Array = []
 const CHAT_MAX_MESSAGES := 8
+## Largeur du chat : doit rester assez large pour que l'invite de saisie
+## tienne en entier (elle etait coupee en plein mot a 340px).
+const CHAT_WIDTH := 470.0
 var fade_rect: ColorRect
 var death_overlay: Control
 var death_title_label: Label
@@ -592,7 +595,7 @@ func _build_chat() -> void:
 	chat_overlay.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	chat_overlay.grow_vertical = Control.GROW_DIRECTION_BEGIN # s'étend vers le haut quand des messages s'ajoutent
 	chat_overlay.position = Vector2(16, -70)
-	chat_overlay.custom_minimum_size = Vector2(340, 0)
+	chat_overlay.custom_minimum_size = Vector2(CHAT_WIDTH, 0)
 	chat_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(chat_overlay)
 
@@ -603,7 +606,10 @@ func _build_chat() -> void:
 
 	chat_input = LineEdit.new()
 	chat_input.visible = false
-	chat_input.custom_minimum_size = Vector2(340, 28)
+	# 340px ne suffisait pas pour l'invite : elle etait coupee en plein mot
+	# ("...Échap: annul"), ce qui donnait l'impression d'un texte casse.
+	# Voir test_chat_placeholder_fits, qui mesure le texte avec la vraie police.
+	chat_input.custom_minimum_size = Vector2(CHAT_WIDTH, 28)
 	chat_input.placeholder_text = "Message... (Entrée: envoyer, Échap: annuler)"
 	chat_input.max_length = 140
 	chat_overlay.add_child(chat_input)
@@ -1005,7 +1011,13 @@ func render_npc_dialogue() -> void:
 		else:
 			var cost = 50 * n_talents
 			var lbl2 = Label.new()
-			lbl2.text = "Réinitialise tes %d spécialisation(s) choisie(s) pour les re-choisir au prochain palier de niveau." % n_talents
+			# "tes 1 spécialisation(s) choisie(s)" : les parentheses de pluriel
+			# etaient le seul endroit du jeu a ne pas accorder correctement
+			# (ailleurs on ecrit deja "3 quêtes terminées · 1 prime complétée"),
+			# et "tes 1" est de toute façon fautif en français.
+			var s = "s" if n_talents > 1 else ""
+			lbl2.text = "Réinitialise %s %d spécialisation%s choisie%s pour %s re-choisir au prochain palier de niveau." % [
+				"tes" if n_talents > 1 else "ta", n_talents, s, s, "les" if n_talents > 1 else "la"]
 			lbl2.autowrap_mode = TextServer.AUTOWRAP_WORD
 			dialogue_box.add_child(lbl2)
 			var btn = _add_button(dialogue_box, "Réinitialiser — %d or" % cost, func(): respec_talents(cost))

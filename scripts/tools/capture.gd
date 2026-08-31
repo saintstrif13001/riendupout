@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_chat_placeholder_fits":
+			_run_chat_placeholder_fits_test()
 		elif test_mode == "test_npc_dialogue_text":
 			_run_npc_dialogue_text_test()
 		elif test_mode == "test_inventory_capacity":
@@ -651,6 +653,25 @@ func _run_respec_test() -> void:
 	var gold_locked = inst.char_data.gold
 	hud.respec_talents(50)
 	print("TEST_RESULT2 blocked_when_poor=%s (gold inchangé=%s)" % [inst.char_data.talents.has("5"), inst.char_data.gold == gold_locked])
+
+	# Accord grammatical du texte de Thoric : c'etait le seul endroit du jeu
+	# a s'en remettre a des parentheses "(s)", et "tes 1 spécialisation(s)"
+	# est fautif. Verifie le singulier ET le pluriel.
+	var data = root.get_node("/root/Data")
+	inst.char_data.talents = {"5": "berserker"}
+	hud._on_open_npc(data.get_npc("maitre_armes_pnj"))
+	for i in range(2): await process_frame
+	var singular_ok = _find_label_with_text(hud.dialogue_box, "ta 1 spécialisation choisie") != null
+	var no_paren_plural = _find_label_with_text(hud.dialogue_box, "(s)") == null
+
+	for c in hud.dialogue_box.get_children(): c.free()
+	inst.char_data.talents = {"5": "berserker", "10": "bastion"}
+	hud._on_open_npc(data.get_npc("maitre_armes_pnj"))
+	for i in range(2): await process_frame
+	var plural_ok = _find_label_with_text(hud.dialogue_box, "tes 2 spécialisations choisies") != null
+
+	print("TEST_RESULT3 grammar_ok=%s singular_ok=%s plural_ok=%s no_paren_plural=%s"
+		% [singular_ok and plural_ok and no_paren_plural, singular_ok, plural_ok, no_paren_plural])
 
 func _run_race_quest_test() -> void:
 	print("TEST_START:race_quests")
@@ -2268,6 +2289,34 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_chat_placeholder_fits_test() -> void:
+	print("TEST_START:chat_placeholder_fits")
+	# Trouve en capturant show_chat : l'invite de saisie etait coupee en plein
+	# mot ("Message... (Entrée: envoyer, Échap: annul"), la LineEdit faisant
+	# 340px pour un texte plus large. Mesure le texte avec la VRAIE police du
+	# champ plutot que de deviner une largeur : le test reste donc valable si
+	# l'invite ou la police changent.
+	var hud = inst.get_node("Hud")
+	hud.open_chat()
+	# La mise en page des Container est differee : sans attendre, size.x est
+	# la valeur d'avant mise en page et la mesure ne veut rien dire.
+	for i in range(3): await process_frame
+
+	var field = hud.chat_input
+	var font = field.get_theme_font("font")
+	var font_size = field.get_theme_font_size("font_size")
+	var text_w = font.get_string_size(field.placeholder_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	# Marge interne de la LineEdit (StyleBox gauche + droite) : on la retire de
+	# la largeur utile, sinon on validerait un texte qui touche les bords.
+	var sb = field.get_theme_stylebox("normal")
+	var padding = sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT) if sb != null else 8.0
+	var usable = field.size.x - padding
+	var placeholder_fits = text_w <= usable
+
+	var all_ok = placeholder_fits
+	print("TEST_RESULT all_ok=%s placeholder_fits=%s (texte=%.0fpx utile=%.0fpx champ=%.0fpx marge=%.0fpx) texte=\"%s\""
+		% [all_ok, placeholder_fits, text_w, usable, field.size.x, padding, field.placeholder_text])
 
 func _run_npc_dialogue_text_test() -> void:
 	print("TEST_START:npc_dialogue_text")

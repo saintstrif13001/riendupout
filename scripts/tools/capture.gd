@@ -212,6 +212,10 @@ func _process(delta: float) -> bool:
 			_run_npc_lore_test()
 		elif test_mode == "test_float_text_centered":
 			_run_float_text_centered_test()
+		elif test_mode == "test_hud_centering":
+			_run_hud_centering_test()
+		elif test_mode == "test_zone_spawn_safety":
+			_run_zone_spawn_safety_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
@@ -2241,6 +2245,89 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_zone_spawn_safety_test() -> void:
+	print("TEST_START:zone_spawn_safety")
+	# BUG TROUVE EN CAPTURANT LA CAVERNE : la capture montrait l'ecran de mort
+	# immediatement apres un voyage rapide. Cause : la refonte de la carte en
+	# croix avait mis get_zone_spawn() ET le spawn du boss au MEME point (le
+	# centre de la zone), alors qu'avant ils etaient aux deux extremites
+	# opposees ("x0+200" vs "x1-200"). Voyager/reapparaitre dans une zone
+	# deposait donc le joueur pile sur son boss = mort instantanee.
+	var data = root.get_node("/root/Data")
+	var all_far_enough = true
+	var all_inside_zone = true
+	var details = []
+	var min_seen = 999999.0
+	for zid in data.ZONES.keys():
+		var z = data.ZONES[zid]
+		var spawn = inst.get_zone_spawn(zid)
+		# le point d'arrivee doit rester dans les limites de sa zone
+		if spawn.x < z.x0 or spawn.x > z.x1 or spawn.y < z.y0 or spawn.y > z.y1:
+			all_inside_zone = false
+		# ... et loin de tout boss de cette zone (aggro_range vaut ~260 au max)
+		for uid in inst.enemies.keys():
+			var e = inst.enemies[uid]
+			if not e.mdef.get("boss", false): continue
+			if e.mdef.zone != zid: continue
+			var d = spawn.distance_to(e.global_position)
+			min_seen = minf(min_seen, d)
+			details.append("%s:%.0f" % [zid, d])
+			if d < 600.0: all_far_enough = false
+
+	var all_ok = all_far_enough and all_inside_zone
+	print("TEST_RESULT all_ok=%s spawn_far_from_zone_boss=%s (attendu >= 600) all_inside_zone=%s distance_min=%.0f distances=%s"
+		% [all_ok, all_far_enough, all_inside_zone, min_seen, details])
+
+func _run_hud_centering_test() -> void:
+	print("TEST_START:hud_centering")
+	# Suite de "certaine choses ne sont pas centre" : après les panneaux modaux,
+	# audit du reste du HUD. Trois éléments se "centraient" via un décalage
+	# négatif CODÉ EN DUR supposant une largeur fixe (zone_label -100 => 200px,
+	# hint_panel -100 => 200px, cd_label -10 => 20px) : dès que le texte réel
+	# faisait une autre largeur — c'est-à-dire toujours — l'élément était
+	# décalé, et d'autant plus que l'écart de largeur était grand.
+	#
+	# Test COMPORTEMENTAL plutôt que par propriétés : un élément réellement
+	# centré garde le MÊME centre quelle que soit la longueur de son contenu.
+	# Comparer deux contenus entre eux ne dépend pas de root.size (pas fiable
+	# au moment du test en headless, cf. test_modal_overlay).
+	var hud = inst.get_node("Hud")
+
+	hud.zone_label.text = "Val-Repos"
+	for i in range(3): await process_frame
+	var zone_short_center = hud.zone_label.position.x + hud.zone_label.size.x / 2.0
+	hud.zone_label.text = "Caverne des Ossements"
+	for i in range(3): await process_frame
+	var zone_long_center = hud.zone_label.position.x + hud.zone_label.size.x / 2.0
+	var zone_label_stays_centered = absf(zone_short_center - zone_long_center) < 1.0
+
+	hud._on_near_update("Ouvrir le coffre")
+	for i in range(3): await process_frame
+	var hint_short_center = hud.hint_panel.position.x + hud.hint_panel.size.x / 2.0
+	hud._on_near_update("Parler à Grondar le Forgeron")
+	for i in range(3): await process_frame
+	var hint_long_center = hud.hint_panel.position.x + hud.hint_panel.size.x / 2.0
+	var hint_panel_stays_centered = absf(hint_short_center - hint_long_center) < 1.0
+
+	var cd_lbl = hud.hotbar_slots[0].cd_label
+	cd_lbl.text = "1"
+	for i in range(3): await process_frame
+	var cd_short_center = cd_lbl.position.x + cd_lbl.size.x / 2.0
+	cd_lbl.text = "12"
+	for i in range(3): await process_frame
+	var cd_long_center = cd_lbl.position.x + cd_lbl.size.x / 2.0
+	var cd_label_stays_centered = absf(cd_short_center - cd_long_center) < 1.0
+
+	# La barre de compétences était juste bonne par coïncidence pour 2 slots :
+	# vérifie la propriété qui la garde centrée quel qu'en soit le nombre.
+	var hotbar_grows_both = hud.hotbar.grow_horizontal == Control.GROW_DIRECTION_BOTH
+
+	var all_ok = zone_label_stays_centered and hint_panel_stays_centered and cd_label_stays_centered and hotbar_grows_both
+	print("TEST_RESULT all_ok=%s zone_label_stays_centered=%s (court=%.1f long=%.1f) hint_panel_stays_centered=%s (court=%.1f long=%.1f) cd_label_stays_centered=%s hotbar_grows_both=%s"
+		% [all_ok, zone_label_stays_centered, zone_short_center, zone_long_center,
+			hint_panel_stays_centered, hint_short_center, hint_long_center,
+			cd_label_stays_centered, hotbar_grows_both])
 
 func _run_npc_wander_test() -> void:
 	print("TEST_START:npc_wander")

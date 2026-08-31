@@ -156,7 +156,14 @@ func _build_bars() -> void:
 	zone_label = Label.new()
 	zone_label.add_theme_font_size_override("font_size", 18)
 	zone_label.set_anchors_preset(Control.PRESET_CENTER_TOP)
-	zone_label.position = Vector2(-100, 12)
+	# Le décalage de -100 codé en dur supposait une étiquette large de 200px
+	# exactement. Les noms de zone vont de "Val-Repos" (~85px) à "Caverne des
+	# Ossements" (~210px) : le nom de zone, affiché en permanence en haut de
+	# l'écran, n'était donc JAMAIS centré et se décalait à chaque changement de
+	# zone. GROW_DIRECTION_BOTH fait grandir la boîte symétriquement autour de
+	# son ancre, donc elle reste centrée quelle que soit la longueur du texte.
+	zone_label.position = Vector2(0, 12)
+	zone_label.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	root.add_child(zone_label)
 
 	gold_label = Label.new()
@@ -230,7 +237,12 @@ func _build_hotbar() -> void:
 	hotbar.theme = UiTheme.build()
 	hotbar.add_theme_constant_override("separation", 8)
 	hotbar.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	hotbar.position = Vector2(-(HOTBAR_SLOT_SIZE + 4), -100)
+	# -(SLOT+4) valait exactement la moitié de la largeur de 2 emplacements :
+	# juste par coïncidence pour le nombre actuel de compétences. Ajouter un
+	# 3e sort aurait décentré la barre en silence. GROW_DIRECTION_BOTH la garde
+	# centrée quel que soit le nombre d'emplacements.
+	hotbar.position = Vector2(0, -100)
+	hotbar.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	add_child(hotbar)
 	for key_letter in HOTBAR_KEYS:
 		hotbar_slots.append(_build_hotbar_slot(key_letter))
@@ -273,7 +285,11 @@ func _build_hotbar_slot(key_letter: String) -> Dictionary:
 	stack.add_child(key_lbl)
 	var cd_lbl = Label.new()
 	cd_lbl.set_anchors_preset(Control.PRESET_CENTER)
-	cd_lbl.position = Vector2(-10, -12)
+	# Le décompte de recharge passe de "1" à deux chiffres ("12") : un décalage
+	# fixe de -10 ne pouvait pas centrer les deux dans l'emplacement.
+	cd_lbl.position = Vector2.ZERO
+	cd_lbl.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	cd_lbl.grow_vertical = Control.GROW_DIRECTION_BOTH
 	cd_lbl.add_theme_font_size_override("font_size", 20)
 	cd_lbl.add_theme_color_override("font_color", Color(1, 1, 1))
 	cd_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -334,7 +350,12 @@ func _build_hint() -> void:
 	hint_panel = PanelContainer.new()
 	hint_panel.theme = UiTheme.build()
 	hint_panel.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
-	hint_panel.position = Vector2(-100, -50)
+	# Même bug que zone_label (voir _build_bars) : -100 supposait une largeur
+	# fixe de 200px, alors que l'invite varie beaucoup ("Ouvrir le coffre" vs
+	# "Parler à Grondar le Forgeron"). Elle apparaissait donc décalée, et
+	# d'autant plus que le texte était long.
+	hint_panel.position = Vector2(0, -50)
+	hint_panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	hint_panel.visible = false
 	add_child(hint_panel)
 	hint_label = Label.new()

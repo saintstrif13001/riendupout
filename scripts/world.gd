@@ -818,12 +818,37 @@ func _build_ground_mosaic(z: Dictionary) -> void:
 			y += chunk_h
 		x += chunk_w
 
+## Vecteur unitaire (axe dominant) pointant de la zone vers le village.
+## Vector2.ZERO pour le village lui-même (il est sa propre référence).
+func _zone_dir_to_village(z: Dictionary) -> Vector2:
+	var vz = Data.ZONES.village
+	var village_c = Vector2((vz.x0 + vz.x1) / 2.0, (vz.y0 + vz.y1) / 2.0)
+	var zone_c = Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0)
+	var d = village_c - zone_c
+	if d == Vector2.ZERO: return Vector2.ZERO
+	if absf(d.x) >= absf(d.y): return Vector2(signf(d.x), 0.0)
+	return Vector2(0.0, signf(d.y))
+
+## Point d'entrée (bord côté village) ou fond (bord opposé) d'une zone.
+## Avant la refonte en croix, l'entrée était en dur à "x0+200" et le boss à
+## "x1-200" : deux extrémités OPPOSÉES d'une bande horizontale. En passant
+## les deux au centre de la zone pour être indépendant de l'orientation, on a
+## fait se superposer le point d'arrivée du joueur ET le spawn du boss —
+## voyager (ou réapparaître) dans une zone déposait le joueur pile sur le boss,
+## donc mort immédiate. Rétablit la séparation entrée/fond, mais de façon
+## orientable (chaque bras de la croix pointe dans une direction différente).
+func _zone_edge_point(z: Dictionary, toward_village: bool) -> Vector2:
+	var c = Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0)
+	var dir = _zone_dir_to_village(z)
+	if dir == Vector2.ZERO: return c
+	var half_extent = ((z.x1 - z.x0) / 2.0) if dir.x != 0.0 else ((z.y1 - z.y0) / 2.0)
+	var offset = maxf(0.0, half_extent - 200.0)
+	return c + dir * offset * (1.0 if toward_village else -1.0)
+
 func get_zone_spawn(zone_id: String) -> Vector2:
-	# Le centre de la zone marche pour n'importe quelle orientation (est/nord/
-	# ouest/sud depuis le village), contrairement à "x0+200" qui supposait une
-	# seule bande horizontale.
-	var z = Data.ZONES[zone_id]
-	return Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0)
+	# On arrive/réapparaît par le bord de la zone le plus proche du village,
+	# jamais en plein centre (où se tient le boss) — voir _zone_edge_point().
+	return _zone_edge_point(Data.ZONES[zone_id], true)
 
 func spawn_local_player() -> void:
 	player = PlayerScene.instantiate()
@@ -859,7 +884,10 @@ func build_teleporters() -> void:
 	# repère de navigation en plus de l'option de menu qui reste disponible.
 	for zid in Data.ZONES.keys():
 		var z = Data.ZONES[zid]
-		var pos = Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0 + 90)
+		# À l'entrée de la zone (là où le voyage rapide dépose le joueur), pas
+		# au centre : le portail sert de repère « vous arrivez ici », et le
+		# centre est désormais sur le trajet vers le boss.
+		var pos = get_zone_spawn(zid) + Vector2(0, 90)
 		var node = Node2D.new()
 		node.position = pos
 		node.z_index = int(pos.y / 2.0)
@@ -1031,9 +1059,11 @@ func build_enemy_spawns() -> void:
 			spawn_enemy(sd)
 		for t in by_zone[zone_id]:
 			if Data.MONSTER_TYPES[t].get("boss", false):
-				# Le centre de la zone marche pour n'importe quelle orientation
-				# (voir get_zone_spawn), contrairement à "x1-200".
-				var sd = {"x": (z.x0 + z.x1) / 2.0, "y": (z.y0 + z.y1) / 2.0, "type_id": t, "respawn_at": 0.0, "is_boss": true}
+				# Au fond de la zone, à l'opposé du point d'arrivée du joueur :
+				# il faut traverser la zone pour l'affronter (voir
+				# _zone_edge_point() pour le bug que ça corrige).
+				var boss_pos = _zone_edge_point(z, false)
+				var sd = {"x": boss_pos.x, "y": boss_pos.y, "type_id": t, "respawn_at": 0.0, "is_boss": true}
 				enemy_spawns.append(sd)
 				spawn_enemy(sd)
 

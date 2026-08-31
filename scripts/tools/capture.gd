@@ -1037,6 +1037,11 @@ func _run_modal_overlay_test() -> void:
 	inst.char_data.inventory = {"bois": 5, "epee_fer": 1, "potion_vie": 2}
 	hud._on_open_npc(data.get_npc("marchand")) # dialogue avec le plus de texte (objets de faction + vente)
 
+	# Le calcul de disposition des Container est DIFFERE en Godot (queue_sort) :
+	# sans laisser passer quelques frames, toutes les tailles lues ici sont
+	# celles d'avant la mise en page et ne veulent rien dire.
+	for i in range(3): await process_frame
+
 	var panel = hud.dialogue_overlay.get_child(1) # bg=0, panel=1
 	var panel_width_reasonable = panel.size.x < 700.0 # 560 de contenu + ~40 de marge du thème
 
@@ -1066,6 +1071,16 @@ func _run_modal_overlay_test() -> void:
 	for c in content.get_children():
 		if c.size.x > outer.size.x + 1.0: no_child_overflows_panel = false
 
+	# Un ScrollContainer donne à son enfant sa taille MINIMALE : sans drapeau
+	# d'expansion, la boîte de contenu se réduisait à la largeur naturelle de
+	# son plus large élément et restait collée à gauche, laissant ~40% du
+	# panneau vide à droite (constaté sur le menu de voyage rapide). Vérifie
+	# que le contenu occupe bien toute la largeur utile du panneau.
+	# Tolérance de 24px : le ScrollContainer réserve la largeur de sa barre de
+	# défilement verticale (~8px ici). Le bug laissait un écart de 215px, donc
+	# la tolérance reste très loin de le masquer.
+	var content_fills_width = content.size.x >= scroll.size.x - 24.0
+
 	close_btn.pressed.emit()
 	var close_button_closes_overlay = not hud.dialogue_overlay.visible
 
@@ -1077,9 +1092,9 @@ func _run_modal_overlay_test() -> void:
 	bg.gui_input.emit(ev)
 	var click_outside_closes_overlay = not hud.dialogue_overlay.visible
 
-	var all_ok = panel_width_reasonable and panel_is_centered and close_button_is_top_right and no_child_overflows_panel and close_button_closes_overlay and click_outside_closes_overlay
-	print("TEST_RESULT all_ok=%s panel_width_reasonable=%s (width=%.0f) panel_is_centered=%s close_button_is_top_right=%s no_child_overflows_panel=%s close_button_closes_overlay=%s click_outside_closes_overlay=%s"
-		% [all_ok, panel_width_reasonable, panel.size.x, panel_is_centered, close_button_is_top_right, no_child_overflows_panel, close_button_closes_overlay, click_outside_closes_overlay])
+	var all_ok = panel_width_reasonable and panel_is_centered and close_button_is_top_right and no_child_overflows_panel and content_fills_width and close_button_closes_overlay and click_outside_closes_overlay
+	print("TEST_RESULT all_ok=%s panel_width_reasonable=%s (width=%.0f) panel_is_centered=%s close_button_is_top_right=%s no_child_overflows_panel=%s content_fills_width=%s (contenu=%.0f scroll=%.0f) close_button_closes_overlay=%s click_outside_closes_overlay=%s"
+		% [all_ok, panel_width_reasonable, panel.size.x, panel_is_centered, close_button_is_top_right, no_child_overflows_panel, content_fills_width, content.size.x, scroll.size.x, close_button_closes_overlay, click_outside_closes_overlay])
 
 func _run_sell_item_test() -> void:
 	print("TEST_START:sell_item")

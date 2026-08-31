@@ -407,8 +407,18 @@ func _build_modal_overlay(width: float, scroll_height: float, dim_alpha: float, 
 
 	var scroll = ScrollContainer.new()
 	scroll.custom_minimum_size = Vector2(width, scroll_height)
+	# Un ScrollContainer donne à son enfant sa taille MINIMALE, pas la sienne :
+	# sans drapeau d'expansion, la boîte de contenu se réduisait à la largeur
+	# naturelle de son plus large élément et restait collée à GAUCHE, laissant
+	# ~40% du panneau vide à droite (visible sur le menu de voyage rapide, dont
+	# les boutons n'occupaient que la moitié gauche d'un panneau centré). Le
+	# défilement horizontal est désactivé : ces panneaux ont une largeur fixe et
+	# leurs textes longs passent déjà à la ligne (autowrap), on ne veut jamais
+	# de barre horizontale.
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	outer.add_child(scroll)
 	var content_box = VBoxContainer.new()
+	content_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(content_box)
 

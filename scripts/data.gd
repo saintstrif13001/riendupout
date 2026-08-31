@@ -16,54 +16,77 @@ const RACES := {
 		"bonus":{"hp":40,"mana":-20,"atk":1,"def":5,"spd":-25}, "xp_mult":0.95, "tint":Color(0.6,0.6,0.6)},
 }
 
+## Chaque classe n'avait que DEUX competences, disponibles des le niveau 1 et
+## inchangees jusqu'au niveau 30 : on traversait toute la progression avec les
+## deux memes boutons, alors que le monde, lui, s'etoffait. Deux competences
+## supplementaires s'ajoutent en cours de route (niveaux 8 et 18), ce qui donne
+## deux vrais paliers ou la facon de jouer change.
+##   "level" : niveau requis (voir SKILL_UNLOCK_LEVELS et world.use_skill)
+##   "shockwave" : multiplicateur de recul applique aux cibles, qui INTERROMPT
+##                 aussi leur attaque en cours d'armement (voir
+##                 world._apply_hit_reaction) — de quoi punir un telegraphe.
+const SKILL_UNLOCK_LEVELS := [1, 1, 8, 18]
+
 const CLASSES := {
 	"guerrier": {"name":"Guerrier/Tank", "role":"tank", "desc":"Encaisse et contrôle les ennemis.",
 		"base":{"hp":150,"mana":20,"atk":11,"def":11,"spd":150},
 		"growth":{"hp":19,"mana":2,"atk":2.1,"def":2.0},
 		"color":Color(0.85,0.29,0.29),
 		"skills":[
-			{"id":"coup_puissant","name":"Coup Puissant","key":"skill_q","cd":4.0,"cost":8,"dmg_mult":2.0,"range":60,"fx_color":Color(0.95,0.3,0.25),"icon":"sword.png","desc":"Frappe lourde."},
-			{"id":"cri_guerre","name":"Cri de Guerre","key":"skill_e","cd":12.0,"cost":15,"buff":{"atk":6,"def":6,"duration":6.0},"range":0,"party":true,"icon":"shield.png","desc":"+ATK/DEF pour le groupe."},
+			{"id":"coup_puissant","name":"Coup Puissant","key":"skill_q","level":1,"cd":4.0,"cost":8,"dmg_mult":2.0,"range":60,"fx_color":Color(0.95,0.3,0.25),"icon":"sword.png","desc":"Frappe lourde."},
+			{"id":"cri_guerre","name":"Cri de Guerre","key":"skill_e","level":1,"cd":12.0,"cost":15,"buff":{"atk":6,"def":6,"duration":6.0},"range":0,"party":true,"icon":"shield.png","desc":"+ATK/DEF pour le groupe."},
+			{"id":"choc_sismique","name":"Choc Sismique","key":"skill_r","level":8,"cd":10.0,"cost":24,"dmg_mult":1.5,"range":150,"aoe":true,"shockwave":2.0,"fx_color":Color(0.9,0.62,0.25),"icon":"axe.png","desc":"Onde de choc : repousse et interrompt tout autour."},
+			{"id":"rempart","name":"Rempart Inébranlable","key":"skill_t","level":18,"cd":24.0,"cost":38,"shield":150,"duration":7.0,"buff":{"def":12,"duration":7.0},"range":0,"icon":"helmet.png","desc":"Gros bouclier et défense accrue."},
 		]},
 	"mage": {"name":"Mage Élémentaire", "role":"dps_zone", "desc":"Sorts de zone dévastateurs, fragile.",
 		"base":{"hp":75,"mana":110,"atk":14,"def":3,"spd":150},
 		"growth":{"hp":8,"mana":15,"atk":2.8,"def":0.6},
 		"color":Color(0.29,0.56,0.85),
 		"skills":[
-			{"id":"boule_feu","name":"Boule de Feu","key":"skill_q","cd":2.5,"cost":14,"dmg_mult":2.6,"range":260,"projectile":true,"fx_color":Color(1,0.5,0.1),"icon":"staff.png","desc":"Projectile de feu."},
-			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"fx_color":Color(0.5,0.85,1.0),"slow_pct":0.5,"slow_duration":3.0,"icon":"gem.png","desc":"Dégâts de zone + ralentit."},
+			{"id":"boule_feu","name":"Boule de Feu","key":"skill_q","level":1,"cd":2.5,"cost":14,"dmg_mult":2.6,"range":260,"projectile":true,"fx_color":Color(1,0.5,0.1),"icon":"staff.png","desc":"Projectile de feu."},
+			{"id":"nova_glace","name":"Nova de Glace","key":"skill_e","level":1,"cd":9.0,"cost":35,"dmg_mult":1.6,"range":130,"aoe":true,"fx_color":Color(0.5,0.85,1.0),"slow_pct":0.5,"slow_duration":3.0,"icon":"gem.png","desc":"Dégâts de zone + ralentit."},
+			{"id":"foudre","name":"Foudre","key":"skill_r","level":8,"cd":6.0,"cost":30,"dmg_mult":3.4,"range":300,"projectile":true,"fx_color":Color(0.75,0.85,1.0),"icon":"amulet.png","desc":"Trait de foudre à très longue portée."},
+			{"id":"meteore","name":"Météore","key":"skill_t","level":18,"cd":20.0,"cost":55,"dmg_mult":3.0,"range":210,"aoe":true,"shockwave":2.5,"fx_color":Color(1,0.55,0.2),"icon":"ore.png","desc":"Impact de zone qui balaie tout."},
 		]},
 	"pretre": {"name":"Soigneur/Prêtre", "role":"heal", "desc":"Soigne et protège le groupe.",
 		"base":{"hp":90,"mana":100,"atk":8,"def":5,"spd":150},
 		"growth":{"hp":10,"mana":13,"atk":1.4,"def":1.0},
 		"color":Color(0.94,0.88,0.56),
 		"skills":[
-			{"id":"soin","name":"Lumière Bienfaisante","key":"skill_q","cd":2.2,"cost":16,"heal":35,"range":180,"party":true,"icon":"potion_red.png","desc":"Soigne toi ou l'allié le plus proche."},
-			{"id":"bouclier_saint","name":"Bouclier Saint","key":"skill_e","cd":10.0,"cost":30,"shield":60,"duration":5.0,"range":180,"party":true,"icon":"shield.png","desc":"Bouclier absorbant."},
+			{"id":"soin","name":"Lumière Bienfaisante","key":"skill_q","level":1,"cd":2.2,"cost":16,"heal":35,"range":180,"party":true,"icon":"potion_red.png","desc":"Soigne toi ou l'allié le plus proche."},
+			{"id":"bouclier_saint","name":"Bouclier Saint","key":"skill_e","level":1,"cd":10.0,"cost":30,"shield":60,"duration":5.0,"range":180,"party":true,"icon":"shield.png","desc":"Bouclier absorbant."},
+			{"id":"chatiment","name":"Châtiment","key":"skill_r","level":8,"cd":5.0,"cost":18,"dmg_mult":2.2,"range":230,"projectile":true,"fx_color":Color(1,0.92,0.6),"icon":"amulet.png","desc":"Trait sacré : enfin de quoi frapper seul."},
+			{"id":"renaissance","name":"Renaissance","key":"skill_t","level":18,"cd":26.0,"cost":55,"heal":150,"shield":90,"duration":6.0,"range":200,"party":true,"icon":"chest.png","desc":"Gros soin doublé d'un bouclier."},
 		]},
 	"archer": {"name":"Rôdeur/Chasseur", "role":"dps_range", "desc":"Dégâts à distance et pièges.",
 		"base":{"hp":100,"mana":50,"atk":13,"def":5,"spd":170},
 		"growth":{"hp":11,"mana":6,"atk":2.6,"def":1.0},
 		"color":Color(0.29,0.85,0.56),
 		"skills":[
-			{"id":"tir_rapide","name":"Tir Rapide","key":"skill_q","cd":1.8,"cost":8,"dmg_mult":1.5,"range":220,"projectile":true,"fx_color":Color(0.55,0.85,0.35),"icon":"bow.png","desc":"Flèche rapide."},
-			{"id":"piege","name":"Piège à Ours","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"fx_color":Color(0.6,0.45,0.2),"immobilize":2.0,"icon":"dagger.png","desc":"Immobilise un ennemi."},
+			{"id":"tir_rapide","name":"Tir Rapide","key":"skill_q","level":1,"cd":1.8,"cost":8,"dmg_mult":1.5,"range":220,"projectile":true,"fx_color":Color(0.55,0.85,0.35),"icon":"bow.png","desc":"Flèche rapide."},
+			{"id":"piege","name":"Piège à Ours","key":"skill_e","level":1,"cd":9.0,"cost":20,"dmg_mult":0.8,"range":150,"fx_color":Color(0.6,0.45,0.2),"immobilize":2.0,"icon":"dagger.png","desc":"Immobilise un ennemi."},
+			{"id":"fleche_perforante","name":"Flèche Perforante","key":"skill_r","level":8,"cd":5.5,"cost":18,"dmg_mult":2.6,"range":320,"projectile":true,"crit_bonus":0.25,"fx_color":Color(0.8,0.95,0.5),"icon":"bow.png","desc":"Tir très long, critique accru."},
+			{"id":"pluie_fleches","name":"Pluie de Flèches","key":"skill_t","level":18,"cd":17.0,"cost":42,"dmg_mult":2.0,"range":210,"aoe":true,"slow_pct":0.4,"slow_duration":3.0,"fx_color":Color(0.6,0.9,0.45),"icon":"bow.png","desc":"Salve de zone qui ralentit."},
 		]},
 	"voleur": {"name":"Voleur/Assassin", "role":"dps_burst", "desc":"Burst de dégâts et crochetage.",
 		"base":{"hp":95,"mana":40,"atk":12,"def":4,"spd":195},
 		"growth":{"hp":10,"mana":4,"atk":2.4,"def":0.8},
 		"color":Color(0.6,0.29,0.85),
 		"skills":[
-			{"id":"coup_dos","name":"Coup dans le Dos","key":"skill_q","cd":3.0,"cost":10,"dmg_mult":2.8,"range":55,"crit_bonus":0.5,"fx_color":Color(0.65,0.3,0.85),"icon":"dagger.png","desc":"Fort dégâts, critique accru."},
-			{"id":"esquive","name":"Esquive Fumigène","key":"skill_e","cd":8.0,"cost":12,"dash":220,"invuln":0.4,"icon":"boots.png","desc":"Fonce en avant, invulnérabilité brève."},
+			{"id":"coup_dos","name":"Coup dans le Dos","key":"skill_q","level":1,"cd":3.0,"cost":10,"dmg_mult":2.8,"range":55,"crit_bonus":0.5,"fx_color":Color(0.65,0.3,0.85),"icon":"dagger.png","desc":"Fort dégâts, critique accru."},
+			{"id":"esquive","name":"Esquive Fumigène","key":"skill_e","level":1,"cd":8.0,"cost":12,"dash":220,"invuln":0.4,"icon":"boots.png","desc":"Fonce en avant, invulnérabilité brève."},
+			{"id":"eventail_lames","name":"Éventail de Lames","key":"skill_r","level":8,"cd":8.0,"cost":22,"dmg_mult":1.9,"range":120,"aoe":true,"fx_color":Color(0.75,0.4,0.95),"icon":"dagger.png","desc":"Taillade tout ce qui est proche."},
+			{"id":"execution","name":"Exécution","key":"skill_t","level":18,"cd":18.0,"cost":32,"dmg_mult":4.6,"range":60,"crit_bonus":0.8,"fx_color":Color(0.9,0.25,0.45),"icon":"dagger.png","desc":"Coup unique dévastateur."},
 		]},
 	"barde": {"name":"Barde/Support", "role":"support", "desc":"Buffs de groupe, débuffs ennemis.",
 		"base":{"hp":100,"mana":80,"atk":9,"def":5,"spd":165},
 		"growth":{"hp":11,"mana":10,"atk":1.8,"def":1.0},
 		"color":Color(0.85,0.29,0.69),
 		"skills":[
-			{"id":"chant_vaillance","name":"Chant de Vaillance","key":"skill_q","cd":9.0,"cost":20,"buff":{"atk":5,"spd":20,"duration":7.0},"range":0,"party":true,"icon":"amulet.png","desc":"+ATK/Vitesse pour le groupe."},
-			{"id":"complainte","name":"Complainte Lugubre","key":"skill_e","cd":9.0,"cost":20,"dmg_mult":0.5,"range":180,"aoe":true,"fx_color":Color(0.55,0.3,0.55),"icon":"gem.png","desc":"Réduit la défense ennemie."},
+			{"id":"chant_vaillance","name":"Chant de Vaillance","key":"skill_q","level":1,"cd":9.0,"cost":20,"buff":{"atk":5,"spd":20,"duration":7.0},"range":0,"party":true,"icon":"amulet.png","desc":"+ATK/Vitesse pour le groupe."},
+			{"id":"complainte","name":"Complainte Lugubre","key":"skill_e","level":1,"cd":9.0,"cost":20,"dmg_mult":0.5,"range":180,"aoe":true,"fx_color":Color(0.55,0.3,0.55),"icon":"gem.png","desc":"Réduit la défense ennemie."},
+			{"id":"berceuse","name":"Berceuse Envoûtante","key":"skill_r","level":8,"cd":14.0,"cost":26,"dmg_mult":0.4,"range":170,"aoe":true,"immobilize":2.5,"fx_color":Color(0.7,0.55,0.95),"icon":"potion_blue.png","desc":"Endort la zone : tout le monde est cloué sur place."},
+			{"id":"hymne_final","name":"Hymne Final","key":"skill_t","level":18,"cd":30.0,"cost":60,"buff":{"atk":12,"def":10,"spd":25,"duration":10.0},"range":240,"party":true,"icon":"amulet.png","desc":"Buff massif et durable pour tout le groupe."},
 		]},
 }
 

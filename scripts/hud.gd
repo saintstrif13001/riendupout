@@ -185,7 +185,10 @@ func _build_bars() -> void:
 	root.add_child(quest_label)
 
 	var help = Label.new()
-	help.text = "ZQSD/Flèches: bouger · Maj: roulade · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · C: stats · M: voyage rapide · O: options · Entrée: discuter"
+	# Libelles demandes au systeme : les touches sont liees par code physique,
+	# donc "Q/E" en dur mentait sur un clavier AZERTY (voir HOTBAR_PHYSICAL_KEYS).
+	var sk_keys = "/".join(hotbar_key_labels())
+	help.text = "ZQSD/Flèches: bouger · Maj: roulade · Espace: attaque · %s: compétences · %s: interagir · I: inventaire · C: stats · M: voyage rapide · O: options · Entrée: discuter" % [sk_keys, key_label(KEY_F)]
 	help.add_theme_font_size_override("font_size", 11)
 	help.add_theme_color_override("font_color", Color(1,1,1,0.6))
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -231,7 +234,24 @@ func _draw_minimap() -> void:
 	minimap.draw_circle(Vector2(px, py), 3.5, Color(1, 1, 0.85))
 
 const HOTBAR_SLOT_SIZE := 52.0
-const HOTBAR_KEYS := ["Q", "E"]
+## Les touches sont liees par leur code PHYSIQUE (world._unhandled_key_input),
+## donc leur libelle depend de la disposition du clavier : la touche physique
+## "Q" du QWERTY est marquee A sur un clavier AZERTY. L'aide affichait "Q/E"
+## en dur alors que le deplacement, lui, etait decrit en ZQSD (AZERTY) — sur
+## un tel clavier la touche Q sert a se deplacer a gauche, et l'aide envoyait
+## donc le joueur sur la mauvaise touche. On demande son libelle reel au
+## systeme au lieu de le supposer.
+const HOTBAR_PHYSICAL_KEYS := [KEY_Q, KEY_E, KEY_R, KEY_T]
+
+static func key_label(physical: Key) -> String:
+	var local = DisplayServer.keyboard_get_keycode_from_physical(physical)
+	if local == 0: local = physical
+	return OS.get_keycode_string(local)
+
+static func hotbar_key_labels() -> Array:
+	var out = []
+	for k in HOTBAR_PHYSICAL_KEYS: out.append(key_label(k))
+	return out
 
 func _build_hotbar() -> void:
 	# Les compétences Q/E avaient un temps de recharge (cd) mais aucun retour
@@ -247,8 +267,8 @@ func _build_hotbar() -> void:
 	hotbar.position = Vector2(0, -100)
 	hotbar.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	add_child(hotbar)
-	for key_letter in HOTBAR_KEYS:
-		hotbar_slots.append(_build_hotbar_slot(key_letter))
+	for k in HOTBAR_PHYSICAL_KEYS:
+		hotbar_slots.append(_build_hotbar_slot(key_label(k)))
 
 func _build_hotbar_slot(key_letter: String) -> Dictionary:
 	var panel = PanelContainer.new()
@@ -323,10 +343,26 @@ func _process(_delta: float) -> void:
 		slot.cd_label.visible = remain > 0.05
 		if remain > 0.05:
 			slot.cd_label.text = "%d" % ceili(remain)
+		# Competence pas encore debloquee : emplacement grise portant le niveau
+		# requis, plutot qu'une icone d'apparence normale qui ne repond pas.
+		var req_lvl = skill.get("level", 1)
+		var unlocked = world.char_data.get("level", 1) >= req_lvl
+		var key_txt = key_label(HOTBAR_PHYSICAL_KEYS[i])
+		if not unlocked:
+			slot.icon.modulate = Color(1, 1, 1, 0.25)
+			slot.bg.color = Color(0.12, 0.12, 0.14, 0.8)
+			slot.cd_overlay.size.y = 0.0
+			slot.cd_label.visible = true
+			slot.cd_label.text = "Nv.%d" % req_lvl
+			slot.cd_label.add_theme_font_size_override("font_size", 13)
+			slot.panel.tooltip_text = "%s (%s)\nSe débloque au niveau %d\n%s" % [skill.name, key_txt, req_lvl, skill.desc]
+			continue
+		slot.icon.modulate = Color(1, 1, 1, 1)
+		slot.cd_label.add_theme_font_size_override("font_size", 20)
 		var can_afford = world.player.mana >= skill.cost
 		var base_color: Color = skill.get("fx_color", Color(0.5, 0.5, 0.5))
 		slot.bg.color = Color(base_color.r, base_color.g, base_color.b, 0.55) if can_afford else Color(0.3, 0.1, 0.1, 0.6)
-		slot.panel.tooltip_text = "%s (%s)\n%s\nCoût : %d mana · Recharge : %.1fs" % [skill.name, HOTBAR_KEYS[i], skill.desc, skill.cost, skill.cd]
+		slot.panel.tooltip_text = "%s (%s)\n%s\nCoût : %d mana · Recharge : %.1fs" % [skill.name, key_txt, skill.desc, skill.cost, skill.cd]
 
 func _make_stat_bar(color: Color, size: Vector2) -> ProgressBar:
 	# Barre avec coins arrondis + bordure sombre + reflet brillant en haut,

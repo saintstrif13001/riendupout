@@ -1819,6 +1819,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_SPACE: basic_attack()
 		KEY_Q: use_skill(0)
 		KEY_E: use_skill(1)
+		KEY_R: use_skill(2)
+		KEY_T: use_skill(3)
 		KEY_F: try_interact()
 		KEY_SHIFT: try_dodge()
 
@@ -1890,6 +1892,12 @@ func use_skill(idx: int) -> void:
 	var cls = Data.CLASSES[char_data["class"]]
 	if idx >= cls.skills.size(): return
 	var skill = cls.skills[idx]
+	# Les competences 3 et 4 se debloquent en cours de progression : sans ce
+	# palier on jouait les 30 niveaux avec exactement les deux memes boutons.
+	var req = skill.get("level", 1)
+	if char_data.level < req:
+		float_text(player.global_position + Vector2(0,-50), "%s : niveau %d requis" % [skill.name, req], Color(0.75,0.75,0.8))
+		return
 	var now = Time.get_ticks_msec() / 1000.0
 	var cd_key = "skill%d" % idx
 	if now < player.cooldowns.get(cd_key, 0.0): return
@@ -1961,6 +1969,13 @@ func use_skill(idx: int) -> void:
 				spawn_hit_particles(t.e.global_position, fx_color, 10 if not roll.crit else 18)
 				if skill.has("immobilize") and not t.e.dead: t.e.apply_immobilize(skill.immobilize)
 				if skill.has("slow_pct") and not t.e.dead: t.e.apply_slow(1.0 - skill.slow_pct, skill.slow_duration)
+				# Onde de choc : reprend la reaction aux coups (recul + etourdissement
+				# + interruption d'armement) avec une force amplifiee. C'est ce qui
+				# rend ces competences utiles POUR REPONDRE a un telegraphe adverse,
+				# et pas seulement pour infliger des degats de plus.
+				if skill.has("shockwave") and not t.e.dead:
+					_apply_hit_reaction(t.e, false)
+					t.e.knockback_vel *= skill.shockwave
 		if skill.get("projectile", false) and hits.size() > 0:
 			# L'orbe voyage visiblement jusqu'à la cible avant que les dégâts s'appliquent.
 			spawn_projectile_fx(player.global_position, hits[0].e.global_position, fx_color, apply_hits)
@@ -2272,6 +2287,16 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 		if p == player:
 			Audio.play("level_up", -2.0)
 			save_now()
+			# Une competence qui se debloque doit se REMARQUER : sans annonce,
+			# elle apparaissait silencieusement dans la barre et le joueur
+			# pouvait finir le jeu sans avoir su qu'il l'avait.
+			var my_skills = Data.CLASSES[p.char_data["class"]].skills
+			for si in range(my_skills.size()):
+				var sk = my_skills[si]
+				if sk.get("level", 1) != p.char_data.level: continue
+				float_text(p.global_position + Vector2(0,-104), "Nouvelle compétence : %s !" % sk.name, Color(0.55,1,0.85))
+				if hud and si < hud.HOTBAR_PHYSICAL_KEYS.size():
+					hud.add_chat_message("Système", "Nouvelle compétence : %s — touche %s. %s" % [sk.name, hud.key_label(hud.HOTBAR_PHYSICAL_KEYS[si]), sk.desc])
 			var tier = GameState.pending_talent(p.char_data)
 			if not tier.is_empty(): emit_signal("talent_available", tier)
 	if not partial:
@@ -2326,8 +2351,15 @@ func update_enemies(delta: float) -> void:
 		# tick. Place APRES la resolution d'armement ci-dessus pour qu'un coup
 		# deja parti aboutisse normalement — seule une interruption l'annule.
 		if now_t < e.stagger_until or e.knockback_vel.length() > 8.0:
+			# move_and_collide avec un deplacement EXPLICITE, pas move_and_slide :
+			# ce dernier avance de velocity * delta_physique_du_moteur, alors que
+			# l'amortissement ci-dessous utilise le delta passe en parametre. Quand
+			# les deux different (charge machine, framerate), la distance parcourue
+			# n'a plus rien a voir avec l'amortissement : mesure a 336px au lieu des
+			# ~45px voulus, soit un ennemi propulse hors de portee d'aggro. Ici le
+			# meme delta gouverne le deplacement ET la decroissance.
 			e.velocity = e.knockback_vel
-			e.move_and_slide()
+			e.move_and_collide(e.knockback_vel * delta)
 			e.knockback_vel = e.knockback_vel.lerp(Vector2.ZERO, minf(1.0, delta * KNOCKBACK_DAMPING))
 			e.set_anim(e.dir, false)
 			e.update_visuals()

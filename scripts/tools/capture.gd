@@ -230,6 +230,15 @@ func _process(delta: float) -> bool:
 			inst.player.stats.max_hp = 99999.0
 			inst.player.hp = 99999.0
 			inst.update_zone_lighting(_zid)
+		elif test_mode == "show_hotbar4":
+			# Barre a 4 emplacements : les deux derniers verrouilles au niveau 1.
+			inst.char_data["class"] = "guerrier"
+			inst.char_data.level = 10
+			inst.player.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
+			inst.player.mana = inst.player.stats.max_mana
+			inst.get_node("Hud")._process(0.0)
+		elif test_mode == "test_skill_progression":
+			_run_skill_progression_test()
 		elif test_mode == "test_world_content":
 			_run_world_content_test()
 		elif test_mode == "test_hit_reaction":
@@ -1953,7 +1962,10 @@ func _run_hotbar_test() -> void:
 	inst.player.cooldowns.clear()
 	hud._process(0.0)
 
-	var slots_built = hud.hotbar_slots.size() == 2
+	# Un emplacement par competence possible : en dur a 2, cette assertion
+	# aurait fallu la corriger a chaque ajout — et surtout elle ne verifiait
+	# plus rien d'utile. Elle suit desormais le nombre reel de competences.
+	var slots_built = hud.hotbar_slots.size() == Data.SKILL_UNLOCK_LEVELS.size() and hud.hotbar_slots.size() == hud.HOTBAR_PHYSICAL_KEYS.size()
 	var ready_before_use = hud.hotbar_slots[0].cd_overlay.size.y == 0.0 and not hud.hotbar_slots[0].cd_label.visible
 
 	inst.use_skill(0)
@@ -2322,6 +2334,146 @@ func _run_float_text_centered_test() -> void:
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
+func _run_skill_progression_test() -> void:
+	print("TEST_START:skill_progression")
+	# Chaque classe n'avait que DEUX competences, disponibles des le niveau 1 et
+	# inchangees jusqu'au niveau 30 : le monde s'etoffait (8 zones, 28 monstres)
+	# mais la panoplie du joueur, jamais. Deux competences s'ajoutent desormais
+	# aux niveaux 8 et 18.
+	var data = root.get_node("/root/Data")
+	var hud = inst.get_node("Hud")
+	var p = inst.player
+
+	# 1) Toutes les classes suivent le meme rythme de deblocage, sinon une
+	# classe se retrouverait durablement en retard sur les autres.
+	var all_have_four = true
+	var levels_match = true
+	var ids_unique = true
+	var icons_exist = true
+	var fields_ok = true
+	for cid in data.CLASSES.keys():
+		var sks = data.CLASSES[cid].skills
+		if sks.size() != data.SKILL_UNLOCK_LEVELS.size(): all_have_four = false; continue
+		var seen = {}
+		for i in range(sks.size()):
+			var s = sks[i]
+			if s.get("level", 1) != data.SKILL_UNLOCK_LEVELS[i]: levels_match = false
+			if seen.has(s.id): ids_unique = false
+			seen[s.id] = true
+			if not ResourceLoader.exists(data.ICON_PATH + s.get("icon", "")): icons_exist = false
+			# Une competence sans cout ni recharge serait spammable en boucle.
+			if not (s.has("cd") and s.has("cost") and s.has("desc") and s.cd > 0.0): fields_ok = false
+
+	# 2) Un palier doit apporter de la PUISSANCE : la competence de niveau 18
+	# doit peser plus que celle de niveau 1 de la meme classe (degats, soin,
+	# bouclier ou buff), sinon le deblocage n'est qu'un bouton de plus.
+	var progression_meaningful = true
+	var weights = []
+	for cid in data.CLASSES.keys():
+		var sks = data.CLASSES[cid].skills
+		# Classe incomplete : deja signalee par all_have_four. Sans cette garde le
+		# test PLANTAIT sur sks[3] au lieu de rapporter le probleme, ce qui ne
+		# laissait aucun diagnostic exploitable.
+		if sks.size() < 4: continue
+		var w1 = _skill_weight(sks[0]) + _skill_weight(sks[1])
+		var w2 = _skill_weight(sks[2]) + _skill_weight(sks[3])
+		weights.append("%s:%.1f->%.1f" % [cid, w1, w2])
+		if w2 <= w1: progression_meaningful = false
+
+	# 3) Chaque emplacement de competence doit avoir une TOUCHE : une
+	# competence sans touche serait injouable au clavier.
+	var every_skill_bound = hud.HOTBAR_PHYSICAL_KEYS.size() >= data.SKILL_UNLOCK_LEVELS.size()
+	# ...et son libelle vient de la disposition reelle du clavier. L'aide
+	# annoncait "Q/E" en dur alors que les touches sont liees par code
+	# PHYSIQUE : sur AZERTY la touche physique Q est marquee A, et la touche
+	# marquee Q sert justement a se deplacer a gauche (ZQSD).
+	var labels = hud.hotbar_key_labels()
+	var labels_resolved = labels.size() == hud.HOTBAR_PHYSICAL_KEYS.size()
+	for l in labels:
+		if l == "": labels_resolved = false
+
+	# 4) Le verrou fonctionne : au niveau 1, la 3e competence ne doit RIEN
+	# faire — ni consommer de mana, ni partir en recharge.
+	inst.char_data["class"] = "guerrier"
+	inst.char_data.level = 1
+	p.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
+	# Mana forcee au-dela du cout : un guerrier de niveau 1 n'a que 20 de mana
+	# pour une competence a 24, donc l'appel etait refuse FAUTE DE MANA et le
+	# test validait le verrou de niveau sans jamais l'exercer — verifie en
+	# retirant le verrou : le test passait quand meme.
+	p.stats.max_mana = 999.0
+	p.mana = 999.0
+	p.cooldowns.clear()
+	var mana_before = p.mana
+	inst.use_skill(2)
+	var locked_does_nothing = p.mana == mana_before and not p.cooldowns.has("skill2")
+
+	# 5) Une fois le niveau atteint, elle s'utilise normalement.
+	inst.char_data.level = 8
+	p.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
+	p.stats.max_mana = 999.0
+	p.mana = 999.0
+	var mana_before2 = p.mana
+	inst.use_skill(2)
+	var unlocked_works = p.mana < mana_before2 and p.cooldowns.has("skill2")
+
+	# 6) L'onde de choc doit reellement repousser ET interrompre : c'est ce qui
+	# rattache ces competences au systeme de telegraphes/interruptions, au lieu
+	# d'etre un enieme bouton de degats.
+	p.global_position = Vector2(2700, 2600)
+	var e = inst.spawn_enemy({"x": p.global_position.x + 60, "y": p.global_position.y, "type_id": "orc_chef", "respawn_at": 0.0})
+	e.hp = 99999.0
+	e.max_hp = 99999.0
+	e.interrupt_ready_at = 0.0
+	e.windup_until = Time.get_ticks_msec() / 1000.0 + 5.0
+	e.pending_slam = true
+	# Reference : ce que ferait un coup ORDINAIRE sur ce meme ennemi. Comparer
+	# a HIT_KNOCKBACK serait faux ici — un boss encaisse mieux (HIT_KNOCKBACK_BOSS),
+	# donc l'onde de choc peut le repousser moins qu'un coup normal sur de la
+	# pietaille tout en etant bien plus puissante qu'un coup normal sur LUI.
+	inst.deal_damage_to_enemy(e, 1.0)
+	var plain_push = e.knockback_vel.length()
+	e.knockback_vel = Vector2.ZERO
+	e.interrupt_ready_at = 0.0
+	e.windup_until = Time.get_ticks_msec() / 1000.0 + 5.0
+	e.pending_slam = true
+	p.mana = p.stats.max_mana
+	p.cooldowns.clear()
+	inst.use_skill(2) # Choc Sismique
+	var shockwave_knocks_back = e.knockback_vel.length() > plain_push * 1.5
+	var shockwave_interrupts = e.windup_until == 0.0 and not e.pending_slam
+	var e_push_final = e.knockback_vel.length()
+	inst.enemies.erase(e.uid)
+	e.queue_free()
+
+	# 7) La barre affiche l'etat de verrouillage : une icone d'apparence
+	# normale qui ne repond pas serait lue comme un bug par le joueur.
+	inst.char_data.level = 1
+	hud._process(0.0)
+	var locked_slot_dimmed = hud.hotbar_slots[2].icon.modulate.a < 0.5 and "Nv." in hud.hotbar_slots[2].cd_label.text
+	inst.char_data.level = 30
+	hud._process(0.0)
+	var unlocked_slot_normal = hud.hotbar_slots[2].icon.modulate.a > 0.9
+
+	var all_ok = all_have_four and levels_match and ids_unique and icons_exist and fields_ok and progression_meaningful and every_skill_bound and labels_resolved and locked_does_nothing and unlocked_works and shockwave_knocks_back and shockwave_interrupts and locked_slot_dimmed and unlocked_slot_normal
+	print("TEST_RESULT all_ok=%s panoplie(4_par_classe=%s paliers=%s ids_uniques=%s icones=%s champs=%s) puissance(croissante=%s %s) touches(toutes_liees=%s libelles=%s %s) verrou(bloque_avant=%s marche_apres=%s case_grisee=%s case_normale=%s) onde_de_choc(repousse=%s interrompt=%s)"
+		% [all_ok, all_have_four, levels_match, ids_unique, icons_exist, fields_ok,
+		   progression_meaningful, str(weights), every_skill_bound, labels_resolved, str(labels),
+		   locked_does_nothing, unlocked_works, locked_slot_dimmed, unlocked_slot_normal,
+		   shockwave_knocks_back, shockwave_interrupts])
+	print("TEST_RESULT2 recul_coup_normal=%.0f recul_onde=%.0f" % [plain_push, e_push_final])
+
+## Poids grossier d'une competence, toutes natures confondues (degats, soin,
+## bouclier, buff), pour comparer un palier a un autre sans privilegier les
+## classes offensives.
+func _skill_weight(s: Dictionary) -> float:
+	var w = s.get("dmg_mult", 0.0) * (2.0 if s.get("aoe", false) else 1.0)
+	w += s.get("heal", 0.0) / 40.0
+	w += s.get("shield", 0.0) / 40.0
+	for k in ["atk", "def", "spd"]:
+		w += s.get("buff", {}).get(k, 0.0) / 5.0
+	return w
+
 func _run_world_content_test() -> void:
 	print("TEST_START:world_content")
 	# Retour du joueur : "les zones sont trop petites et vides, tout le monde
@@ -2567,12 +2719,16 @@ func _run_hit_reaction_test() -> void:
 		await process_frame
 	var stagger_blocks_action = e4.windup_until == 0.0
 
-	# ...et reprend normalement une fois l'etourdissement passe.
+	# ...et reprend normalement une fois l'etourdissement passe. On observe
+	# "il a DECIDE d'attaquer" (last_attack a bouge) plutot que "un armement est
+	# en cours" : l'armement est transitoire, il se resout tout seul, si bien
+	# qu'en laissant passer des frames reelles on pouvait tomber juste apres sa
+	# resolution et croire que l'ennemi restait inerte.
+	var attack_before = e4.last_attack
 	e4.stagger_until = 0.0
 	for i in range(5):
 		inst.update_enemies(0.016)
-		await process_frame
-	var resumes_after_stagger = e4.windup_until > 0.0
+	var resumes_after_stagger = e4.last_attack > attack_before
 
 	for x in [e, b, e2, e3, e4]:
 		if is_instance_valid(x): inst.enemies.erase(x.uid); x.queue_free()

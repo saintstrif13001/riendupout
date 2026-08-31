@@ -199,7 +199,11 @@ const ENEMY_BEHAVIOR := {
 }
 
 func enemy_behavior(e: Enemy) -> Dictionary:
-	return ENEMY_BEHAVIOR.get(e.mdef.get("behavior", "melee"), ENEMY_BEHAVIOR["melee"])
+	# behavior_override permet a une phase de boss de CHANGER son style de
+	# combat en cours d'affrontement (voir _on_boss_phase) : il faut alors
+	# reapprendre le rythme au lieu de repeter la meme parade.
+	var key = e.behavior_override if e.behavior_override != "" else e.mdef.get("behavior", "melee")
+	return ENEMY_BEHAVIOR.get(key, ENEMY_BEHAVIOR["melee"])
 const TUFT_DENSITY := 24.0       # touffes d'herbe pour 1M px², tout le monde confondu
 
 ## Teinte du sol par zone : la forêt réutilise la texture de terre du marais,
@@ -1224,14 +1228,31 @@ func announce_zone_event(msg: String) -> void:
 func net_zone_event_announce(msg: String) -> void:
 	float_text(player.global_position + Vector2(0, -140), msg, Color(1, 0.35, 0.2))
 
+## Une phase de boss ne savait faire qu'UNE chose : invoquer des renforts. Un
+## boss n'etait donc que de la piétaille avec plus de PV, au rythme identique
+## du debut a la fin. Une phase peut desormais aussi changer son style de
+## combat ou le mettre en rage — il faut reagir au lieu de repeter la meme
+## parade jusqu'au bout.
 func _on_boss_phase(boss: Enemy, phase: Dictionary) -> void:
-	float_text(boss.global_position + Vector2(0,-70), "%s invoque des renforts !" % boss.mdef.name, Color(1,0.4,0.2))
-	for i in range(phase.get("count", 1)):
-		var ang = randf() * TAU
-		var offset = Vector2(cos(ang), sin(ang)) * 70.0
-		var sd = {"x": boss.global_position.x + offset.x, "y": boss.global_position.y + offset.y, "type_id": phase.summon, "respawn_at": 0.0}
-		var add = spawn_enemy(sd)
-		add.set_meta("spawn_def", null) # les renforts ne réapparaissent pas après leur mort
+	if phase.has("summon"):
+		float_text(boss.global_position + Vector2(0,-70), "%s invoque des renforts !" % boss.mdef.name, Color(1,0.4,0.2))
+		for i in range(phase.get("count", 1)):
+			var ang = randf() * TAU
+			var offset = Vector2(cos(ang), sin(ang)) * 70.0
+			var sd = {"x": boss.global_position.x + offset.x, "y": boss.global_position.y + offset.y, "type_id": phase.summon, "respawn_at": 0.0}
+			var add = spawn_enemy(sd)
+			add.set_meta("spawn_def", null) # les renforts ne réapparaissent pas après leur mort
+	if phase.has("behavior"):
+		boss.behavior_override = phase.behavior
+		float_text(boss.global_position + Vector2(0,-70), "%s change de tactique !" % boss.mdef.name, Color(1,0.75,0.2))
+		spawn_telegraph_fx(boss, 90.0, 0.6)
+	if phase.has("enrage"):
+		var r = phase.enrage
+		boss.rage_atk *= r.get("atk", 1.0)
+		boss.rage_spd *= r.get("spd", 1.0)
+		float_text(boss.global_position + Vector2(0,-70), "%s entre en rage !" % boss.mdef.name, Color(1,0.25,0.15))
+		_camera_shake(7.0, 0.3)
+		Audio.play("death", -4.0, 0.15)
 
 # ---------------- Boucle ----------------
 func _physics_process(delta: float) -> void:
@@ -1853,7 +1874,20 @@ func update_enemies(delta: float) -> void:
 				# Arme l'attaque au lieu de frapper immediatement : les degats
 				# seront resolus apres le windup, et seulement si la cible est
 				# encore a portee (voir _resolve_enemy_strike).
-				if not winding_up and best_d <= bh.reach and now_t > e.last_attack + bh.cooldown:
+				# Attaque puissante de boss : zone bien plus large et armement
+				# bien plus long, donc lisible mais impossible a encaisser sur
+				# place — il faut sortir du cercle, pas juste reculer d'un pas.
+				var slam = e.mdef.get("slam", {})
+				var slam_ready = not slam.is_empty() and now_t > e.last_slam + slam.get("every", 6.0) and best_d <= slam.get("reach", 120.0)
+				if not winding_up and slam_ready and now_t > e.last_attack + bh.cooldown:
+					e.last_attack = now_t
+					e.last_slam = now_t
+					e.pending_slam = true
+					e.windup_until = now_t + slam.get("windup", 1.1)
+					e.play_attack_anim()
+					spawn_telegraph_fx(e, slam.get("reach", 120.0), slam.get("windup", 1.1))
+					float_text(e.global_position + Vector2(0, -60), "%s prépare un coup dévastateur !" % e.mdef.name, Color(1, 0.35, 0.15))
+				elif not winding_up and best_d <= bh.reach and now_t > e.last_attack + bh.cooldown:
 					e.last_attack = now_t
 					e.windup_until = now_t + bh.windup
 					e.play_attack_anim()
@@ -1890,16 +1924,27 @@ func _resolve_enemy_strike(e: Enemy, target: Player) -> void:
 	if e.dead: return
 	if target == null or not is_instance_valid(target) or target.dead: return
 	var bh = enemy_behavior(e)
+	# Une attaque puissante utilise SA portee et SES degats, pas ceux de
+	# l'archetype : c'est ce qui la rend distincte d'un coup normal.
+	var slam = e.mdef.get("slam", {})
+	var is_slam = e.pending_slam
+	e.pending_slam = false
+	var reach = slam.get("reach", 120.0) if is_slam else bh.reach
+	var power = slam.get("dmg_mult", 1.6) if is_slam else bh.get("dmg_mult", 1.0)
 	# Les "charger" (loups) decrochent apres avoir frappe, qu'ils touchent ou
 	# non : c'est ce qui donne le rythme piquer/reculer plutot qu'un corps a
 	# corps colle.
 	if bh.has("retreat"):
 		e.retreat_until = Time.get_ticks_msec() / 1000.0 + bh.retreat
-	if e.global_position.distance_to(target.global_position) > bh.reach:
+	if e.global_position.distance_to(target.global_position) > reach:
 		float_text(e.global_position + Vector2(0, -30), "Esquive !", Color(0.65, 0.9, 1))
 		Audio.play("ui_click", -14.0, 0.2)
 		return
-	var dmg = e.atk * bh.get("dmg_mult", 1.0)
+	if is_slam:
+		spawn_hit_particles(target.global_position, Color(1, 0.5, 0.2), 16)
+		_camera_shake(9.0, 0.25)
+	# rage_atk : montee en puissance declenchee par une phase de boss
+	var dmg = e.atk * power * e.rage_atk
 	# Les tireurs envoient un projectile visible : les degats ne tombent qu'a
 	# l'impact, ce qui laisse une seconde occasion de s'ecarter.
 	if bh.get("projectile", false):

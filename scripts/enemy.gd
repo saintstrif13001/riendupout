@@ -33,6 +33,15 @@ var windup_until: float = 0.0
 ## Archetype "charger" (loups) : decroche jusqu'a ce timestamp apres avoir
 ## frappe, pour donner un rythme piquer/reculer au lieu d'un corps a corps colle.
 var retreat_until: float = 0.0
+## --- Etat de boss (voir world._on_boss_phase) ---
+## Les boss ne differaient de la piétaille que par leurs PV et une phase qui
+## invoque des renforts : meme comportement, meme rythme, aucune raison de
+## changer de tactique en cours de combat.
+var behavior_override: String = "" # archetype impose par une phase
+var rage_atk: float = 1.0          # multiplicateur de degats (enrage)
+var rage_spd: float = 1.0          # multiplicateur de vitesse (enrage)
+var last_slam: float = -100.0      # derniere attaque puissante (-100 : dispo d'emblee)
+var pending_slam: bool = false     # l'armement en cours est une attaque puissante
 var last_seen_atk_t: float = 0.0 # côté client réseau : détecte une nouvelle attaque via net_enemy_snapshot
 var spawn_pos: Vector2
 var triggered_phases: Dictionary = {}
@@ -126,8 +135,8 @@ func apply_slow(factor: float, duration: float) -> void:
 func effective_speed() -> float:
 	var now = Time.get_ticks_msec() / 1000.0
 	if now < cc_until: return 0.0
-	if now < slow_until: return spd * slow_factor
-	return spd
+	if now < slow_until: return spd * slow_factor * rage_spd
+	return spd * rage_spd
 
 func take_damage(dmg: float) -> float:
 	if dead: return 0.0

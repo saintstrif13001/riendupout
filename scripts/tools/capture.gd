@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_boss_mechanics":
+			_run_boss_mechanics_test()
 		elif test_mode == "test_gear_drops":
 			_run_gear_drops_test()
 		elif test_mode == "test_enemy_behaviors":
@@ -2301,6 +2303,80 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_boss_mechanics_test() -> void:
+	print("TEST_START:boss_mechanics")
+	# Retour du joueur : "le jeu est vraiment pas ouf". Un boss ne differait de
+	# la pietaille que par ses PV et une phase qui invoque des renforts : meme
+	# comportement, meme rythme du debut a la fin, aucune raison de changer de
+	# tactique. Une phase peut desormais AUSSI changer son style de combat ou
+	# le mettre en rage, et les boss disposent d'une attaque puissante a large
+	# zone qu'il faut fuir plutot qu'encaisser.
+	var data = root.get_node("/root/Data")
+	var p = inst.player
+	p.hp = p.stats.max_hp
+	p.invuln_until = 0.0
+	var bosses = ["loup_alpha", "squelette_guerrier", "orc_chef", "zombie_ancien"]
+
+	# 1) chaque boss doit avoir une attaque puissante, plus large et plus lente
+	# a armer qu'un coup normal (sinon elle ne se distingue pas).
+	var all_have_slam = true
+	var slam_is_bigger = true
+	for bid in bosses:
+		var m = data.MONSTER_TYPES[bid]
+		var s = m.get("slam", {})
+		if s.is_empty(): all_have_slam = false; continue
+		var arch = inst.ENEMY_BEHAVIOR.get(m.get("behavior", "melee"), inst.ENEMY_BEHAVIOR["melee"])
+		if s.reach <= arch.reach or s.windup <= arch.windup or s.dmg_mult <= arch.get("dmg_mult", 1.0):
+			slam_is_bigger = false
+
+	# 2) au moins un boss doit CHANGER d'archetype en cours de combat, et tout
+	# archetype reference doit exister.
+	var someone_switches = false
+	var phase_effects_valid = true
+	for bid in bosses:
+		for ph in data.MONSTER_TYPES[bid].get("phases", []):
+			if ph.has("behavior"):
+				someone_switches = true
+				if not inst.ENEMY_BEHAVIOR.has(ph.behavior): phase_effects_valid = false
+			if ph.has("summon") and not data.MONSTER_TYPES.has(ph.summon): phase_effects_valid = false
+
+	# 3) une phase "behavior" doit reellement changer le comportement lu par
+	# l'IA (pas seulement stocker un champ)
+	var orc = inst.spawn_enemy({"x": p.global_position.x + 300, "y": p.global_position.y, "type_id": "orc_chef", "respawn_at": 0.0})
+	var before_reach = inst.enemy_behavior(orc).reach
+	inst._on_boss_phase(orc, {"behavior": "charger"})
+	var after = inst.enemy_behavior(orc)
+	var switch_changes_ai = orc.behavior_override == "charger" and after.has("retreat") and after.reach != before_reach
+
+	# 4) l'enrage doit augmenter degats ET vitesse pour de vrai
+	var atk_before = orc.rage_atk
+	var spd_before = orc.effective_speed()
+	inst._on_boss_phase(orc, {"enrage": {"atk": 1.5, "spd": 1.5}})
+	var enrage_boosts = orc.rage_atk > atk_before and orc.effective_speed() > spd_before
+
+	# 5) l'attaque puissante frappe PLUS LOIN et PLUS FORT qu'un coup normal :
+	# a une distance ou un coup normal raterait, elle doit toucher.
+	var wolf = inst.spawn_enemy({"x": p.global_position.x, "y": p.global_position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	wolf.rage_atk = 1.0
+	var slam_def = data.MONSTER_TYPES["loup_alpha"].slam
+	var normal_reach = inst.enemy_behavior(wolf).reach
+	var mid = (normal_reach + slam_def.reach) / 2.0 # hors de portee normale, dans la zone du slam
+	wolf.global_position = p.global_position + Vector2(mid, 0)
+	p.hp = p.stats.max_hp; p.invuln_until = 0.0
+	wolf.pending_slam = false
+	inst._resolve_enemy_strike(wolf, p)
+	var normal_misses_at_mid = p.hp == p.stats.max_hp
+	p.hp = p.stats.max_hp; p.invuln_until = 0.0
+	wolf.pending_slam = true
+	inst._resolve_enemy_strike(wolf, p)
+	var slam_hits_at_mid = p.hp < p.stats.max_hp
+	# ... et le drapeau est consomme, sinon tous les coups suivants seraient des slams
+	var slam_flag_consumed = not wolf.pending_slam
+
+	var all_ok = all_have_slam and slam_is_bigger and someone_switches and phase_effects_valid and switch_changes_ai and enrage_boosts and normal_misses_at_mid and slam_hits_at_mid and slam_flag_consumed
+	print("TEST_RESULT all_ok=%s slam(tous=%s plus_large_et_lent=%s touche_hors_portee_normale=%s coup_normal_rate=%s drapeau_consomme=%s) phases(changement_archetype=%s effets_valides=%s ia_suit=%s enrage_boost=%s)"
+		% [all_ok, all_have_slam, slam_is_bigger, slam_hits_at_mid, normal_misses_at_mid, slam_flag_consumed, someone_switches, phase_effects_valid, switch_changes_ai, enrage_boosts])
 
 func _run_gear_drops_test() -> void:
 	print("TEST_START:gear_drops")

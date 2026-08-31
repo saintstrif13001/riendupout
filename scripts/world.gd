@@ -27,6 +27,8 @@ var npc_nodes: Array = []
 var gather_nodes: Array = []
 var landmark_nodes: Array = [] # lieux remarquables (voir build_landmarks)
 var barrier_bodies: Array = [] # murs de frontiere (voir build_zone_barriers)
+var adventurers: Array = [] # PNJ aventuriers autonomes (voir update_adventurers)
+var _float_slots: Array = [] # anti-superposition des textes flottants (voir float_text)
 var chest_nodes: Array = []
 var teleporter_nodes: Array = []
 var player_camera: Camera2D = null
@@ -138,6 +140,7 @@ func _ready() -> void:
 	build_gather_nodes()
 	build_landmarks()
 	build_zone_barriers()
+	build_adventurers()
 	if char_data.bloodstain: spawn_bloodstain_marker()
 	if is_sim:
 		build_enemy_spawns()
@@ -1517,6 +1520,158 @@ func update_npc_wander(delta: float) -> void:
 # panneau qui annonce la region suivante et son niveau.
 const BARRIER_THICKNESS := 44.0
 
+
+# ---------------- Aventuriers autonomes ----------------
+# Retour du joueur : "pas d'IA qui joue pour rendre vivant". Rien ne se
+# passait dans le monde sans le joueur : les PNJ vagabondaient sur 45px devant
+# leur echoppe, et les monstres attendaient qu'on vienne. On traversait une
+# zone entiere sans jamais voir personne agir.
+# Ces aventuriers chassent reellement : ils reperent un monstre, le
+# rejoignent, le frappent, encaissent en retour, tombent parfois, et
+# reapparaissent. Cote hote uniquement (comme toute l'IA), et leurs degats
+# passent par deal_damage_to_enemy, donc un monstre qu'ils tuent meurt pour de
+# bon — le monde bouge meme quand le joueur regarde ailleurs.
+const ADVENTURER_NAMES := [
+	"Aldric", "Brenna", "Corvin", "Dahlia", "Eryn", "Fendrel",
+	"Gwenn", "Halvar", "Iona", "Joras", "Kaelin", "Lysandre",
+]
+const ADV_PER_ZONE := 2
+const ADV_SIGHT := 420.0        # distance a laquelle il repere une proie
+const ADV_REACH := 58.0         # portee de sa frappe
+const ADV_ATTACK_CD := 1.4
+const ADV_SPEED := 132.0
+const ADV_WANDER_RADIUS := 620.0
+const ADV_RESPAWN := 22.0
+
+func build_adventurers() -> void:
+	var body_tex = load("res://assets/sprites/player/body_walk.png")
+	var legs_tex = load("res://assets/sprites/player/legs_walk.png")
+	var head_tex = load("res://assets/sprites/player/head_walk.png")
+	var hair_tex = load("res://assets/sprites/player/hair_walk.png")
+	var vest_texs = [
+		load("res://assets/sprites/player/vest_navy_walk.png"),
+		load("res://assets/sprites/player/vest_maroon_walk.png"),
+		load("res://assets/sprites/player/vest_forest_walk.png"),
+	]
+	var region = Rect2(2 * 64, 2 * 64, 64, 64)
+	var idx = 0
+	for zid in Data.ZONES.keys():
+		var z = Data.ZONES[zid]
+		if z.safe: continue # le village est un refuge, on n'y chasse pas
+		for k in range(ADV_PER_ZONE):
+			var nm = ADVENTURER_NAMES[idx % ADVENTURER_NAMES.size()]
+			idx += 1
+			var pos = Vector2(randf_range(z.x0 + 220, z.x1 - 220), randf_range(z.y0 + 260, z.y1 - 220))
+			var node = Node2D.new()
+			node.position = pos
+			var parts = {}
+			for entry in [["legs", legs_tex], ["body", body_tex], ["vest", vest_texs[idx % vest_texs.size()]], ["hair", hair_tex], ["head", head_tex]]:
+				var spr = Sprite2D.new()
+				spr.texture = entry[1]
+				spr.region_enabled = true
+				spr.region_rect = region
+				spr.centered = true
+				node.add_child(spr)
+				parts[entry[0]] = spr
+			parts.hair.modulate = NPC_HAIR_COLORS[idx % NPC_HAIR_COLORS.size()]
+			var lbl = Label.new()
+			lbl.text = "%s (aventurier)" % nm
+			lbl.add_theme_font_size_override("font_size", 12)
+			lbl.add_theme_color_override("font_color", Color(0.7, 0.9, 1.0))
+			lbl.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+			lbl.add_theme_constant_override("outline_size", 4)
+			lbl.position = Vector2(-58, -60)
+			lbl.size = Vector2(116, 16)
+			lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			node.add_child(lbl)
+			$Decor.add_child(node)
+			var lvl = randi_range(z.lvl[0], z.lvl[1])
+			adventurers.append({
+				"name": nm, "node": node, "parts": parts, "label": lbl, "zone": zid,
+				"level": lvl, "max_hp": 70.0 + lvl * 12.0, "hp": 70.0 + lvl * 12.0,
+				"atk": 16.0 + lvl * 3.2, "home": pos, "dest": pos,
+				"last_attack": -100.0, "down_until": 0.0, "dir": "down",
+			})
+
+func update_adventurers(delta: float) -> void:
+	if not is_sim: return
+	var now = Time.get_ticks_msec() / 1000.0
+	for a in adventurers:
+		if not is_instance_valid(a.node): continue
+		# Tombe au combat : grise et immobile, puis se releve.
+		if a.down_until > 0.0:
+			if now < a.down_until: continue
+			a.down_until = 0.0
+			a.hp = a.max_hp
+			a.node.position = a.home
+			for k in a.parts.keys(): a.parts[k].modulate.a = 1.0
+			a.parts.hair.modulate = NPC_HAIR_COLORS[a.level % NPC_HAIR_COLORS.size()]
+			continue
+		var target = _adv_find_prey(a)
+		var moving = false
+		if target != null:
+			var to = target.global_position - a.node.position
+			var d = to.length()
+			if d > ADV_REACH:
+				a.node.position += to.normalized() * ADV_SPEED * delta
+				moving = true
+			elif now > a.last_attack + ADV_ATTACK_CD:
+				a.last_attack = now
+				var roll = roll_damage(a.atk, 1.0, 0.0)
+				deal_damage_to_enemy(target, roll.dmg, roll.crit, false)
+				spawn_hit_particles(target.global_position, Color(0.7, 0.9, 1.0), 8)
+				# Riposte : sans elle l'aventurier serait invincible et
+				# nettoierait la zone tout seul, ce qui priverait le joueur de
+				# ses proies au lieu de rendre le monde vivant.
+				if not target.dead:
+					a.hp -= maxf(1.0, target.atk * 0.35)
+					if a.hp <= 0.0: _adv_go_down(a, now)
+			a.dir = _dir_from_vec(to)
+		else:
+			# Aucune proie : patrouille autour de son point d'attache.
+			if a.node.position.distance_to(a.dest) < 24.0:
+				a.dest = a.home + Vector2(randf_range(-ADV_WANDER_RADIUS, ADV_WANDER_RADIUS), randf_range(-ADV_WANDER_RADIUS, ADV_WANDER_RADIUS))
+				var z = Data.ZONES[a.zone]
+				a.dest.x = clampf(a.dest.x, z.x0 + 120, z.x1 - 120)
+				a.dest.y = clampf(a.dest.y, z.y0 + 160, z.y1 - 120)
+			var mv = a.dest - a.node.position
+			if mv.length() > 4.0:
+				a.node.position += mv.normalized() * ADV_SPEED * 0.55 * delta
+				moving = true
+				a.dir = _dir_from_vec(mv)
+		_adv_animate(a, moving)
+		a.node.z_index = int(a.node.position.y / 4.0)
+
+func _adv_find_prey(a: Dictionary) -> Enemy:
+	var best: Enemy = null
+	var best_d = ADV_SIGHT
+	for uid in enemies.keys():
+		if not is_instance_valid(enemies[uid]): continue
+		var e: Enemy = enemies[uid]
+		if e.dead: continue
+		# Ne s'attaque pas aux boss : un aventurier errant qui tue le boss de
+		# zone priverait le joueur de son objectif.
+		if e.mdef.get("boss", false): continue
+		var d = a.node.position.distance_to(e.global_position)
+		if d < best_d: best_d = d; best = e
+	return best
+
+func _adv_go_down(a: Dictionary, now: float) -> void:
+	a.hp = 0.0
+	a.down_until = now + ADV_RESPAWN
+	for k in a.parts.keys(): a.parts[k].modulate = Color(0.35, 0.35, 0.35, 0.75)
+	float_text(a.node.position + Vector2(0, -70), "%s est à terre !" % a.name, Color(0.8, 0.6, 0.6))
+
+func _dir_from_vec(v: Vector2) -> String:
+	if absf(v.x) > absf(v.y): return "right" if v.x > 0 else "left"
+	return "down" if v.y > 0 else "up"
+
+func _adv_animate(a: Dictionary, moving: bool) -> void:
+	var row = Player.DIR_ROW[a.dir]
+	var frame = int(Time.get_ticks_msec() / 100) % 9 if moving else 2
+	var rect = Rect2(frame * 64, row * 64, 64, 64)
+	for k in a.parts.keys(): a.parts[k].region_rect = rect
+
 func build_zone_barriers() -> void:
 	var ids = Data.ZONES.keys()
 	for i in range(ids.size()):
@@ -1903,6 +2058,7 @@ func _physics_process(delta: float) -> void:
 
 	if is_sim:
 		update_enemies(delta)
+		update_adventurers(delta)
 		update_zone_events(delta)
 
 	for pid in remote_players.keys():
@@ -2444,7 +2600,12 @@ func _apply_hit_reaction(e: Enemy, is_crit: bool) -> void:
 		float_text(e.global_position + Vector2(0, -50), "Interrompu !", Color(1, 0.9, 0.35))
 		spawn_hit_particles(e.global_position, Color(1, 0.95, 0.5), 10)
 
-func deal_damage_to_enemy(e: Enemy, dmg: float, is_crit: bool = false) -> void:
+## credit_player=false : le coup vient d'un PNJ aventurier, pas du joueur. Sans
+## ce drapeau, un aventurier qui tuait un monstre creditait le JOUEUR de son xp,
+## de son or et de son butin — il suffisait de rester pres d'un aventurier pour
+## monter de niveau sans rien faire (constate a l'ecran : niveau 1 -> 3 en
+## quelques secondes, sac qui se remplit tout seul).
+func deal_damage_to_enemy(e: Enemy, dmg: float, is_crit: bool = false, credit_player: bool = true) -> void:
 	if is_sim:
 		var applied = e.take_damage(dmg)
 		_apply_hit_reaction(e, is_crit)
@@ -2453,7 +2614,7 @@ func deal_damage_to_enemy(e: Enemy, dmg: float, is_crit: bool = false) -> void:
 			_camera_shake(6.0, 0.18)
 		else:
 			float_text(e.global_position + Vector2(0,-40), "-%d" % int(round(applied)), Color(1,1,1))
-		if e.dead: on_enemy_killed(e, multiplayer.get_unique_id())
+		if e.dead: on_enemy_killed(e, multiplayer.get_unique_id() if credit_player else 0, credit_player)
 	else:
 		rpc_id(1, "net_attack_request", e.uid, dmg)
 		if is_crit:
@@ -2472,8 +2633,13 @@ func net_attack_request(uid: String, dmg: float) -> void:
 	e.take_damage(dmg)
 	if e.dead: on_enemy_killed(e, sender)
 
-func on_enemy_killed(e: Enemy, killer_id: int) -> void:
-	if killer_id == multiplayer.get_unique_id():
+func on_enemy_killed(e: Enemy, killer_id: int, reward: bool = true) -> void:
+	# reward=false : mort provoquee par un PNJ aventurier. Le monstre disparait
+	# et reapparaitra normalement, mais personne n'est recompense — ni le joueur
+	# local, ni les autres peers.
+	if not reward:
+		pass
+	elif killer_id == multiplayer.get_unique_id():
 		grant_kill_rewards(player, e, false)
 	elif is_sim:
 		rpc("net_xp_grant", e.uid)
@@ -3077,6 +3243,19 @@ func float_text(pos: Vector2, text: String, color: Color) -> void:
 	# long, plus il derivait vers la droite au lieu de rester au-dessus du
 	# personnage/ennemi vise. Boite large + alignement centre corrige ça pour
 	# n'importe quelle longueur de texte sans avoir à mesurer chaque chaîne.
+	# Empilement : plusieurs textes emis dans le meme instant au meme endroit
+	# (xp + niveau + chaque objet ramasse a la mort d'un monstre) se
+	# superposaient exactement et devenaient une bouillie illisible. Chaque
+	# nouveau texte est decale vers le haut tant que le precedent est encore a
+	# l'ecran au meme endroit.
+	var now_ft = Time.get_ticks_msec() / 1000.0
+	_float_slots = _float_slots.filter(func(s): return now_ft < s.until)
+	var step = 0
+	for s in _float_slots:
+		if absf(s.x - pos.x) < 150.0 and absf(s.y - pos.y) < 26.0: step = maxi(step, s.step + 1)
+	var stacked = pos - Vector2(0, step * 22.0)
+	_float_slots.append({"x": pos.x, "y": pos.y, "step": step, "until": now_ft + 0.9})
+	pos = stacked
 	var l = Label.new()
 	l.text = text
 	l.size = Vector2(220, 20)

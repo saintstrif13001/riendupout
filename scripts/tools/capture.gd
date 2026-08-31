@@ -257,6 +257,16 @@ func _process(delta: float) -> bool:
 			inst.player.stats.max_hp = 99999.0
 			inst.player.hp = 99999.0
 			inst.update_zone_lighting(_lm.zone)
+		elif test_mode == "show_adv":
+			# Place le joueur pres d'un aventurier pour le voir chasser.
+			var _a = inst.adventurers[0]
+			inst.player.global_position = _a.node.position + Vector2(0, 150)
+			inst.player.invuln_until = Time.get_ticks_msec() / 1000.0 + 9999.0
+			inst.player.stats.max_hp = 99999.0
+			inst.player.hp = 99999.0
+			inst.update_zone_lighting(_a.zone)
+		elif test_mode == "test_adventurers":
+			_run_adventurers_test()
 		elif test_mode == "test_zone_borders":
 			_run_zone_borders_test()
 		elif test_mode == "test_landmarks":
@@ -2357,6 +2367,139 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_adventurers_test() -> void:
+	print("TEST_START:adventurers")
+	# Retour du joueur : "pas d'IA qui joue pour rendre vivant". Rien ne se
+	# passait sans le joueur : les PNJ vagabondaient sur 45px devant leur
+	# echoppe et les monstres attendaient qu'on vienne. Ces aventuriers
+	# chassent vraiment — ils reperent, rejoignent, frappent, encaissent et
+	# tombent.
+	var data = root.get_node("/root/Data")
+
+	# 1) Presents dans toutes les zones dangereuses, jamais au village (c'est
+	# un refuge : on n'y chasse pas).
+	var per_zone = {}
+	for zid in data.ZONES.keys(): per_zone[zid] = 0
+	var outside = 0
+	for a in inst.adventurers:
+		var z = data.zone_at(a.node.position.x, a.node.position.y)
+		if per_zone.has(z.id): per_zone[z.id] += 1
+		else: outside += 1
+	var none_in_village = per_zone["village"] == 0
+	var every_danger_zone = true
+	for zid in per_zone.keys():
+		if data.ZONES[zid].safe: continue
+		if per_zone[zid] < 1: every_danger_zone = false
+	var spawned = inst.adventurers.size() > 0
+
+	# 2) Ils rejoignent une proie. On en place un loin d'un monstre et on
+	# verifie qu'il REDUIT la distance — pas qu'il gigote sur place.
+	var a0 = inst.adventurers[0]
+	a0.down_until = 0.0
+	a0.hp = a0.max_hp
+	var z0 = data.ZONES[a0.zone]
+	var spot = Vector2((z0.x0 + z0.x1) / 2.0, (z0.y0 + z0.y1) / 2.0) + Vector2(0, 240)
+	a0.node.position = spot
+	a0.home = spot
+	var prey = inst.spawn_enemy({"x": spot.x + 300, "y": spot.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	prey.hp = 99999.0
+	prey.max_hp = 99999.0
+	# On mesure la distance a la proie qu'il CHOISIT, pas a celle qu'on vient
+	# de poser : la zone est peuplee de vrais monstres, il peut tres bien en
+	# viser un plus proche — et s'en approcher tout en s'eloignant du notre.
+	var chosen = inst._adv_find_prey(a0)
+	chosen.hp = 99999.0
+	chosen.max_hp = 99999.0
+	var d_before = a0.node.position.distance_to(chosen.global_position)
+	for i in range(30): inst.update_adventurers(0.016)
+	var d_after = a0.node.position.distance_to(chosen.global_position)
+	var closes_in = d_after < d_before - 30.0 or d_after <= inst.ADV_REACH
+
+	# 3) Arrive a portee, il frappe REELLEMENT : les PV du monstre baissent.
+	a0.node.position = prey.global_position - Vector2(40, 0)
+	a0.last_attack = -100.0
+	var hp_before = prey.hp
+	inst.update_adventurers(0.016)
+	var deals_damage = prey.hp < hp_before
+
+	# 4) Le monstre riposte : sans cela l'aventurier serait invincible et
+	# nettoierait la zone tout seul, privant le joueur de ses proies.
+	var adv_hp_before = a0.hp
+	a0.last_attack = -100.0
+	inst.update_adventurers(0.016)
+	var takes_damage = a0.hp < adv_hp_before
+
+	# 5) A court de PV il tombe, puis se releve plus tard (il ne disparait pas
+	# definitivement du monde).
+	a0.hp = 0.5
+	a0.last_attack = -100.0
+	inst.update_adventurers(0.016)
+	var goes_down = a0.down_until > 0.0
+	var stays_down = true
+	var pos_when_down = a0.node.position
+	for i in range(10): inst.update_adventurers(0.016)
+	if a0.node.position != pos_when_down: stays_down = false
+	# On force la fin du delai : il doit se relever avec tous ses PV.
+	a0.down_until = Time.get_ticks_msec() / 1000.0 - 1.0
+	inst.update_adventurers(0.016)
+	var gets_back_up = a0.down_until == 0.0 and a0.hp == a0.max_hp
+
+	# 6) Il ignore les boss : un aventurier errant qui tue le boss de zone
+	# priverait le joueur de son objectif de progression.
+	var boss = inst.spawn_enemy({"x": a0.node.position.x + 60, "y": a0.node.position.y, "type_id": "loup_alpha", "respawn_at": 0.0})
+	boss.hp = 99999.0
+	boss.max_hp = 99999.0
+	inst.enemies.erase(prey.uid)
+	prey.queue_free()
+	a0.last_attack = -100.0
+	var boss_hp_before = boss.hp
+	for i in range(6): inst.update_adventurers(0.016)
+	var ignores_bosses = boss.hp == boss_hp_before
+	inst.enemies.erase(boss.uid)
+	boss.queue_free()
+
+	# 7) Ils restent dans leur zone : un aventurier qui derive au village ou
+	# dans une region de niveau 30 n'aurait aucun sens.
+	var stays_home = true
+	for a in inst.adventurers:
+		if a.down_until > 0.0: continue
+		var z = data.ZONES[a.zone]
+		if a.dest.x < z.x0 or a.dest.x > z.x1 or a.dest.y < z.y0 or a.dest.y > z.y1: stays_home = false
+
+
+	# 8) BUG TROUVE A L'ECRAN : les degats des aventuriers passaient par
+	# deal_damage_to_enemy, donc leurs victimes creditaient le JOUEUR. Il
+	# suffisait de rester a cote d'un aventurier pour monter de niveau et
+	# remplir son sac sans rien faire (constate : niveau 1 -> 3 en quelques
+	# secondes). Un monstre tue par un aventurier ne doit RIEN rapporter.
+	inst.char_data.level = 1
+	inst.char_data.xp = 0
+	inst.char_data.gold = 100
+	inst.char_data.inventory = {}
+	var victim = inst.spawn_enemy({"x": a0.node.position.x + 30, "y": a0.node.position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	victim.hp = 1.0
+	a0.hp = a0.max_hp
+	a0.down_until = 0.0
+	a0.last_attack = -100.0
+	inst.update_adventurers(0.016)
+	var victim_died = victim.dead
+	var no_xp_leak = inst.char_data.xp == 0 and inst.char_data.level == 1
+	var no_gold_leak = inst.char_data.gold == 100
+	var no_loot_leak = inst.char_data.inventory.is_empty()
+	# ...alors qu'un monstre tue par le JOUEUR rapporte toujours normalement.
+	var victim2 = inst.spawn_enemy({"x": inst.player.global_position.x + 30, "y": inst.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
+	victim2.hp = 1.0
+	inst.deal_damage_to_enemy(victim2, 999.0)
+	var player_still_rewarded = inst.char_data.xp > 0
+	for v in [victim, victim2]:
+		if is_instance_valid(v): inst.enemies.erase(v.uid); v.queue_free()
+	var all_ok = spawned and none_in_village and every_danger_zone and outside == 0 and closes_in and deals_damage and takes_damage and goes_down and stays_down and gets_back_up and ignores_bosses and stays_home and victim_died and no_xp_leak and no_gold_leak and no_loot_leak and player_still_rewarded
+	print("TEST_RESULT all_ok=%s presence(nb=%d aucun_au_village=%s toutes_zones_dangereuses=%s hors_zone=%d) chasse(rejoint=%s[%.0f->%.0f] frappe=%s encaisse=%s ignore_boss=%s) mort(tombe=%s reste_a_terre=%s se_releve=%s) domaine(reste_dans_sa_zone=%s)"
+		% [all_ok, inst.adventurers.size(), none_in_village, every_danger_zone, outside,
+		   closes_in, d_before, d_after, deals_damage, takes_damage, ignores_bosses,
+		   goes_down, stays_down, gets_back_up, stays_home])
+	print("TEST_RESULT2 recompenses(victime_morte=%s aucune_xp_volee=%s aucun_or_vole=%s aucun_butin_vole=%s joueur_toujours_recompense=%s)" % [victim_died, no_xp_leak, no_gold_leak, no_loot_leak, player_still_rewarded])
 
 func _run_zone_borders_test() -> void:
 	print("TEST_START:zone_borders")

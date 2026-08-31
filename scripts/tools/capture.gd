@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_dodge":
+			_run_dodge_test()
 		elif test_mode == "test_boss_mechanics":
 			_run_boss_mechanics_test()
 		elif test_mode == "test_gear_drops":
@@ -2304,6 +2306,68 @@ func _run_float_text_centered_test() -> void:
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
+func _run_dodge_test() -> void:
+	print("TEST_START:dodge")
+	# Le joueur n'avait AUCUNE option defensive en dehors de marcher : seul le
+	# voleur possedait un dash de classe. Depuis que les ennemis telegraphient
+	# leurs coups et que les boss posent de larges zones, il manquait la
+	# reponse ACTIVE a ces signaux, pour toutes les classes.
+	var p = inst.player
+	p.dead = false
+	p.hp = p.stats.max_hp
+	p.invuln_until = 0.0
+	p.dodge_until = 0.0
+	p.cooldowns.erase("dodge")
+	p.global_position = Vector2(2700, 2600)
+	p.dir = "right"
+
+	var start = p.global_position
+	inst.try_dodge()
+	var now = Time.get_ticks_msec() / 1000.0
+	var starts_dodging = p.dodge_until > now
+	var grants_iframes = p.invuln_until > now
+	# Les i-frames doivent durer PLUS longtemps que le deplacement, sinon on
+	# redevient vulnerable en pleine reception.
+	var iframes_outlast_move = (p.invuln_until - now) > (p.dodge_until - now)
+	var goes_toward_facing = p.dodge_dir.x > 0.5 # regard "right", aucune touche enfoncee
+
+	# Pendant la roulade, l'entree clavier est ignoree et le joueur se deplace
+	# reellement (via handle_movement, le vrai chemin du jeu).
+	for i in range(6):
+		inst.handle_movement(0.016)
+		await process_frame
+	var actually_moved = p.global_position.distance_to(start) > 40.0
+
+	# Invulnerable : un coup encaisse pendant les i-frames ne doit rien faire.
+	p.global_position = Vector2(2700, 2600)
+	p.hp = p.stats.max_hp
+	p.invuln_until = Time.get_ticks_msec() / 1000.0 + 1.0
+	var hp_before = p.hp
+	p.take_damage(50.0)
+	var immune_during_iframes = p.hp == hp_before
+
+	# Temps de recharge : impossible d'enchainer indefiniment.
+	p.invuln_until = 0.0
+	p.dodge_until = 0.0
+	var dir_before = p.dodge_dir
+	p.dodge_dir = Vector2.ZERO
+	inst.try_dodge() # doit etre refuse, le cooldown court encore
+	var respects_cooldown = p.dodge_dir == Vector2.ZERO
+	p.dodge_dir = dir_before
+
+	# Mort ou chat ouvert : pas de roulade.
+	p.cooldowns.erase("dodge")
+	p.dodge_until = 0.0
+	p.dodge_dir = Vector2.ZERO
+	p.dead = true
+	inst.try_dodge()
+	var blocked_when_dead = p.dodge_dir == Vector2.ZERO
+	p.dead = false
+
+	var all_ok = starts_dodging and grants_iframes and iframes_outlast_move and goes_toward_facing and actually_moved and immune_during_iframes and respects_cooldown and blocked_when_dead
+	print("TEST_RESULT all_ok=%s demarre=%s iframes=%s iframes_couvrent_reception=%s suit_le_regard=%s deplace_vraiment=%s invulnerable=%s respecte_cooldown=%s bloque_si_mort=%s"
+		% [all_ok, starts_dodging, grants_iframes, iframes_outlast_move, goes_toward_facing, actually_moved, immune_during_iframes, respects_cooldown, blocked_when_dead])
+
 func _run_boss_mechanics_test() -> void:
 	print("TEST_START:boss_mechanics")
 	# Retour du joueur : "le jeu est vraiment pas ouf". Un boss ne differait de
@@ -2541,7 +2605,12 @@ func _run_enemy_telegraph_test() -> void:
 	var e = inst_w.spawn_enemy({"x": inst_w.player.global_position.x + 30, "y": inst_w.player.global_position.y, "type_id": "slime_vert", "respawn_at": 0.0})
 	inst_w.player.hp = inst_w.player.stats.max_hp
 	inst_w.player.invuln_until = 0.0
-	e.last_attack = 0.0
+	# -100 et pas 0 : en headless le moteur ne tourne que depuis ~1s, donc
+	# "now > last_attack + cooldown" pouvait rester faux et l'ennemi paraissait
+	# inerte alors que le jeu etait correct. Le test etait a la limite depuis le
+	# debut et a fini par basculer quand le projet a grossi (demarrage un peu
+	# plus long). Meme piege que dans test_enemy_behaviors.
+	e.last_attack = -100.0
 	e.windup_until = 0.0
 
 	# 1) l'IA doit ARMER l'attaque, pas infliger de degats immediatement

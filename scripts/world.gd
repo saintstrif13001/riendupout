@@ -1322,6 +1322,60 @@ func quit_to_menu() -> void:
 	if Net.is_online: Net.disconnect_all()
 	get_tree().change_scene_to_file("res://scenes/Main.tscn")
 
+## Roulade universelle. Le joueur n'avait aucune option defensive hormis
+## marcher (seul le voleur avait un dash de classe), alors que les ennemis
+## telegraphient desormais leurs coups et que les boss posent de larges zones :
+## il manquait la reponse ACTIVE a ces signaux. Les i-frames durent un peu plus
+## longtemps que le deplacement lui-meme, pour couvrir la reception.
+const DODGE_SPEED := 1000.0
+const DODGE_TIME := 0.2
+const DODGE_INVULN := 0.35
+const DODGE_COOLDOWN := 1.6
+
+## Direction dictee par les touches actuellement enfoncees ; ZERO si immobile.
+func _current_input_dir() -> Vector2:
+	var v := Vector2.ZERO
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP): v.y -= 1
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN): v.y += 1
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT): v.x -= 1
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT): v.x += 1
+	return v.normalized()
+
+func try_dodge() -> void:
+	if player.dead: return
+	if hud and hud.is_chat_focused(): return
+	var now = Time.get_ticks_msec() / 1000.0
+	if now < player.cooldowns.get("dodge", 0.0): return
+	if now < player.dodge_until: return
+	# On roule vers la ou le joueur se DIRIGE ; s'il est immobile, vers son
+	# regard. Rouler toujours vers le regard donnerait l'impression de ne pas
+	# repondre a l'intention du joueur.
+	var d = _current_input_dir()
+	if d == Vector2.ZERO: d = DIR_VEC[player.dir]
+	player.dodge_dir = d
+	player.dodge_until = now + DODGE_TIME
+	player.cooldowns["dodge"] = now + DODGE_COOLDOWN
+	player.invuln_until = now + DODGE_INVULN
+	spawn_dodge_fx(player.global_position)
+	Audio.play("ui_click", -8.0, 0.25)
+
+## Anneau bref au point de depart : rend la roulade lisible en coop, ou l'on
+## voit surtout les autres joueurs de loin.
+func spawn_dodge_fx(pos: Vector2) -> void:
+	var ring = Node2D.new()
+	ring.position = pos
+	ring.z_index = 60
+	add_child(ring)
+	var line = Line2D.new()
+	line.width = 2.0
+	line.default_color = Color(0.8, 0.95, 1.0, 0.8)
+	line.points = _ring_points(10.0)
+	ring.add_child(line)
+	var tw = create_tween()
+	tw.tween_method(func(r): line.points = _ring_points(r), 10.0, 46.0, DODGE_TIME)
+	tw.parallel().tween_property(line, "default_color:a", 0.0, DODGE_TIME)
+	tw.tween_callback(ring.queue_free)
+
 func handle_movement(delta: float) -> void:
 	# is_physical_key_pressed() lit l'état brut du clavier, sans passer par le
 	# système de focus GUI : sans ce garde, taper "s"/"d" dans le chat déplace
@@ -1329,6 +1383,18 @@ func handle_movement(delta: float) -> void:
 	if hud and hud.is_chat_focused():
 		player.velocity = Vector2.ZERO
 		player.set_anim(player.dir, false)
+		return
+	# Roulade en cours : le mouvement est impose, l'entree clavier est ignoree.
+	# On passe par move_and_slide (et non par une teleportation comme le dash du
+	# voleur) pour que la roulade respecte les collisions — sans quoi elle
+	# permettrait de traverser maisons et decors.
+	var now_d = Time.get_ticks_msec() / 1000.0
+	if now_d < player.dodge_until:
+		player.velocity = player.dodge_dir * DODGE_SPEED
+		player.move_and_slide()
+		player.global_position.x = clamp(player.global_position.x, 20, Data.WORLD_WIDTH - 20)
+		player.global_position.y = clamp(player.global_position.y, 90, Data.WORLD_HEIGHT - 20)
+		player.set_anim(player.dir, true)
 		return
 	var vx := 0.0
 	var vy := 0.0
@@ -1361,6 +1427,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		KEY_Q: use_skill(0)
 		KEY_E: use_skill(1)
 		KEY_F: try_interact()
+		KEY_SHIFT: try_dodge()
 
 func _unhandled_input(event: InputEvent) -> void:
 	# Aucun moyen de zoomer/dézoomer n'existait : le niveau de zoom de la

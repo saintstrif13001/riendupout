@@ -17,6 +17,12 @@ var moving: bool = false
 var dead: bool = false
 var cooldowns: Dictionary = {}
 var invuln_until: float = 0.0
+## Roulade universelle (voir world.try_dodge). Le joueur n'avait AUCUNE option
+## defensive en dehors de marcher : seul le voleur possedait un dash. Depuis
+## que les ennemis telegraphient leurs coups et que les boss posent de larges
+## zones, il fallait une reponse active accessible a toutes les classes.
+var dodge_until: float = 0.0
+var dodge_dir: Vector2 = Vector2.ZERO
 var buff_expiry: Array = [] # [{atk,def,spd,at}]
 var shield: float = 0.0 # absorbe les dégâts avant les PV (ex: Bouclier Saint)
 

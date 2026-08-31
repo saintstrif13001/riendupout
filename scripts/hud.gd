@@ -185,7 +185,7 @@ func _build_bars() -> void:
 	root.add_child(quest_label)
 
 	var help = Label.new()
-	help.text = "ZQSD/Flèches: bouger · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · C: stats · M: voyage rapide · O: options · Entrée: discuter"
+	help.text = "ZQSD/Flèches: bouger · Maj: roulade · Espace: attaque · Q/E: compétences · F: interagir · I: inventaire · C: stats · M: voyage rapide · O: options · Entrée: discuter"
 	help.add_theme_font_size_override("font_size", 11)
 	help.add_theme_color_override("font_color", Color(1,1,1,0.6))
 	help.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)

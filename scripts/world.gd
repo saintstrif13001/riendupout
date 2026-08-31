@@ -25,6 +25,7 @@ var net_send_accum: float = 0.0
 var net_enemy_accum: float = 0.0
 var npc_nodes: Array = []
 var gather_nodes: Array = []
+var landmark_nodes: Array = [] # lieux remarquables (voir build_landmarks)
 var chest_nodes: Array = []
 var teleporter_nodes: Array = []
 var player_camera: Camera2D = null
@@ -134,6 +135,7 @@ func _ready() -> void:
 	refresh_quest_icons()
 	build_teleporters()
 	build_gather_nodes()
+	build_landmarks()
 	if char_data.bloodstain: spawn_bloodstain_marker()
 	if is_sim:
 		build_enemy_spawns()
@@ -1498,6 +1500,135 @@ func update_npc_wander(delta: float) -> void:
 				else:
 					entry.node.position += to_target.normalized() * step
 
+
+# ---------------- Lieux remarquables ----------------
+# S'ecarter du chemin ne rapportait rien : une zone n'etait qu'un couloir
+# entre le teleporteur et le boss. Chaque zone contient deux reperes visibles
+# de loin qui, la premiere fois qu'on les approche, livrent une bribe de lore
+# et une recompense unique (voir Data.LANDMARKS).
+func build_landmarks() -> void:
+	for lm in Data.LANDMARKS:
+		var node = Node2D.new()
+		node.position = Vector2(lm.x, lm.y)
+		node.z_index = int(lm.y / 2.0)
+		node.set_meta("landmark", lm.id)
+		match lm.kind:
+			"stele": _lm_stele(node)
+			"autel": _lm_autel(node)
+			"camp": _lm_camp(node)
+			"epave": _lm_epave(node)
+			"arche": _lm_arche(node)
+			"statue": _lm_statue(node)
+			_: _lm_bassin(node)
+		$Decor.add_child(node)
+		landmark_nodes.append({"id": lm.id, "x": lm.x, "y": lm.y, "node": node})
+
+func _lm_poly(node: Node2D, pts: PackedVector2Array, col: Color, zoff: int = 0) -> void:
+	var p = Polygon2D.new()
+	p.polygon = pts
+	p.color = col
+	p.z_index = zoff
+	node.add_child(p)
+
+func _lm_stele(node: Node2D) -> void:
+	_lm_poly(node, PackedVector2Array([Vector2(-13,0), Vector2(13,0), Vector2(10,-64), Vector2(-10,-64)]), Color(0.45,0.44,0.5))
+	_lm_poly(node, PackedVector2Array([Vector2(-17,2), Vector2(17,2), Vector2(14,-8), Vector2(-14,-8)]), Color(0.34,0.33,0.38))
+	for i in range(4):
+		var g = ColorRect.new()
+		g.size = Vector2(12, 2)
+		g.position = Vector2(-6, -52 + i * 11)
+		g.color = Color(0.75, 0.72, 0.85, 0.8)
+		g.z_index = 1
+		node.add_child(g)
+
+func _lm_autel(node: Node2D) -> void:
+	_lm_poly(node, PackedVector2Array([Vector2(-26,0), Vector2(26,0), Vector2(22,-16), Vector2(-22,-16)]), Color(0.4,0.42,0.36))
+	_lm_poly(node, PackedVector2Array([Vector2(-18,-16), Vector2(18,-16), Vector2(16,-26), Vector2(-16,-26)]), Color(0.5,0.53,0.44))
+	var bowl = Polygon2D.new()
+	bowl.polygon = _ring_points(9.0)
+	bowl.color = Color(0.25, 0.3, 0.2)
+	bowl.position = Vector2(0, -28)
+	bowl.z_index = 1
+	node.add_child(bowl)
+
+func _lm_camp(node: Node2D) -> void:
+	# Tente + foyer eteint.
+	_lm_poly(node, PackedVector2Array([Vector2(-30,0), Vector2(0,-40), Vector2(30,0)]), Color(0.42,0.36,0.28))
+	_lm_poly(node, PackedVector2Array([Vector2(-9,0), Vector2(0,-22), Vector2(9,0)]), Color(0.12,0.1,0.09))
+	for i in range(5):
+		var log_r = ColorRect.new()
+		log_r.size = Vector2(14, 3)
+		log_r.position = Vector2(34, -3)
+		log_r.rotation = TAU * i / 5.0
+		log_r.color = Color(0.2, 0.16, 0.13)
+		node.add_child(log_r)
+
+func _lm_epave(node: Node2D) -> void:
+	# Chariot renverse : caisse inclinee + deux roues.
+	var box = Polygon2D.new()
+	box.polygon = PackedVector2Array([Vector2(-34,-6), Vector2(28,-20), Vector2(34,-2), Vector2(-28,12)])
+	box.color = Color(0.38, 0.29, 0.2)
+	node.add_child(box)
+	for wx in [-22, 20]:
+		var wheel = Polygon2D.new()
+		wheel.polygon = _ring_points(11.0)
+		wheel.color = Color(0.26, 0.2, 0.15)
+		wheel.position = Vector2(wx, 6)
+		wheel.z_index = 1
+		node.add_child(wheel)
+
+func _lm_arche(node: Node2D) -> void:
+	for sx in [-1.0, 1.0]:
+		_lm_poly(node, PackedVector2Array([
+			Vector2(sx * 26 - 9, 0), Vector2(sx * 26 + 9, 0),
+			Vector2(sx * 26 + 8, -76), Vector2(sx * 26 - 8, -76)]), Color(0.6,0.57,0.5))
+	_lm_poly(node, PackedVector2Array([Vector2(-38,-76), Vector2(38,-76), Vector2(34,-92), Vector2(-34,-92)]), Color(0.66,0.63,0.55), 1)
+
+func _lm_statue(node: Node2D) -> void:
+	# Grand tronc/silhouette : un repere visible de loin.
+	_lm_poly(node, PackedVector2Array([Vector2(-10,0), Vector2(10,0), Vector2(7,-70), Vector2(-7,-70)]), Color(0.33,0.26,0.2))
+	var crown = Polygon2D.new()
+	crown.polygon = _ring_points(30.0)
+	crown.color = Color(0.24, 0.36, 0.24)
+	crown.position = Vector2(0, -82)
+	crown.z_index = 1
+	node.add_child(crown)
+
+func _lm_bassin(node: Node2D) -> void:
+	var water = Polygon2D.new()
+	water.polygon = _ring_points(34.0)
+	water.color = Color(0.24, 0.42, 0.55, 0.85)
+	water.z_index = -1
+	node.add_child(water)
+	var rim = Polygon2D.new()
+	rim.polygon = _ring_points(40.0)
+	rim.color = Color(0.42, 0.4, 0.36)
+	rim.z_index = -2
+	node.add_child(rim)
+
+## Decouverte : recompense UNIQUE, memorisee dans la sauvegarde. Appele depuis
+## la boucle de proximite (hud_tick) et non a chaque frame — inutile de tester
+## 17 distances 60 fois par seconde.
+func check_landmark_discovery() -> void:
+	for lm_node in landmark_nodes:
+		if char_data.discovered_landmarks.has(lm_node.id): continue
+		if player.global_position.distance_to(Vector2(lm_node.x, lm_node.y)) > Data.LANDMARK_RADIUS: continue
+		var lm = Data.landmark_by_id(lm_node.id)
+		if lm.is_empty(): continue
+		char_data.discovered_landmarks.append(lm.id)
+		var rw = lm.get("reward", {})
+		var gained = player.gain_xp(rw.get("xp", 0))
+		char_data.gold += rw.get("gold", 0)
+		float_text(player.global_position + Vector2(0,-96), "Lieu découvert : %s" % lm.name, Color(1, 0.92, 0.5))
+		float_text(player.global_position + Vector2(0,-72), "+%d XP · +%d or" % [gained.amount, rw.get("gold", 0)], Color(1, 0.88, 0.4))
+		if hud:
+			hud.add_chat_message("Découverte", "%s — %s" % [lm.name, lm.lore])
+		Audio.play("gold_pickup", -2.0)
+		# Une quete peut demander de TROUVER un lieu (objectif "explore") : ca
+		# donne enfin des quetes qui ne consistent pas a tuer ou a ramasser.
+		update_quest_progress("explore", lm.id)
+		save_now()
+
 func build_gather_nodes() -> void:
 	for n in Data.GATHER_NODES:
 		var label = Label.new()
@@ -1661,6 +1792,7 @@ func _physics_process(delta: float) -> void:
 	if hud_tick_accum > 0.4:
 		hud_tick_accum = 0.0
 		emit_signal("hud_update", make_hud_data())
+		check_landmark_discovery()
 		var zid = Data.zone_at(player.global_position.x, player.global_position.y).id
 		# "wilds" (Data.VOID_ZONE) = terres non revendiquées entre les bras de la
 		# croix, pas une clé de Data.ZONES : Data.ZONES[zid] planterait, et ce

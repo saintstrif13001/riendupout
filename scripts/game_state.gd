@@ -105,6 +105,7 @@ func new_character(cname: String, race: String, cls: String, hair_color: String 
 		"talents": {}, # "5" -> talent_id, "15" -> talent_id
 		"reputation": {}, # faction_id -> int
 		"unlocked_zones": ["village"], # zones visitées, débloque le voyage rapide
+		"discovered_landmarks": [], # lieux remarquables deja trouves (recompense unique)
 		"bloodstain": null, # {x, y, gold} — or perdu à la dernière mort, récupérable une fois
 	}
 

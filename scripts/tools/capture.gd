@@ -237,6 +237,19 @@ func _process(delta: float) -> bool:
 			inst.player.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
 			inst.player.mana = inst.player.stats.max_mana
 			inst.get_node("Hud")._process(0.0)
+		elif test_mode.begins_with("show_lm:"):
+			# Depose le joueur sur un lieu remarquable pour le photographier.
+			# root.get_node plutot que le singleton "Data" en direct : capture.gd
+			# ne resout pas un APPEL de methode sur l'autoload (data.gd n'a pas de
+			# class_name), et l'erreur de compilation casse tout le fichier.
+			var _lm = root.get_node("/root/Data").landmark_by_id(test_mode.substr(8))
+			inst.player.global_position = Vector2(_lm.x, _lm.y + 110)
+			inst.player.invuln_until = Time.get_ticks_msec() / 1000.0 + 9999.0
+			inst.player.stats.max_hp = 99999.0
+			inst.player.hp = 99999.0
+			inst.update_zone_lighting(_lm.zone)
+		elif test_mode == "test_landmarks":
+			_run_landmarks_test()
 		elif test_mode == "test_skill_progression":
 			_run_skill_progression_test()
 		elif test_mode == "test_world_content":
@@ -2334,6 +2347,111 @@ func _run_float_text_centered_test() -> void:
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
+func _run_landmarks_test() -> void:
+	print("TEST_START:landmarks")
+	# Explorer ne rapportait RIEN : une zone se resumait au trajet teleporteur
+	# -> boss, et s'en ecarter n'avait aucun interet. Chaque zone a desormais
+	# deux lieux a decouvrir, recompense unique, plus un type d'objectif de
+	# quete "explore" — les 60 quetes existantes se ramenaient a quatre formes
+	# (tuer / ramasser / parler / livrer), aucune ne faisait regarder la carte.
+	var data = root.get_node("/root/Data")
+	var p = inst.player
+
+	# 1) Chaque zone doit avoir au moins un lieu, sinon la recompense a
+	# l'exploration ne concerne qu'une partie de la carte.
+	var per_zone = {}
+	for zid in data.ZONES.keys(): per_zone[zid] = 0
+	var bad_pos = []
+	var ids = {}
+	var dupes = false
+	for lm in data.LANDMARKS:
+		if ids.has(lm.id): dupes = true
+		ids[lm.id] = true
+		if per_zone.has(lm.zone): per_zone[lm.zone] += 1
+		# Un lieu doit tomber DANS la zone qu'il annonce : sinon on l'annonce
+		# dans une region et il se trouve dans une autre.
+		if data.zone_at(lm.x, lm.y).id != lm.zone: bad_pos.append(lm.id)
+	var every_zone_covered = true
+	for zid in per_zone.keys():
+		if per_zone[zid] < 1: every_zone_covered = false
+	var positions_ok = bad_pos.is_empty()
+
+	# 2) Un lieu ne doit pas etre pose sur la taniere du boss (centre de zone)
+	# ni sur le point d'arrivee : on l'atteindrait sans l'avoir cherche, ou on
+	# mourrait en le decouvrant.
+	var too_close = []
+	for lm in data.LANDMARKS:
+		var z = data.ZONES[lm.zone]
+		var center = Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0)
+		if Vector2(lm.x, lm.y).distance_to(center) < 300.0: too_close.append(lm.id + ":centre")
+		if Vector2(lm.x, lm.y).distance_to(inst.get_zone_spawn(lm.zone)) < 300.0: too_close.append(lm.id + ":arrivee")
+		# ...ni colle a la FRONTIERE de sa zone. BUG TROUVE EN CAPTURANT : place a
+		# 140px du bord, "epave_caravane" — cible d'une quete de NIVEAU 2 — se
+		# trouvait a un pas de la Necropole (niveau 26-30). Un debutant qui suit
+		# la quete traversait sans le vouloir dans la zone terminale.
+		var margin = minf(minf(lm.x - z.x0, z.x1 - lm.x), minf(lm.y - z.y0, z.y1 - lm.y))
+		if margin < 250.0: too_close.append("%s:bord(%dpx)" % [lm.id, int(margin)])
+	var well_placed = too_close.is_empty()
+
+	# 3) Chaque lieu est reellement construit dans le monde (un lieu present
+	# dans les donnees mais jamais instancie serait introuvable en jeu).
+	var built = inst.landmark_nodes.size() == data.LANDMARKS.size()
+	var all_have_visual = true
+	for n in inst.landmark_nodes:
+		if n.node.get_child_count() == 0: all_have_visual = false
+
+	# 4) La decouverte donne sa recompense UNE seule fois.
+	inst.char_data.discovered_landmarks = []
+	var target = data.LANDMARKS[0]
+	p.global_position = Vector2(target.x, target.y)
+	var gold_before = inst.char_data.gold
+	var xp_before = inst.char_data.xp
+	inst.check_landmark_discovery()
+	var discovered = inst.char_data.discovered_landmarks.has(target.id)
+	var rewarded = inst.char_data.gold > gold_before and inst.char_data.xp > xp_before
+	var gold_after = inst.char_data.gold
+	inst.check_landmark_discovery()
+	inst.check_landmark_discovery()
+	var rewards_once = inst.char_data.gold == gold_after
+
+	# 5) Hors rayon : rien ne se declenche (sinon on decouvrirait toute la zone
+	# depuis son entree).
+	inst.char_data.discovered_landmarks = []
+	var far = data.LANDMARKS[1]
+	p.global_position = Vector2(far.x, far.y) + Vector2(data.LANDMARK_RADIUS + 200.0, 0)
+	inst.check_landmark_discovery()
+	var not_from_afar = not inst.char_data.discovered_landmarks.has(far.id)
+
+	# 6) Objectif "explore" : trouver le lieu fait progresser la quete. C'est
+	# le coeur de la fonctionnalite — sans ce lien, les lieux ne seraient qu'un
+	# bonus decoratif.
+	var eq = ""
+	for q in data.QUESTS:
+		if q.obj.type == "explore": eq = q.id; break
+	var quest_target = data.get_quest(eq).obj.target
+	inst.char_data.quests_active = {eq: 0}
+	inst.char_data.discovered_landmarks = []
+	var lm_q = data.landmark_by_id(quest_target)
+	p.global_position = Vector2(lm_q.x, lm_q.y)
+	inst.check_landmark_discovery()
+	var gs = root.get_node("/root/GameState")
+	var quest_advanced = gs.quest_progress(inst.char_data, eq) >= 1
+	var quest_ready = gs.quest_is_ready(inst.char_data, eq)
+
+	# 7) Une quete d'exploration doit pouvoir se rendre : son donneur existe et
+	# le lieu vise est bien dans une zone atteignable.
+	var explore_quests_sane = true
+	for q in data.QUESTS:
+		if q.obj.type != "explore": continue
+		if data.landmark_by_id(q.obj.target).is_empty(): explore_quests_sane = false
+		if gs.quest_turnin_npc(q.id) == "": explore_quests_sane = false
+
+	var all_ok = every_zone_covered and positions_ok and not dupes and well_placed and built and all_have_visual and discovered and rewarded and rewards_once and not_from_afar and quest_advanced and quest_ready and explore_quests_sane
+	print("TEST_RESULT all_ok=%s lieux(nb=%d par_zone_ok=%s positions_ok=%s%s ids_uniques=%s bien_places=%s%s construits=%s visuels=%s) decouverte(declenchee=%s recompense=%s une_seule_fois=%s pas_de_loin=%s) quete_explore(%s progresse=%s prete=%s coherentes=%s)"
+		% [all_ok, data.LANDMARKS.size(), every_zone_covered, positions_ok, ("" if positions_ok else str(bad_pos)),
+		   not dupes, well_placed, ("" if well_placed else str(too_close)), built, all_have_visual,
+		   discovered, rewarded, rewards_once, not_from_afar, eq, quest_advanced, quest_ready, explore_quests_sane])
+
 func _run_skill_progression_test() -> void:
 	print("TEST_START:skill_progression")
 	# Chaque classe n'avait que DEUX competences, disponibles des le niveau 1 et
@@ -2579,6 +2697,7 @@ func _run_world_content_test() -> void:
 			if not npc_ids.has(ob.target): bad_refs.append("deliver_npc:" + ob.target)
 			if not data.ITEMS.has(ob.item): bad_refs.append("deliver_item:" + ob.item)
 		elif ob.type == "gather_drop" and not data.ITEMS.has(ob.target): bad_refs.append("gather_drop:" + ob.target)
+		elif ob.type == "explore" and data.landmark_by_id(ob.target).is_empty(): bad_refs.append("explore:" + ob.target)
 		for it in q.reward.get("items", []):
 			if not data.ITEMS.has(it): bad_refs.append("reward:" + it)
 	var refs_ok = bad_refs.is_empty()

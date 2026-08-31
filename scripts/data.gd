@@ -384,6 +384,58 @@ const RECIPES := [
 # coordonnees d'origine +2000/+2000 ; foret (nord)/caverne (ouest)/marais (sud)
 # sont pivotees pour rester a une distance equivalente de Val-Repos dans leur
 # nouvel axe (proche du village = pres du bord partage avec lui).
+
+## ---------------- Lieux remarquables ----------------
+## Explorer ne rapportait RIEN. Une zone se resumait a ses monstres et a ses
+## noeuds de recolte : aucune raison de s'ecarter du trajet entre le
+## teleporteur et le boss, et donc aucune recompense a la curiosite. Chaque
+## zone contient desormais deux lieux a decouvrir, qui donnent une bribe de
+## lore et une recompense unique la premiere fois qu'on les approche.
+##   kind : forme du marqueur construit par world.build_landmarks()
+##          stele / autel / camp / epave / arche / statue / bassin
+const LANDMARK_RADIUS := 90.0
+const LANDMARKS := [
+	{"id":"puits_fondateurs","zone":"village","x":3015,"y":2870,"kind":"bassin","name":"Le Puits des Fondateurs",
+		"lore":"Le premier puits creusé par les colons. L'eau y est encore claire — c'est autour de lui que Val-Repos s'est bâti.","reward":{"xp":30,"gold":15}},
+	{"id":"chene_solitaire","zone":"plaine","x":4705,"y":2870,"kind":"statue","name":"Le Chêne Solitaire",
+		"lore":"Un chêne immense, seul au milieu de la plaine. Les bergers y attachent des rubans pour que leurs bêtes rentrent au soir.","reward":{"xp":60,"gold":25}},
+	{"id":"epave_caravane","zone":"plaine","x":3895,"y":2330,"kind":"epave","name":"L'Épave de la Caravane",
+		"lore":"Des essieux brisés, des caisses éventrées. La marchandise a disparu depuis longtemps ; les ornières, elles, mènent vers la forêt.","reward":{"xp":70,"gold":40}},
+	{"id":"autel_sylvestre","zone":"foret","x":2385,"y":550,"kind":"autel","name":"L'Autel Sylvestre",
+		"lore":"Une dalle moussue couverte d'offrandes fanées. Les rangers y déposent encore une flèche avant les longues traques.","reward":{"xp":140,"gold":60}},
+	{"id":"camp_braconniers","zone":"foret","x":3015,"y":1450,"kind":"camp","name":"Le Camp des Braconniers",
+		"lore":"Un foyer froid, des peaux mal tannées. Ceux qui campaient ici sont partis vite — ou n'ont pas eu le choix.","reward":{"xp":160,"gold":75}},
+	{"id":"grande_arche","zone":"ruines","x":3895,"y":550,"kind":"arche","name":"La Grande Arche de Kaldremm",
+		"lore":"La porte nord de la cité, toujours debout alors que les remparts sont tombés. On lit encore un mot gravé au sommet : « Reviens ».","reward":{"xp":230,"gold":110}},
+	{"id":"cadran_brise","zone":"ruines","x":4705,"y":1450,"kind":"stele","name":"Le Cadran Brisé",
+		"lore":"Un cadran solaire fendu en deux. L'ombre qu'il projette n'indique plus rien, mais elle tombe toujours au même endroit.","reward":{"xp":250,"gold":120}},
+	{"id":"lac_souterrain","zone":"caverne","x":550,"y":2330,"kind":"bassin","name":"Le Lac Souterrain",
+		"lore":"Une nappe d'eau noire et parfaitement immobile. C'est d'ici que venait le nom de « Grotte aux Échos » : un mot crié met sept secondes à revenir.","reward":{"xp":300,"gold":140}},
+	{"id":"fresque_anciens","zone":"caverne","x":1450,"y":2870,"kind":"stele","name":"La Fresque des Anciens",
+		"lore":"Des silhouettes peintes à l'ocre, en procession vers un cercle. Le rituel qui a peuplé cette grotte d'ossements est là, sur la paroi.","reward":{"xp":320,"gold":150}},
+	{"id":"cairn_guetteur","zone":"cimes","x":550,"y":550,"kind":"stele","name":"Le Cairn du Guetteur",
+		"lore":"Un empilement de pierres plates, entretenu depuis des générations. De là on voit toute la forêt — et ce qui en sort.","reward":{"xp":420,"gold":200}},
+	{"id":"crevasse_bleue","zone":"cimes","x":1450,"y":1450,"kind":"bassin","name":"La Crevasse Bleue",
+		"lore":"Une faille dans le glacier, d'un bleu impossible. Brann prétend qu'elle n'a pas de fond ; il n'a jamais tenu à le vérifier.","reward":{"xp":450,"gold":210}},
+	{"id":"arbre_noye","zone":"marais","x":3015,"y":4650,"kind":"statue","name":"L'Arbre Noyé",
+		"lore":"Un tronc mort dressé au milieu de l'eau croupie, couvert d'oiseaux qui ne chantent pas. Le marais monte d'un doigt chaque année.","reward":{"xp":520,"gold":240}},
+	{"id":"pierres_chantantes","zone":"marais","x":2385,"y":3750,"kind":"stele","name":"Les Pierres Chantantes",
+		"lore":"Trois menhirs percés par le vent. Le son qu'ils produisent la nuit ressemble à s'y méprendre à une plainte humaine.","reward":{"xp":560,"gold":260}},
+	{"id":"forge_eteinte","zone":"fosse","x":550,"y":3750,"kind":"camp","name":"La Forge Éteinte",
+		"lore":"Une enclume fendue et un soufflet calciné. Quelqu'un a travaillé ici bien avant Karsk, et n'a pas eu le temps de ranger.","reward":{"xp":700,"gold":330}},
+	{"id":"puits_braise","zone":"fosse","x":1450,"y":4650,"kind":"bassin","name":"Le Puits de Braise",
+		"lore":"Un gouffre d'où monte une colonne d'air brûlant. C'est de là que vient la chaleur de toute la Fosse. On n'en voit pas le fond.","reward":{"xp":760,"gold":360}},
+	{"id":"mausolee_scelle","zone":"necropole","x":4705,"y":4650,"kind":"arche","name":"Le Mausolée Scellé",
+		"lore":"Une porte de pierre sans serrure ni gonds, couverte de sceaux intacts. Ce qui est derrière n'est pas encore sorti.","reward":{"xp":950,"gold":450}},
+	{"id":"obelisque_ombrelune","zone":"necropole","x":3895,"y":3750,"kind":"stele","name":"L'Obélisque d'Ombrelune",
+		"lore":"Une aiguille noire gravée des noms de tous ceux qu'on a portés ici. La dernière ligne a été ajoutée récemment.","reward":{"xp":1000,"gold":480}},
+]
+
+func landmark_by_id(lid: String) -> Dictionary:
+	for l in LANDMARKS:
+		if l.id == lid: return l
+	return {}
+
 const GATHER_NODES := [
 	{"type":"bois","x":3650,"y":2300}, {"type":"bois","x":3800,"y":2850}, {"type":"bois","x":2292,"y":1600},
 	{"type":"bois","x":3050,"y":1300}, {"type":"bois","x":2583,"y":800},
@@ -662,6 +714,27 @@ const QUESTS := [
 	{"id":"q_necropole_final","name":"La Couronne d'Ossuaire","giver":"gardienne_tombes","requires":["q_necropole_boss"],"level":30,
 		"desc":"Porte la Couronne à l'Ancien Malorin. Val-Repos peut enfin refermer l'histoire du vieux royaume.",
 		"obj":{"type":"deliver","target":"ancien","item":"couronne_ossuaire","count":1}, "reward":{"xp":1500,"gold":800,"items":["faux_vhalmir"]}},
+
+	# --- Quetes d'exploration ---
+	# Les 60 quetes existantes se ramenaient a QUATRE formes : tuer N, ramasser
+	# N, parler a X, livrer X. Aucune ne demandait de regarder la carte. Celles-ci
+	# envoient chercher un lieu precis (objectif "explore", voir
+	# world.check_landmark_discovery) et se valident en le trouvant.
+	{"id":"q_explore_plaine","name":"Les Ornières de la Plaine","giver":"garde","requires":["q_slime1"],"level":2,
+		"desc":"Une caravane n'est jamais arrivée. Retrouve son épave quelque part dans la Plaine d'Aubval.",
+		"obj":{"type":"explore","target":"epave_caravane","count":1}, "reward":{"xp":80,"gold":40}},
+	{"id":"q_explore_foret","name":"Fumée sans Feu","giver":"ranger","requires":["q_bois_ancien"],"level":6,
+		"desc":"Des braconniers campaient dans Sylvombre. Retrouve leur camp — s'ils sont partis, ce n'est pas de leur plein gré.",
+		"obj":{"type":"explore","target":"camp_braconniers","count":1}, "reward":{"xp":190,"gold":85}},
+	{"id":"q_explore_ruines","name":"La Porte du Nord","giver":"archeologue","requires":["q_vers_ruines"],"level":10,
+		"desc":"Sivelle cherche la grande arche de Kaldremm : la seule porte de la cité encore debout.",
+		"obj":{"type":"explore","target":"grande_arche","count":1}, "reward":{"xp":270,"gold":130}},
+	{"id":"q_explore_cimes","name":"Le Poste du Guetteur","giver":"guide_montagne","requires":["q_vers_cimes"],"level":16,
+		"desc":"Brann entretient un cairn en altitude d'où l'on voit toute la forêt. Monte le vérifier.",
+		"obj":{"type":"explore","target":"cairn_guetteur","count":1}, "reward":{"xp":480,"gold":230}},
+	{"id":"q_explore_necropole","name":"Ce qui n'est pas Sorti","giver":"gardienne_tombes","requires":["q_vers_necropole"],"level":28,
+		"desc":"Vaelis veut savoir si les sceaux du mausolée tiennent encore. Va les voir de tes yeux.",
+		"obj":{"type":"explore","target":"mausolee_scelle","count":1}, "reward":{"xp":1100,"gold":520}},
 ]
 
 func get_quest(id: String) -> Dictionary:
@@ -715,6 +788,8 @@ const QUEST_FACTION := {
 	"q_fosse_boss":"rangers", "q_fosse_final":"garde",
 	"q_vers_necropole":"garde", "q_spectres":"cercle", "q_poussiere":"cercle", "q_chevaliers":"cercle",
 	"q_necropole_boss":"cercle", "q_necropole_final":"garde",
+	"q_explore_plaine":"garde", "q_explore_foret":"rangers", "q_explore_ruines":"garde",
+	"q_explore_cimes":"rangers", "q_explore_necropole":"cercle",
 }
 
 const TALENTS := {

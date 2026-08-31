@@ -62,6 +62,10 @@ const ZONE_LIGHT := {
 	"foret": Color(0.78, 0.86, 0.72),   # sous-bois, lumière tamisée par les frondaisons
 	"caverne": Color(0.5, 0.55, 0.68),  # pénombre froide et bleutée des grottes
 	"marais": Color(0.72, 0.78, 0.62),  # brume verdâtre et humide
+	"ruines": Color(0.98, 0.92, 0.78),  # lumière rase et poussiéreuse d'une cité morte
+	"cimes": Color(0.88, 0.94, 1.05),   # jour blanc et cru sur la neige
+	"fosse": Color(0.85, 0.55, 0.45),   # lueur rouge des coulées de lave
+	"necropole": Color(0.55, 0.5, 0.72), # crépuscule violacé permanent
 }
 
 const ECONOMY_TICK_INTERVAL := 12.0
@@ -153,8 +157,11 @@ const TREE_DENSITY := {
 	"foret": 85.0,   # sous-bois dense
 	"caverne": 0.0,  # sous terre : rochers à la place
 	"marais": 34.0,  # arbres humides et bosquets
+	"ruines": 16.0,  # cite morte : peu d'arbres, des pierres a la place
+	"cimes": 20.0,   # conifures rabougris sur la neige
+	"fosse": 8.0,    # tout a brule : quelques souches calcinees
+	"necropole": 14.0, # arbres morts entre les tombes
 }
-const WILDS_TREE_DENSITY := 12.0 # coins non revendiqués entre les bras de la croix
 ## Ennemis pour 1M px². Valeur choisie pour laisser la population TOTALE
 ## quasi inchangee (56 -> 58) : il s'agit de corriger la repartition inegale
 ## introduite par la carte en croix, pas de rééquilibrer la difficulté.
@@ -213,6 +220,10 @@ const TUFT_DENSITY := 24.0       # touffes d'herbe pour 1M px², tout le monde c
 const GROUND_TINT := {
 	"foret": Color(0.62, 0.85, 0.55, 0.75),
 	"marais": Color(0.78, 0.82, 0.62, 0.85),
+	"ruines": Color(0.95, 0.9, 0.72, 0.8),   # dalles et poussiere doree
+	"cimes": Color(1.25, 1.35, 1.45, 0.8),   # neige tassee, presque delavee
+	"fosse": Color(0.7, 0.42, 0.34, 0.9),    # cendre et scories rouges
+	"necropole": Color(0.72, 0.66, 0.85, 0.85), # pierre violacee
 }
 const GROUND_TINT_DEFAULT := Color(0.8, 0.8, 0.8, 0.85)
 
@@ -220,6 +231,10 @@ const GROUND_TEXTURES := {
 	"caverne": ["res://assets/tiles/ground/gravel_0.png", "res://assets/tiles/ground/gravel_1.png", "res://assets/tiles/ground/gravel_2.png", "res://assets/tiles/ground/gravel_3.png"],
 	"marais": ["res://assets/tiles/ground/dirt_0.png", "res://assets/tiles/ground/dirt_1.png", "res://assets/tiles/ground/dirt_2.png", "res://assets/tiles/ground/dirt_3.png"],
 	"foret": ["res://assets/tiles/ground/dirt_0.png", "res://assets/tiles/ground/dirt_1.png", "res://assets/tiles/ground/dirt_2.png", "res://assets/tiles/ground/dirt_3.png"],
+	"ruines": ["res://assets/tiles/ground/gravel_0.png", "res://assets/tiles/ground/gravel_1.png", "res://assets/tiles/ground/gravel_2.png", "res://assets/tiles/ground/gravel_3.png"],
+	"cimes": ["res://assets/tiles/ground/gravel_0.png", "res://assets/tiles/ground/gravel_1.png", "res://assets/tiles/ground/gravel_2.png", "res://assets/tiles/ground/gravel_3.png"],
+	"fosse": ["res://assets/tiles/ground/gravel_0.png", "res://assets/tiles/ground/gravel_1.png", "res://assets/tiles/ground/gravel_2.png", "res://assets/tiles/ground/gravel_3.png"],
+	"necropole": ["res://assets/tiles/ground/dirt_0.png", "res://assets/tiles/ground/dirt_1.png", "res://assets/tiles/ground/dirt_2.png", "res://assets/tiles/ground/dirt_3.png"],
 }
 
 func draw_world() -> void:
@@ -273,16 +288,13 @@ func draw_world() -> void:
 		var density = TREE_DENSITY.get(key, 20.0)
 		if density <= 0.0: continue # caverne : sous terre, rochers à la place
 		var area_m = ((z.x1 - z.x0) * (z.y1 - z.y0)) / 1000000.0
+		var style = ZONE_TREE_STYLE.get(key, "feuillu")
 		for i in range(int(area_m * density)):
-			_spawn_tree(tree_tex, randi_range(int(z.x0) + 40, int(z.x1) - 40), randi_range(int(z.y0) + 40, int(z.y1) - 40))
-	# Terres sauvages (coins entre les bras de la croix) : boisées légèrement
-	# pour ne pas traverser du vide en passant d'un bras à l'autre.
-	var wilds_area_m = (Data.WORLD_WIDTH * Data.WORLD_HEIGHT) / 1000000.0
-	for i in range(int(wilds_area_m * WILDS_TREE_DENSITY)):
-		var wx = randi_range(60, int(Data.WORLD_WIDTH) - 60)
-		var wy = randi_range(60, int(Data.WORLD_HEIGHT) - 60)
-		if Data.zone_at(wx, wy).id != Data.VOID_ZONE.id: continue # déjà traité par la passe par zone
-		_spawn_tree(tree_tex, wx, wy)
+			_spawn_zone_tree(tree_tex, randi_range(int(z.x0) + 40, int(z.x1) - 40), randi_range(int(z.y0) + 40, int(z.y1) - 40), style)
+	# (Il y avait ici une passe qui boisait legerement les "Terres Sauvages",
+	# les coins du carre laisses hors de la croix de zones. Ces coins sont
+	# devenus quatre vraies zones : la passe ne pouvait plus rien placer et a
+	# ete retiree. VOID_ZONE reste comme garde-fou de Data.zone_at.)
 	# rochers dans la caverne (formes procédurales, pas des arbres déguisés)
 	var cav = Data.ZONES.caverne
 	for i in range(70):
@@ -309,6 +321,10 @@ func draw_world() -> void:
 	build_foret_decor()
 	build_caverne_decor()
 	build_marais_decor()
+	build_ruines_decor()
+	build_cimes_decor()
+	build_fosse_decor()
+	build_necropole_decor()
 
 func build_plaine_decor() -> void:
 	# La plaine était restée plate/verte alors que le village a été détaillé —
@@ -572,6 +588,280 @@ func _spawn_hay_bale(x: int, y: int) -> void:
 	band.z_index = int(y / 2.0) + 1
 	$Decor.add_child(band)
 
+
+## ---------------- Décor des quatre nouvelles zones ----------------
+## Une zone qui n'a que sa couleur de fond et des arbres génériques ressemble
+## à toutes les autres. Chacune reçoit deux ou trois éléments qui n'existent
+## nulle part ailleurs, pour qu'on sache où on est sans lire l'étiquette.
+
+func build_ruines_decor() -> void:
+	# Cité morte : colonnes brisées, pans de murs et dalles descellées.
+	var z = Data.ZONES.ruines
+	seed(5150)
+	for i in range(46):
+		_spawn_broken_pillar(randi_range(int(z.x0) + 60, int(z.x1) - 60), randi_range(int(z.y0) + 120, int(z.y1) - 60))
+	for i in range(30):
+		_spawn_wall_chunk(randi_range(int(z.x0) + 60, int(z.x1) - 60), randi_range(int(z.y0) + 120, int(z.y1) - 60))
+	for i in range(60):
+		_spawn_flagstone(randi_range(int(z.x0) + 40, int(z.x1) - 40), randi_range(int(z.y0) + 100, int(z.y1) - 40))
+
+func _spawn_broken_pillar(x: int, y: int) -> void:
+	var h = randf_range(26, 54)
+	var w = randf_range(14, 20)
+	var col = Polygon2D.new()
+	# Sommet irrégulier : une colonne BRISÉE, pas un poteau propre.
+	col.polygon = PackedVector2Array([
+		Vector2(-w / 2.0, 0), Vector2(w / 2.0, 0), Vector2(w / 2.0, -h * randf_range(0.75, 1.0)),
+		Vector2(w * 0.1, -h), Vector2(-w / 2.0, -h * randf_range(0.7, 0.95))
+	])
+	col.color = Color(0.74, 0.71, 0.62).lightened(randf_range(-0.12, 0.1))
+	col.position = Vector2(x, y)
+	col.z_index = int(y / 2.0)
+	$Decor.add_child(col)
+	var shadow = Polygon2D.new()
+	shadow.polygon = PackedVector2Array([Vector2(-w / 2.0, 0), Vector2(w / 2.0, 0), Vector2(w / 2.0, 4), Vector2(-w / 2.0, 4)])
+	shadow.color = Color(0, 0, 0, 0.22)
+	shadow.position = Vector2(x, y)
+	shadow.z_index = int(y / 2.0) - 1
+	$Decor.add_child(shadow)
+
+func _spawn_wall_chunk(x: int, y: int) -> void:
+	var blocks = randi_range(3, 6)
+	for i in range(blocks):
+		var b = ColorRect.new()
+		b.size = Vector2(randf_range(12, 22), randf_range(8, 12))
+		b.position = Vector2(x + i * randf_range(9, 14) - 20, y - i * randf_range(1.5, 5.0))
+		b.color = Color(0.66, 0.63, 0.55).lightened(randf_range(-0.1, 0.12))
+		b.z_index = int(y / 2.0)
+		$Decor.add_child(b)
+
+func _spawn_flagstone(x: int, y: int) -> void:
+	var s = ColorRect.new()
+	s.size = Vector2(randf_range(20, 40), randf_range(14, 26))
+	s.position = Vector2(x, y)
+	s.rotation = randf_range(-0.15, 0.15)
+	s.color = Color(0.58, 0.55, 0.47, 0.5)
+	s.z_index = -8 # au sol, sous tout le monde
+	$Decor.add_child(s)
+
+func build_cimes_decor() -> void:
+	# Hauteurs gelées : congères, stalagmites de glace et conifères givrés.
+	var z = Data.ZONES.cimes
+	seed(6260)
+	for i in range(70):
+		_spawn_snow_drift(randi_range(int(z.x0) + 40, int(z.x1) - 40), randi_range(int(z.y0) + 100, int(z.y1) - 40))
+	for i in range(40):
+		_spawn_ice_spike(randi_range(int(z.x0) + 60, int(z.x1) - 60), randi_range(int(z.y0) + 120, int(z.y1) - 60))
+	for i in range(16):
+		_spawn_frozen_pond(randi_range(int(z.x0) + 120, int(z.x1) - 120), randi_range(int(z.y0) + 160, int(z.y1) - 120))
+
+func _spawn_snow_drift(x: int, y: int) -> void:
+	var d = Polygon2D.new()
+	var w = randf_range(24, 60)
+	var h = randf_range(8, 16)
+	d.polygon = PackedVector2Array([
+		Vector2(-w / 2.0, 0), Vector2(-w * 0.3, -h), Vector2(w * 0.2, -h * randf_range(0.7, 1.1)), Vector2(w / 2.0, 0)
+	])
+	d.color = Color(0.96, 0.98, 1.0, 0.85)
+	d.position = Vector2(x, y)
+	d.z_index = int(y / 2.0) - 1
+	$Decor.add_child(d)
+
+func _spawn_ice_spike(x: int, y: int) -> void:
+	var count = randi_range(2, 4)
+	for i in range(count):
+		var h = randf_range(14, 34)
+		var w = h * 0.3
+		var sp = Polygon2D.new()
+		sp.polygon = PackedVector2Array([Vector2(0, -h), Vector2(w, 0), Vector2(-w, 0)])
+		sp.color = Color(0.68, 0.85, 0.95, 0.8).lightened(randf_range(-0.05, 0.15))
+		sp.position = Vector2(x + randf_range(-10, 10), y + randf_range(-4, 4))
+		sp.z_index = int(y / 2.0)
+		$Decor.add_child(sp)
+
+func _spawn_frozen_pond(x: int, y: int) -> void:
+	var pond = Polygon2D.new()
+	var pts = PackedVector2Array()
+	var r = randf_range(40, 80)
+	for i in range(10):
+		var a = TAU * i / 10.0
+		var rr = r * randf_range(0.75, 1.15)
+		pts.append(Vector2(cos(a) * rr, sin(a) * rr * 0.6))
+	pond.polygon = pts
+	pond.color = Color(0.62, 0.8, 0.92, 0.6)
+	pond.position = Vector2(x, y)
+	pond.z_index = -8
+	$Decor.add_child(pond)
+	# Craquelures : quelques traits clairs, sinon la mare est une tache unie.
+	for i in range(randi_range(3, 6)):
+		var cr = ColorRect.new()
+		cr.size = Vector2(randf_range(14, 34), 1.5)
+		cr.position = Vector2(x + randf_range(-r * 0.7, r * 0.7), y + randf_range(-r * 0.4, r * 0.4))
+		cr.rotation = randf_range(0, PI)
+		cr.color = Color(0.9, 0.97, 1.0, 0.55)
+		cr.z_index = -7
+		$Decor.add_child(cr)
+
+func build_fosse_decor() -> void:
+	# Fosse volcanique : mares de lave lumineuses, souches calcinées, fumerolles.
+	var z = Data.ZONES.fosse
+	seed(7370)
+	for i in range(22):
+		_spawn_lava_pool(randi_range(int(z.x0) + 120, int(z.x1) - 120), randi_range(int(z.y0) + 160, int(z.y1) - 120))
+	for i in range(50):
+		_spawn_charred_stump(randi_range(int(z.x0) + 50, int(z.x1) - 50), randi_range(int(z.y0) + 120, int(z.y1) - 50))
+	for i in range(34):
+		_spawn_ash_mound(randi_range(int(z.x0) + 40, int(z.x1) - 40), randi_range(int(z.y0) + 100, int(z.y1) - 40))
+
+func _spawn_lava_pool(x: int, y: int) -> void:
+	var pool = Polygon2D.new()
+	var pts = PackedVector2Array()
+	var r = randf_range(30, 62)
+	for i in range(9):
+		var a = TAU * i / 9.0
+		var rr = r * randf_range(0.7, 1.2)
+		pts.append(Vector2(cos(a) * rr, sin(a) * rr * 0.55))
+	# Croute refroidie d'abord, coulee incandescente par-dessus et legerement
+	# plus petite : sans ce liseré sombre la mare n'est qu'un aplat orange pose
+	# sur le sol, elle ne lit pas comme de la roche en fusion.
+	var crust = Polygon2D.new()
+	var cpts = PackedVector2Array()
+	for p in pts: cpts.append(p * 1.16)
+	crust.polygon = cpts
+	crust.color = Color(0.18, 0.1, 0.09)
+	crust.position = Vector2(x, y)
+	crust.z_index = -9
+	$Decor.add_child(crust)
+	pool.polygon = pts
+	pool.color = Color(0.95, 0.35, 0.1)
+	pool.position = Vector2(x, y)
+	pool.z_index = -8
+	$Decor.add_child(pool)
+	# Coeur plus clair : degrade minimal, mais suffit a donner du volume.
+	var core = Polygon2D.new()
+	var kpts = PackedVector2Array()
+	for p in pts: kpts.append(p * 0.55)
+	core.polygon = kpts
+	core.color = Color(1.0, 0.72, 0.25)
+	core.position = Vector2(x, y)
+	core.z_index = -7
+	$Decor.add_child(core)
+	var light = PointLight2D.new()
+	light.texture = _radial_light_texture()
+	light.position = Vector2(x, y)
+	light.color = Color(1.0, 0.5, 0.2)
+	light.energy = 1.0
+	light.texture_scale = 1.4
+	light.z_index = int(y / 2.0) + 2
+	$Decor.add_child(light)
+	# Battement lent : une mare de lave fixe a l'air d'un autocollant.
+	var pulse = create_tween().set_loops()
+	pulse.tween_property(light, "energy", 1.35, randf_range(1.4, 2.2)).set_trans(Tween.TRANS_SINE).set_delay(randf())
+	pulse.tween_property(light, "energy", 0.75, randf_range(1.6, 2.4)).set_trans(Tween.TRANS_SINE)
+
+func _spawn_charred_stump(x: int, y: int) -> void:
+	var h = randf_range(16, 32)
+	var trunk = Polygon2D.new()
+	trunk.polygon = PackedVector2Array([Vector2(-5, 0), Vector2(5, 0), Vector2(3, -h), Vector2(-4, -h * randf_range(0.8, 1.0))])
+	trunk.color = Color(0.16, 0.13, 0.12)
+	trunk.position = Vector2(x, y)
+	trunk.z_index = int(y / 2.0)
+	$Decor.add_child(trunk)
+	# Braise au pied : le bois fume encore.
+	if randf() < 0.4:
+		var ember = ColorRect.new()
+		ember.size = Vector2(3, 3)
+		ember.position = Vector2(x + randf_range(-6, 6), y - 2)
+		ember.color = Color(1.0, 0.55, 0.2, 0.9)
+		ember.z_index = int(y / 2.0) + 1
+		$Decor.add_child(ember)
+		var tw = create_tween().set_loops()
+		tw.tween_property(ember, "modulate:a", 0.25, randf_range(0.7, 1.3)).set_delay(randf())
+		tw.tween_property(ember, "modulate:a", 1.0, randf_range(0.7, 1.3))
+
+func _spawn_ash_mound(x: int, y: int) -> void:
+	var m = Polygon2D.new()
+	var w = randf_range(18, 42)
+	m.polygon = PackedVector2Array([Vector2(-w / 2.0, 0), Vector2(0, -randf_range(6, 13)), Vector2(w / 2.0, 0)])
+	m.color = Color(0.32, 0.28, 0.27, 0.85)
+	m.position = Vector2(x, y)
+	m.z_index = int(y / 2.0) - 1
+	$Decor.add_child(m)
+
+func build_necropole_decor() -> void:
+	# Nécropole : pierres tombales alignées, caveaux et feux d'âme violets.
+	var z = Data.ZONES.necropole
+	seed(8480)
+	for i in range(44):
+		_spawn_grave_row(randi_range(int(z.x0) + 100, int(z.x1) - 200), randi_range(int(z.y0) + 140, int(z.y1) - 80))
+	for i in range(26):
+		_spawn_crypt(randi_range(int(z.x0) + 90, int(z.x1) - 90), randi_range(int(z.y0) + 160, int(z.y1) - 70))
+	for i in range(40):
+		_spawn_soul_flame(randi_range(int(z.x0) + 60, int(z.x1) - 60), randi_range(int(z.y0) + 120, int(z.y1) - 60))
+
+func _spawn_grave_row(x: int, y: int) -> void:
+	# Par rangées : un cimetière est ORDONNÉ, c'est ce qui le distingue d'un
+	# champ de cailloux dispersés au hasard.
+	var count = randi_range(3, 6)
+	var step = randf_range(26, 38)
+	for i in range(count):
+		var gx = x + i * step
+		var gy = y + randf_range(-4, 4)
+		var stone = Polygon2D.new()
+		var h = randf_range(16, 26)
+		var w = randf_range(11, 16)
+		stone.polygon = PackedVector2Array([
+			Vector2(-w / 2.0, 0), Vector2(-w / 2.0, -h * 0.7), Vector2(0, -h), Vector2(w / 2.0, -h * 0.7), Vector2(w / 2.0, 0)
+		])
+		stone.color = Color(0.55, 0.52, 0.6).lightened(randf_range(-0.12, 0.12))
+		stone.position = Vector2(gx, gy)
+		stone.rotation = randf_range(-0.09, 0.09) # légèrement de guingois : abandonné
+		stone.z_index = int(gy / 2.0)
+		$Decor.add_child(stone)
+
+func _spawn_crypt(x: int, y: int) -> void:
+	var base = ColorRect.new()
+	base.size = Vector2(randf_range(46, 70), randf_range(30, 42))
+	base.position = Vector2(x - base.size.x / 2.0, y - base.size.y)
+	base.color = Color(0.38, 0.35, 0.44)
+	base.z_index = int(y / 2.0)
+	$Decor.add_child(base)
+	var roof = Polygon2D.new()
+	var hw = base.size.x / 2.0
+	roof.polygon = PackedVector2Array([Vector2(-hw - 4, 0), Vector2(0, -18), Vector2(hw + 4, 0)])
+	roof.color = Color(0.3, 0.27, 0.36)
+	roof.position = Vector2(x, y - base.size.y)
+	roof.z_index = int(y / 2.0) + 1
+	$Decor.add_child(roof)
+	var door = ColorRect.new()
+	door.size = Vector2(12, 18)
+	door.position = Vector2(x - 6, y - 18)
+	door.color = Color(0.09, 0.07, 0.12)
+	door.z_index = int(y / 2.0) + 1
+	$Decor.add_child(door)
+
+func _spawn_soul_flame(x: int, y: int) -> void:
+	var flame = Polygon2D.new()
+	flame.polygon = PackedVector2Array([Vector2(0, -14), Vector2(5, -4), Vector2(0, 0), Vector2(-5, -4)])
+	flame.color = Color(0.7, 0.55, 1.0, 0.85)
+	flame.position = Vector2(x, y)
+	flame.z_index = int(y / 2.0) + 1
+	$Decor.add_child(flame)
+	var light = PointLight2D.new()
+	light.texture = _radial_light_texture()
+	light.position = Vector2(x, y - 8)
+	light.color = Color(0.65, 0.45, 1.0)
+	light.energy = 0.65
+	light.texture_scale = 0.6
+	light.z_index = int(y / 2.0) + 2
+	$Decor.add_child(light)
+	var tw = create_tween().set_loops()
+	tw.tween_property(flame, "position:y", y - 8.0, randf_range(1.2, 2.0)).set_trans(Tween.TRANS_SINE).set_delay(randf())
+	tw.tween_property(flame, "position:y", float(y), randf_range(1.2, 2.0)).set_trans(Tween.TRANS_SINE)
+	var pulse = create_tween().set_loops()
+	pulse.tween_property(light, "energy", 0.95, randf_range(0.8, 1.4)).set_trans(Tween.TRANS_SINE)
+	pulse.tween_property(light, "energy", 0.3, randf_range(0.9, 1.5)).set_trans(Tween.TRANS_SINE)
+
 func build_village_structures() -> void:
 	# Bâtiments : murs procéduraux + vrai sprite de toit (tuiles LPC) pour une silhouette
 	# bien plus lisible que le triangle plat d'avant.
@@ -832,6 +1122,91 @@ func _radial_light_texture() -> Texture2D:
 	_radial_light_tex = ImageTexture.create_from_image(img)
 	return _radial_light_tex
 
+## Style d'arbre par zone. Il n'existe qu'UNE seule feuille d'arbre dans les
+## assets (small_tree.png, un arbre tropical), et elle etait plantee telle
+## quelle dans toutes les zones : des palmiers verts poussaient sur le glacier,
+## dans la fosse volcanique et entre les tombes de la necropole. C'est
+## exactement ce qui donnait l'impression que "tout se ressemble" — la
+## silhouette la plus repetee de l'ecran etait la meme partout.
+##   "feuillu" : le sprite d'origine (zones vertes)
+##   "conifere": sapin procedural enneige (cimes)
+##   "mort"    : tronc nu et branches sechees (ruines, fosse, necropole)
+const ZONE_TREE_STYLE := {
+	"cimes": "conifere",
+	"ruines": "mort",
+	"fosse": "mort",
+	"necropole": "mort",
+}
+
+## Tout arbre, quel que soit son style, est UN noeud unique marque "tree" et
+## place a sa position dans le monde. Les styles procéduraux sont faits de
+## plusieurs polygones : sans ce conteneur ils compteraient pour 3 a 8 arbres
+## chacun, et test_decor_density — qui reconnaissait un arbre a son Sprite2D —
+## en aurait compte zero dans les zones a arbres procéduraux.
+func _new_tree_root(x: int, y: int) -> Node2D:
+	var root_node = Node2D.new()
+	root_node.position = Vector2(x, y)
+	root_node.z_index = int(y / 2.0)
+	root_node.set_meta("tree", true)
+	$Decor.add_child(root_node)
+	return root_node
+
+func _spawn_zone_tree(tree_tex: Texture2D, x: int, y: int, style: String) -> void:
+	match style:
+		"conifere": _spawn_conifer(x, y)
+		"mort": _spawn_dead_tree(x, y)
+		_: _spawn_tree(tree_tex, x, y)
+
+func _spawn_conifer(x: int, y: int) -> void:
+	var node = _new_tree_root(x, y)
+	var h = randf_range(38, 74)
+	var w = h * randf_range(0.38, 0.5)
+	var trunk = ColorRect.new()
+	trunk.size = Vector2(5, h * 0.22)
+	trunk.position = Vector2(-2.5, -h * 0.22)
+	trunk.color = Color(0.28, 0.2, 0.15)
+	node.add_child(trunk)
+	# Trois etages de branches, du plus large en bas au plus etroit en haut.
+	var green = Color(0.16, 0.34, 0.24).lightened(randf_range(-0.05, 0.12))
+	for i in range(3):
+		var t = i / 3.0
+		var lw = w * (1.0 - t * 0.45)
+		var ly = -h * 0.18 - i * h * 0.26
+		var tier = Polygon2D.new()
+		tier.polygon = PackedVector2Array([Vector2(0, -h * 0.34), Vector2(lw, 0), Vector2(-lw, 0)])
+		tier.color = green
+		tier.position = Vector2(0, ly)
+		tier.z_index = 1
+		node.add_child(tier)
+		# Neige accumulee sur le dessus de chaque etage : sans elle le sapin
+		# reste vert vif et jure avec le sol blanc.
+		var snow = Polygon2D.new()
+		snow.polygon = PackedVector2Array([Vector2(0, -h * 0.34), Vector2(lw * 0.55, -h * 0.16), Vector2(-lw * 0.55, -h * 0.16)])
+		snow.color = Color(0.95, 0.97, 1.0, 0.9)
+		snow.position = Vector2(0, ly)
+		snow.z_index = 2
+		node.add_child(snow)
+
+func _spawn_dead_tree(x: int, y: int) -> void:
+	var node = _new_tree_root(x, y)
+	var h = randf_range(34, 62)
+	var bark = Color(0.24, 0.19, 0.17).lightened(randf_range(-0.06, 0.1))
+	var trunk = Polygon2D.new()
+	trunk.polygon = PackedVector2Array([Vector2(-4, 0), Vector2(4, 0), Vector2(2.5, -h), Vector2(-2, -h)])
+	trunk.color = bark
+	node.add_child(trunk)
+	# Branches nues : quelques traits partant du haut du tronc, alternes.
+	for i in range(randi_range(3, 5)):
+		var br = ColorRect.new()
+		var bl = randf_range(10, 24)
+		br.size = Vector2(bl, 2.5)
+		var side = 1.0 if i % 2 == 0 else -1.0
+		br.position = Vector2(0, -h * randf_range(0.5, 0.98))
+		br.rotation = side * randf_range(0.5, 1.1)
+		if side < 0.0: br.position.x -= bl * cos(br.rotation)
+		br.color = bark
+		node.add_child(br)
+
 func _spawn_tree(tree_tex: Texture2D, x: int, y: int) -> void:
 	var spr = Sprite2D.new()
 	spr.texture = tree_tex
@@ -841,6 +1216,7 @@ func _spawn_tree(tree_tex: Texture2D, x: int, y: int) -> void:
 	if is_bush:
 		spr.modulate = Color(0.75, 0.95, 0.65)
 	spr.z_index = int(y / 2.0)
+	spr.set_meta("tree", true)
 	$Decor.add_child(spr)
 
 func _spawn_rock(x: int, y: int) -> void:

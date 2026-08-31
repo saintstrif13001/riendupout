@@ -218,6 +218,20 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode.begins_with("show_zone:"):
+			# Depose le joueur au centre d'une zone pour la photographier en
+			# fenetre reelle : le rendu du decor ne se juge pas en headless.
+			var _zid = test_mode.substr(10)
+			var _z = Data.ZONES[_zid]
+			inst.player.global_position = Vector2((_z.x0 + _z.x1) / 2.0, (_z.y0 + _z.y1) / 2.0)
+			# Le centre d'une zone est la tanniere du boss : un personnage de test
+			# de niveau 1 y meurt avant la capture. On l'y rend invulnerable.
+			inst.player.invuln_until = Time.get_ticks_msec() / 1000.0 + 9999.0
+			inst.player.stats.max_hp = 99999.0
+			inst.player.hp = 99999.0
+			inst.update_zone_lighting(_zid)
+		elif test_mode == "test_world_content":
+			_run_world_content_test()
 		elif test_mode == "test_hit_reaction":
 			_run_hit_reaction_test()
 		elif test_mode == "test_dodge":
@@ -2308,6 +2322,167 @@ func _run_float_text_centered_test() -> void:
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
+func _run_world_content_test() -> void:
+	print("TEST_START:world_content")
+	# Retour du joueur : "les zones sont trop petites et vides, tout le monde
+	# est pareil ou presque, il faut plus de diversite". Deux constats derriere
+	# cette phrase :
+	#   1) la carte etait une CROIX de 5 zones dans un carre : les 4 coins,
+	#      soit 56% de la surface, n'appartenaient a aucune zone (VOID_ZONE) —
+	#      ni monstre propre, ni decor, ni quete. On traversait du remplissage.
+	#   2) 9 monstres ordinaires pour tout le jeu, deux par zone : une region
+	#      etait "vue" apres deux combats, et toutes se ressemblaient.
+	var data = root.get_node("/root/Data")
+
+	# 1) La grille est complete : plus aucun point de la carte ne tombe hors
+	# zone. Echantillonnage regulier plutot que quelques points choisis, pour
+	# qu'un trou reintroduit ailleurs soit detecte.
+	var void_hits = 0
+	var sampled = 0
+	for gx in range(26):
+		for gy in range(26):
+			var x = gx * (data.WORLD_WIDTH / 26.0) + 40.0
+			var y = gy * (data.WORLD_HEIGHT / 26.0) + 40.0
+			sampled += 1
+			if data.zone_at(x, y).id == data.VOID_ZONE.id: void_hits += 1
+	var no_void = void_hits == 0
+
+	# 2) Les zones ne se chevauchent pas : deux zones qui se recouvrent
+	# rendraient zone_at() dependant de l'ordre du dictionnaire, donc les
+	# spawns et le decor deviendraient imprevisibles.
+	var no_overlap = true
+	var zids = data.ZONES.keys()
+	for i in range(zids.size()):
+		for j in range(i + 1, zids.size()):
+			var a = data.ZONES[zids[i]]
+			var b = data.ZONES[zids[j]]
+			if a.x0 < b.x1 and b.x0 < a.x1 and a.y0 < b.y1 and b.y0 < a.y1:
+				no_overlap = false
+
+	# 3) Chaque zone dangereuse a de quoi se tenir : au moins 3 especes
+	# ordinaires (c'etait 2, d'ou "tout le monde est pareil") et un boss.
+	var per_zone = {}
+	for zid in data.ZONES.keys(): per_zone[zid] = {"normal": 0, "boss": 0}
+	for tid in data.MONSTER_TYPES.keys():
+		var m = data.MONSTER_TYPES[tid]
+		if not per_zone.has(m.zone): continue
+		if m.get("boss", false): per_zone[m.zone].boss += 1
+		else: per_zone[m.zone].normal += 1
+	var enough_species = true
+	var every_zone_has_boss = true
+	var roster = []
+	for zid in per_zone.keys():
+		if data.ZONES[zid].safe: continue
+		if per_zone[zid].normal < 3: enough_species = false
+		if per_zone[zid].boss < 1: every_zone_has_boss = false
+		roster.append("%s=%d+%dB" % [zid, per_zone[zid].normal, per_zone[zid].boss])
+
+	# 4) Diversite VISUELLE : 11 feuilles de sprites pour 33 creatures, donc
+	# deux especes qui partagent un sprite DOIVENT differer par la teinte ou la
+	# taille — sinon elles sont litteralement identiques a l'ecran.
+	var by_sprite = {}
+	for tid in data.MONSTER_TYPES.keys():
+		var m = data.MONSTER_TYPES[tid]
+		var sig = "%s|%s|%s" % [m.sprite, m.get("tint", Color.WHITE), m.get("scale", 1.6 if m.get("boss", false) else 1.0)]
+		if not by_sprite.has(sig): by_sprite[sig] = []
+		by_sprite[sig].append(tid)
+	var visual_clashes = []
+	for sig in by_sprite.keys():
+		if by_sprite[sig].size() > 1: visual_clashes.append(str(by_sprite[sig]))
+	var all_distinct = visual_clashes.is_empty()
+
+	# 5) Coherence des donnees : tout butin, toute cible de quete et toute
+	# piece d'equipement citee doit exister. Une faute de frappe ici produit
+	# une quete impossible a terminer, pas une erreur bruyante.
+	var bad_refs = []
+	for tid in data.MONSTER_TYPES.keys():
+		var m = data.MONSTER_TYPES[tid]
+		if not data.ZONES.has(m.zone): bad_refs.append("zone:" + m.zone)
+		if not ResourceLoader.exists("res://assets/sprites/enemies/%s.png" % m.sprite): bad_refs.append("sprite:" + m.sprite)
+		for l in m.get("loot", []):
+			if not data.ITEMS.has(l.id): bad_refs.append("loot:" + l.id)
+		for ph in m.get("phases", []):
+			if ph.has("summon") and not data.MONSTER_TYPES.has(ph.summon): bad_refs.append("summon:" + ph.summon)
+			if ph.has("behavior") and not inst.ENEMY_BEHAVIOR.has(ph.behavior): bad_refs.append("phase_behavior:" + ph.behavior)
+		if m.has("behavior") and not inst.ENEMY_BEHAVIOR.has(m.behavior): bad_refs.append("behavior:" + m.behavior)
+	for zid in data.GEAR_DROPS.keys():
+		if not data.ZONES.has(zid): bad_refs.append("gear_zone:" + zid)
+		for it in data.GEAR_DROPS[zid]:
+			if not data.ITEMS.has(it): bad_refs.append("gear:" + it)
+	var npc_ids = {}
+	for n in data.NPCS: npc_ids[n.id] = true
+	var quest_ids = {}
+	for q in data.QUESTS: quest_ids[q.id] = true
+	for q in data.QUESTS:
+		if not npc_ids.has(q.giver): bad_refs.append("giver:" + q.giver)
+		for r in q.requires:
+			if not quest_ids.has(r): bad_refs.append("requires:" + r)
+		var ob = q.obj
+		if ob.type == "kill":
+			for t in ob.target:
+				if not data.MONSTER_TYPES.has(t): bad_refs.append("kill:" + t)
+		elif ob.type == "boss" and not data.MONSTER_TYPES.has(ob.target): bad_refs.append("boss:" + ob.target)
+		elif ob.type == "talk" and not npc_ids.has(ob.target): bad_refs.append("talk:" + ob.target)
+		elif ob.type == "deliver":
+			if not npc_ids.has(ob.target): bad_refs.append("deliver_npc:" + ob.target)
+			if not data.ITEMS.has(ob.item): bad_refs.append("deliver_item:" + ob.item)
+		elif ob.type == "gather_drop" and not data.ITEMS.has(ob.target): bad_refs.append("gather_drop:" + ob.target)
+		for it in q.reward.get("items", []):
+			if not data.ITEMS.has(it): bad_refs.append("reward:" + it)
+	var refs_ok = bad_refs.is_empty()
+
+	# 6) Un objet de quete "deliver" doit pouvoir TOMBER quelque part, sinon la
+	# quete est increvable : c'est exactement le genre de trou qui se glisse en
+	# ajoutant une zone entiere d'un coup.
+	var droppable = {}
+	for tid in data.MONSTER_TYPES.keys():
+		for l in data.MONSTER_TYPES[tid].get("loot", []): droppable[l.id] = true
+	for g in data.GATHER_NODES: droppable[g.type] = true
+	var unobtainable = []
+	for q in data.QUESTS:
+		if q.obj.type == "deliver" and not droppable.has(q.obj.item) and not _quest_grants(data, q.obj.item):
+			unobtainable.append(q.id)
+		if q.obj.type == "gather_drop" and not droppable.has(q.obj.target):
+			unobtainable.append(q.id)
+	var all_obtainable = unobtainable.is_empty()
+
+	# 7) La progression guidee doit aller jusqu'au niveau maximum : elle
+	# s'arretait au 21 alors que le plafond est 30, donc les 9 derniers
+	# niveaux se faisaient sans la moindre indication.
+	var max_quest_lvl = 0
+	for q in data.QUESTS: max_quest_lvl = maxi(max_quest_lvl, q.level)
+	var chain_reaches_cap = max_quest_lvl >= 30
+
+	# 8) Chaque zone dangereuse doit avoir une raison d'y aller : au moins une
+	# quete qui y envoie (tuer un de ses monstres ou parler a son habitant).
+	var zone_has_quest = {}
+	for zid in data.ZONES.keys(): zone_has_quest[zid] = data.ZONES[zid].safe
+	for q in data.QUESTS:
+		var targets = []
+		if q.obj.type == "kill": targets = q.obj.target
+		elif q.obj.type == "boss": targets = [q.obj.target]
+		for t in targets:
+			if data.MONSTER_TYPES.has(t): zone_has_quest[data.MONSTER_TYPES[t].zone] = true
+	var zones_without_quest = []
+	for zid in zone_has_quest.keys():
+		if not zone_has_quest[zid]: zones_without_quest.append(zid)
+	var every_zone_targeted = zones_without_quest.is_empty()
+
+	var all_ok = no_void and no_overlap and enough_species and every_zone_has_boss and all_distinct and refs_ok and all_obtainable and chain_reaches_cap and every_zone_targeted
+	print("TEST_RESULT all_ok=%s carte(zones=%d aucun_vide=%s[%d/%d] sans_chevauchement=%s) bestiaire(especes=%d %s assez_par_zone=%s boss_partout=%s visuellement_distincts=%s) coherence(refs=%s%s obtenables=%s%s) progression(niv_max_quete=%d atteint_30=%s toutes_zones_ciblees=%s%s)"
+		% [all_ok, data.ZONES.size(), no_void, void_hits, sampled, no_overlap,
+		   data.MONSTER_TYPES.size(), str(roster), enough_species, every_zone_has_boss, all_distinct,
+		   refs_ok, ("" if refs_ok else " " + str(bad_refs)), all_obtainable, ("" if all_obtainable else " " + str(unobtainable)),
+		   max_quest_lvl, chain_reaches_cap, every_zone_targeted, ("" if every_zone_targeted else " " + str(zones_without_quest))])
+	if not all_distinct: print("TEST_RESULT2 sprites_identiques=%s" % str(visual_clashes))
+
+## Un objet de quete peut aussi etre remis en RECOMPENSE d'une quete anterieure
+## (ex: la relique du gardien) plutot que tombe d'un monstre.
+func _quest_grants(data, item_id: String) -> bool:
+	for q in data.QUESTS:
+		if item_id in q.reward.get("items", []): return true
+	return false
+
 func _run_hit_reaction_test() -> void:
 	print("TEST_START:hit_reaction")
 	# Frapper un ennemi ne faisait que baisser des chiffres : il continuait
@@ -3054,56 +3229,74 @@ func _run_inventory_search_test() -> void:
 
 func _run_decor_density_test() -> void:
 	print("TEST_START:decor_density")
-	# La refonte de la carte en croix a fait passer le monde de 9200x1200
-	# (11.0M px2) a 5200x5200 (27.0M px2, +145%), mais les passes de decor
-	# GENERIQUES de draw_world() (arbres, touffes d'herbe) gardaient un nombre
-	# ABSOLU d'elements disperses sur toute la boite englobante. Pire : la croix
-	# laisse ~56% de cette boite hors de toute zone nommee (les coins "Terres
-	# Sauvages"), donc la majorite du decor tombait la ou le joueur passe le
-	# moins. Resultat : les zones ou l'on joue reellement se sont videes.
-	# Mesure la densite d'arbres (Sprite2D) par zone, en arbres pour 1M px2.
+	# La refonte de la carte a fait passer le monde de 9200x1200 (11.0M px2) a
+	# 5200x5200 (27.0M px2), mais les passes de decor GENERIQUES de draw_world()
+	# gardaient un nombre ABSOLU d'elements disperses sur toute la boite
+	# englobante : la majorite du decor tombait la ou le joueur passe le moins,
+	# et les zones jouables se sont vidées. Le decor est depuis proportionnel a
+	# la surface ET propre a chaque zone (TREE_DENSITY).
+	#
+	# On compte les noeuds marques "tree" plutot que les Sprite2D : depuis que
+	# chaque zone a son style d'arbre (sapins enneiges, arbres morts), un arbre
+	# n'est plus forcement un sprite — cette mesure comptait zero arbre dans
+	# les trois zones a arbres procéduraux tout en les declarant vides.
 	var data = root.get_node("/root/Data")
 	var decor = inst.get_node("Decor")
 	var per_zone = {}
 	for zid in data.ZONES.keys(): per_zone[zid] = 0
 	var outside = 0
-	# Filtre sur la texture : les toits de maison sont aussi des Sprite2D et
-	# gonflaient artificiellement le compte du village de +5.
-	var tree_tex = load("res://assets/tiles/small_tree.png")
 	for c in decor.get_children():
-		if not (c is Sprite2D) or c.texture != tree_tex: continue
+		if not c.has_meta("tree"): continue
 		var z = data.zone_at(c.position.x, c.position.y)
 		if per_zone.has(z.id): per_zone[z.id] += 1
 		else: outside += 1
 
+	# Chaque zone est comparee a SA densite voulue, pas a un seuil unique : la
+	# fosse volcanique (8/Mpx2, tout a brule) et la foret (85) ne peuvent pas
+	# passer le meme test. Tolerance 25% pour l'arrondi entier et les zones
+	# etroites.
 	var lines = []
-	var min_density = 999999.0
+	var worst_ratio = 999.0
 	var worst = ""
 	for zid in per_zone.keys():
-		if zid == "caverne": continue # pas d'arbres sous terre, c'est voulu
+		var target = inst.TREE_DENSITY.get(zid, 20.0)
+		if target <= 0.0: continue # caverne : sous terre, rochers a la place
 		var z = data.ZONES[zid]
 		var area_m = ((z.x1 - z.x0) * (z.y1 - z.y0)) / 1000000.0
 		var density = per_zone[zid] / area_m
-		lines.append("%s=%d (%.0f/Mpx2)" % [zid, per_zone[zid], density])
-		if density < min_density:
-			min_density = density
+		var ratio = density / target
+		lines.append("%s=%d (%.0f/%.0f)" % [zid, per_zone[zid], density, target])
+		if ratio < worst_ratio:
+			worst_ratio = ratio
 			worst = zid
-	# Seuil a 20 : le village est volontairement clairsemé (22/Mpx2, c'est un
-	# village aménagé, pas un bois), alors qu'avec le bug AUCUNE zone
-	# n'atteignait 20 (village 10, plaine 16, foret 19, marais 17). Le seuil
-	# separe donc proprement l'etat casse de l'etat corrige.
-	var density_ok = min_density >= 20.0
+	var density_ok = worst_ratio >= 0.75
+
+	# La caverne est SOUS TERRE : elle ne doit contenir aucun arbre, point.
+	# (Formuler ca comme "toute zone a densite nulle est sans arbre" ne testait
+	# rien : la boucle de plantation ignore deja les densites nulles, donc les
+	# deux moities de la condition venaient de la meme source et l'assertion
+	# ne pouvait pas echouer — verifie en essayant de la casser.)
+	var barren_respected = per_zone["caverne"] == 0
+
+	# La foret doit rester la plus dense du jeu : c'est son identite, et elle
+	# avait exactement la meme densite que la plaine et le marais avant.
 	var foret_is_densest = true
 	var foret_z = data.ZONES.foret
 	var foret_density = per_zone["foret"] / (((foret_z.x1 - foret_z.x0) * (foret_z.y1 - foret_z.y0)) / 1000000.0)
-	for zid in ["plaine", "marais"]:
+	for zid in per_zone.keys():
+		if zid == "foret": continue
 		var z2 = data.ZONES[zid]
 		var d2 = per_zone[zid] / (((z2.x1 - z2.x0) * (z2.y1 - z2.y0)) / 1000000.0)
 		if foret_density <= d2: foret_is_densest = false
 
-	var all_ok = density_ok and foret_is_densest
-	print("TEST_RESULT all_ok=%s density_ok=%s (min=%.0f/Mpx2 dans '%s', attendu >= 20) foret_is_densest=%s (foret=%.0f/Mpx2) hors_zones=%d detail=%s"
-		% [all_ok, density_ok, min_density, worst, foret_is_densest, foret_density, outside, lines])
+	# Plus aucun arbre ne doit tomber hors zone : les coins "Terres Sauvages"
+	# sont devenus de vraies zones, donc un arbre hors zone signalerait un trou
+	# reintroduit dans la grille.
+	var none_outside = outside == 0
+
+	var all_ok = density_ok and barren_respected and foret_is_densest and none_outside
+	print("TEST_RESULT all_ok=%s densites_respectees=%s (pire='%s' a %.0f%% de sa cible) zones_sans_arbre_respectees=%s foret_la_plus_dense=%s (%.0f/Mpx2) hors_zones=%d detail=%s"
+		% [all_ok, density_ok, worst, worst_ratio * 100.0, barren_respected, foret_is_densest, foret_density, outside, lines])
 
 func _run_zone_spawn_safety_test() -> void:
 	print("TEST_START:zone_spawn_safety")
@@ -3279,7 +3472,15 @@ func _run_death_screen_test() -> void:
 	inst.respawn_at = -1.0
 	inst.handle_respawn(0.0)
 	var shown_after_death = hud.death_overlay.visible
-	var shows_countdown = "3" in hud.death_countdown_label.text
+	# On compare au decompte ATTENDU plutot qu'a la chaine "3" en dur : le
+	# libelle est arrondi au superieur sur du temps reel, donc selon la charge
+	# de la machine il peut valoir 3 ou 2 secondes. Chercher "3" rendait le
+	# test dependant de la vitesse de demarrage du monde — il est passe a
+	# l'echec le jour ou la carte a double de contenu, sans aucun rapport avec
+	# l'ecran de mort.
+	var expected_secs = maxi(0, ceili(inst.respawn_at - Time.get_ticks_msec() / 1000.0))
+	var shows_countdown = ("Réapparition dans" in hud.death_countdown_label.text
+		and str(expected_secs) in hud.death_countdown_label.text and expected_secs > 0)
 	var shows_gold_lost = "or" in hud.death_countdown_label.text and inst.char_data.bloodstain.gold > 0
 	# Retour direct : "certaine choses ne sont pas centre" — même bug que le
 	# modal helper (voir test_modal_overlay) : PRESET_CENTER calculé avant que

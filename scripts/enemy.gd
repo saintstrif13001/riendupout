@@ -81,8 +81,13 @@ func setup(tid: String, u: String, lvl: int) -> void:
 	sprite.region_enabled = true
 	sprite.region_rect = Rect2(0, 2*fh, fw, fh)
 	sprite.centered = true
-	if mdef.get("boss", false):
-		sprite.scale = Vector2(1.6, 1.6)
+	# Onze feuilles de sprites seulement pour 33 creatures : une meme silhouette
+	# sert a plusieurs especes, distinguees par leur TEINTE et leur TAILLE. Sans
+	# ca un Loup de Givre serait pixel pour pixel un Loup des Plaines, et les
+	# zones se ressembleraient toutes malgre un bestiaire etoffe.
+	sprite.modulate = mdef.get("tint", Color.WHITE)
+	var spr_scale = mdef.get("scale", 1.6 if mdef.get("boss", false) else 1.0)
+	sprite.scale = Vector2(spr_scale, spr_scale)
 
 	var yoff = -52.0 if mdef.get("boss", false) else -40.0
 	name_label.text = "%s Nv.%d" % [mdef.name, level]
@@ -152,8 +157,12 @@ func take_damage(dmg: float) -> float:
 	var mitig = max(1.0, dmg - edef * 0.4)
 	hp = max(0.0, hp - mitig)
 	sprite.modulate = Color(2, 2, 2)
+	# Restaure la TEINTE de l'espece, pas un blanc fixe : sinon le premier coup
+	# encaisse effacait definitivement la couleur qui distingue la creature de
+	# celles qui partagent son sprite (voir setup()).
+	var base_tint = mdef.get("tint", Color.WHITE)
 	get_tree().create_timer(0.08).timeout.connect(func():
-		if is_instance_valid(sprite): sprite.modulate = Color(1,1,1))
+		if is_instance_valid(sprite): sprite.modulate = base_tint)
 	if hp <= 0:
 		die()
 	else:

@@ -216,6 +216,8 @@ func _process(delta: float) -> bool:
 			_run_hud_centering_test()
 		elif test_mode == "test_zone_spawn_safety":
 			_run_zone_spawn_safety_test()
+		elif test_mode == "test_decor_density":
+			_run_decor_density_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
@@ -2245,6 +2247,59 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_decor_density_test() -> void:
+	print("TEST_START:decor_density")
+	# La refonte de la carte en croix a fait passer le monde de 9200x1200
+	# (11.0M px2) a 5200x5200 (27.0M px2, +145%), mais les passes de decor
+	# GENERIQUES de draw_world() (arbres, touffes d'herbe) gardaient un nombre
+	# ABSOLU d'elements disperses sur toute la boite englobante. Pire : la croix
+	# laisse ~56% de cette boite hors de toute zone nommee (les coins "Terres
+	# Sauvages"), donc la majorite du decor tombait la ou le joueur passe le
+	# moins. Resultat : les zones ou l'on joue reellement se sont videes.
+	# Mesure la densite d'arbres (Sprite2D) par zone, en arbres pour 1M px2.
+	var data = root.get_node("/root/Data")
+	var decor = inst.get_node("Decor")
+	var per_zone = {}
+	for zid in data.ZONES.keys(): per_zone[zid] = 0
+	var outside = 0
+	# Filtre sur la texture : les toits de maison sont aussi des Sprite2D et
+	# gonflaient artificiellement le compte du village de +5.
+	var tree_tex = load("res://assets/tiles/small_tree.png")
+	for c in decor.get_children():
+		if not (c is Sprite2D) or c.texture != tree_tex: continue
+		var z = data.zone_at(c.position.x, c.position.y)
+		if per_zone.has(z.id): per_zone[z.id] += 1
+		else: outside += 1
+
+	var lines = []
+	var min_density = 999999.0
+	var worst = ""
+	for zid in per_zone.keys():
+		if zid == "caverne": continue # pas d'arbres sous terre, c'est voulu
+		var z = data.ZONES[zid]
+		var area_m = ((z.x1 - z.x0) * (z.y1 - z.y0)) / 1000000.0
+		var density = per_zone[zid] / area_m
+		lines.append("%s=%d (%.0f/Mpx2)" % [zid, per_zone[zid], density])
+		if density < min_density:
+			min_density = density
+			worst = zid
+	# Seuil a 20 : le village est volontairement clairsemé (22/Mpx2, c'est un
+	# village aménagé, pas un bois), alors qu'avec le bug AUCUNE zone
+	# n'atteignait 20 (village 10, plaine 16, foret 19, marais 17). Le seuil
+	# separe donc proprement l'etat casse de l'etat corrige.
+	var density_ok = min_density >= 20.0
+	var foret_is_densest = true
+	var foret_z = data.ZONES.foret
+	var foret_density = per_zone["foret"] / (((foret_z.x1 - foret_z.x0) * (foret_z.y1 - foret_z.y0)) / 1000000.0)
+	for zid in ["plaine", "marais"]:
+		var z2 = data.ZONES[zid]
+		var d2 = per_zone[zid] / (((z2.x1 - z2.x0) * (z2.y1 - z2.y0)) / 1000000.0)
+		if foret_density <= d2: foret_is_densest = false
+
+	var all_ok = density_ok and foret_is_densest
+	print("TEST_RESULT all_ok=%s density_ok=%s (min=%.0f/Mpx2 dans '%s', attendu >= 20) foret_is_densest=%s (foret=%.0f/Mpx2) hors_zones=%d detail=%s"
+		% [all_ok, density_ok, min_density, worst, foret_is_densest, foret_density, outside, lines])
 
 func _run_zone_spawn_safety_test() -> void:
 	print("TEST_START:zone_spawn_safety")

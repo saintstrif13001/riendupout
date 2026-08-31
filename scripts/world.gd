@@ -142,6 +142,31 @@ func _ready() -> void:
 	var tier = GameState.pending_talent(char_data)
 	if not tier.is_empty(): emit_signal("talent_available", tier)
 
+## Densité d'arbres par zone, en arbres pour 1M px² — proportionnelle à la
+## surface plutôt qu'un total fixe, pour que l'ambiance d'une zone ne dépende
+## pas de la taille du monde (cf. draw_world() et test_decor_density).
+## La forêt est de très loin la plus dense : c'est une FORÊT, elle avait
+## exactement la même densité que la plaine et le marais auparavant.
+const TREE_DENSITY := {
+	"village": 22.0, # clairsemé : c'est un village aménagé, pas un bois
+	"plaine": 30.0,  # prairie, bosquets épars
+	"foret": 85.0,   # sous-bois dense
+	"caverne": 0.0,  # sous terre : rochers à la place
+	"marais": 34.0,  # arbres humides et bosquets
+}
+const WILDS_TREE_DENSITY := 12.0 # coins non revendiqués entre les bras de la croix
+const TUFT_DENSITY := 24.0       # touffes d'herbe pour 1M px², tout le monde confondu
+
+## Teinte du sol par zone : la forêt réutilise la texture de terre du marais,
+## mais teintée en vert pour évoquer un sous-bois — sans cette teinte, elle
+## rendait un sol brun identique au marais, donnant à la « Forêt de Sylvombre »
+## l'aspect d'un terrain nu (aucune texture d'herbe n'existe dans les assets).
+const GROUND_TINT := {
+	"foret": Color(0.62, 0.85, 0.55, 0.75),
+	"marais": Color(0.78, 0.82, 0.62, 0.85),
+}
+const GROUND_TINT_DEFAULT := Color(0.8, 0.8, 0.8, 0.85)
+
 const GROUND_TEXTURES := {
 	"caverne": ["res://assets/tiles/ground/gravel_0.png", "res://assets/tiles/ground/gravel_1.png", "res://assets/tiles/ground/gravel_2.png", "res://assets/tiles/ground/gravel_3.png"],
 	"marais": ["res://assets/tiles/ground/dirt_0.png", "res://assets/tiles/ground/dirt_1.png", "res://assets/tiles/ground/dirt_2.png", "res://assets/tiles/ground/dirt_3.png"],
@@ -184,27 +209,31 @@ func draw_world() -> void:
 			lvl.position = Vector2(z.x0 + 40, z.y0 + 50)
 			lvl.z_index = -9
 			zones_node.add_child(lvl)
-	# décor : arbres + bosquets, densité plus élevée et variée, y compris au village
-	# et dans les terres sauvages entre les bras de la croix.
+	# Décor générique : arbres + bosquets, désormais réparti PAR ZONE selon sa
+	# surface et sa densité propre (voir TREE_DENSITY). L'ancienne dispersion
+	# globale à nombre fixe (420 arbres sur toute la boîte englobante) est
+	# devenue inadaptée avec la carte en croix : la boîte est passée de 11.0M à
+	# 27.0M px², dont ~56% hors de toute zone nommée, si bien que la majorité
+	# des arbres tombait dans les coins vides et que les zones jouables se sont
+	# vidées (mesuré : 152 arbres au lieu de 420, la forêt ressemblant à un
+	# terrain nu). Voir test_decor_density.
 	var tree_tex = load("res://assets/tiles/small_tree.png")
 	seed(1234)
-	for i in range(420):
-		var x = randi_range(60, int(Data.WORLD_WIDTH) - 60)
-		var y = randi_range(60, int(Data.WORLD_HEIGHT) - 60)
-		var z = Data.zone_at(x, y)
-		if z.safe and randf() > 0.45:
-			continue
-		if z.id == "caverne":
-			continue # pas d'arbres sous terre — remplacés par des rochers plus bas
-		var spr = Sprite2D.new()
-		spr.texture = tree_tex
-		spr.position = Vector2(x, y)
-		var is_bush = randf() < 0.35
-		spr.scale = Vector2.ONE * (randf_range(0.7, 1.1) if is_bush else randf_range(1.6, 2.6))
-		if is_bush:
-			spr.modulate = Color(0.75, 0.95, 0.65)
-		spr.z_index = int(y / 2.0)
-		$Decor.add_child(spr)
+	for key in Data.ZONES.keys():
+		var z = Data.ZONES[key]
+		var density = TREE_DENSITY.get(key, 20.0)
+		if density <= 0.0: continue # caverne : sous terre, rochers à la place
+		var area_m = ((z.x1 - z.x0) * (z.y1 - z.y0)) / 1000000.0
+		for i in range(int(area_m * density)):
+			_spawn_tree(tree_tex, randi_range(int(z.x0) + 40, int(z.x1) - 40), randi_range(int(z.y0) + 40, int(z.y1) - 40))
+	# Terres sauvages (coins entre les bras de la croix) : boisées légèrement
+	# pour ne pas traverser du vide en passant d'un bras à l'autre.
+	var wilds_area_m = (Data.WORLD_WIDTH * Data.WORLD_HEIGHT) / 1000000.0
+	for i in range(int(wilds_area_m * WILDS_TREE_DENSITY)):
+		var wx = randi_range(60, int(Data.WORLD_WIDTH) - 60)
+		var wy = randi_range(60, int(Data.WORLD_HEIGHT) - 60)
+		if Data.zone_at(wx, wy).id != Data.VOID_ZONE.id: continue # déjà traité par la passe par zone
+		_spawn_tree(tree_tex, wx, wy)
 	# rochers dans la caverne (formes procédurales, pas des arbres déguisés)
 	var cav = Data.ZONES.caverne
 	for i in range(70):
@@ -212,7 +241,8 @@ func draw_world() -> void:
 		var y = randi_range(int(cav.y0) + 60, int(cav.y1) - 60)
 		_spawn_rock(x, y)
 	# petites touffes d'herbe (points de couleur) pour casser l'uniformité du fond
-	for i in range(260):
+	# — proportionnelles à la surface du monde pour la même raison que les arbres.
+	for i in range(int(((Data.WORLD_WIDTH * Data.WORLD_HEIGHT) / 1000000.0) * TUFT_DENSITY)):
 		var x = randi_range(20, int(Data.WORLD_WIDTH) - 20)
 		var y = randi_range(20, int(Data.WORLD_HEIGHT) - 20)
 		var tuft = ColorRect.new()
@@ -753,6 +783,17 @@ func _radial_light_texture() -> Texture2D:
 	_radial_light_tex = ImageTexture.create_from_image(img)
 	return _radial_light_tex
 
+func _spawn_tree(tree_tex: Texture2D, x: int, y: int) -> void:
+	var spr = Sprite2D.new()
+	spr.texture = tree_tex
+	spr.position = Vector2(x, y)
+	var is_bush = randf() < 0.35
+	spr.scale = Vector2.ONE * (randf_range(0.7, 1.1) if is_bush else randf_range(1.6, 2.6))
+	if is_bush:
+		spr.modulate = Color(0.75, 0.95, 0.65)
+	spr.z_index = int(y / 2.0)
+	$Decor.add_child(spr)
+
 func _spawn_rock(x: int, y: int) -> void:
 	var rock = Polygon2D.new()
 	var w = randf_range(16, 34)
@@ -812,7 +853,7 @@ func _build_ground_mosaic(z: Dictionary) -> void:
 			tr.stretch_mode = TextureRect.STRETCH_TILE
 			tr.position = Vector2(x, y)
 			tr.size = Vector2(min(chunk_w, z.x1 - x), min(chunk_h, z.y1 - y))
-			tr.modulate = Color(0.8, 0.8, 0.8, 0.85)
+			tr.modulate = GROUND_TINT.get(z.id, GROUND_TINT_DEFAULT)
 			tr.z_index = -10
 			$Zones.add_child(tr)
 			y += chunk_h

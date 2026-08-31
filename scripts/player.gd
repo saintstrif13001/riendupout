@@ -224,7 +224,10 @@ func gain_xp(amount: int) -> Dictionary:
 	return {"amount": amount, "leveled": leveled}
 
 func update_visuals() -> void:
-	z_index = int(global_position.y) # tri en profondeur : sinon on disparait derrière les maisons/décors
+	# /2.0 : le monde carre (5200 de haut) depasse la limite de z_index de Godot
+	# (+/-4096) si on utilise y brut - meme echelle partout (decor, PNJ, ennemis)
+	# pour que le tri en profondeur reste coherent entre eux.
+	z_index = int(global_position.y / 2.0) # tri en profondeur : sinon on disparait derrière les maisons/décors
 	name_label.position = Vector2(-name_label.size.x/2, -58)
 	hp_bg.position = Vector2(-20, -46)
 	hp_fg.position = Vector2(-18, -44)

@@ -177,10 +177,12 @@ func _build_bars() -> void:
 func _build_minimap() -> void:
 	# Le monde etait navigable a l'aveugle : aucune vue d'ensemble des zones,
 	# aucun moyen de voir ou se trouvent les autres joueurs du groupe.
+	# Carree plutot que barre horizontale : le monde rayonne maintenant en
+	# croix (nord/est/sud/ouest) depuis le village, pas en une seule bande.
 	minimap = Control.new()
 	minimap.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	minimap.custom_minimum_size = Vector2(220, 22)
-	minimap.position = Vector2(-236, -24)
+	minimap.custom_minimum_size = Vector2(150, 150)
+	minimap.position = Vector2(-166, -166)
 	minimap.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	minimap.draw.connect(_draw_minimap)
 	add_child(minimap)
@@ -189,22 +191,26 @@ func _draw_minimap() -> void:
 	if world == null or world.player == null: return
 	var w = minimap.size.x
 	var h = minimap.size.y
-	var total = Data.WORLD_WIDTH
+	var total_x = Data.WORLD_WIDTH
+	var total_y = Data.WORLD_HEIGHT
 	for zid in Data.ZONES.keys():
 		var z = Data.ZONES[zid]
-		var x0 = (z.x0 / total) * w
-		var x1 = (z.x1 / total) * w
+		var rx0 = (z.x0 / total_x) * w
+		var rx1 = (z.x1 / total_x) * w
+		var ry0 = (z.y0 / total_y) * h
+		var ry1 = (z.y1 / total_y) * h
 		var col = z.bg.lightened(0.1) if zid == world.death_zone_id else z.bg.darkened(0.25)
-		minimap.draw_rect(Rect2(x0, 0, max(1.0, x1 - x0), h), col)
+		minimap.draw_rect(Rect2(rx0, ry0, max(1.0, rx1 - rx0), max(1.0, ry1 - ry0)), col)
 	minimap.draw_rect(Rect2(0, 0, w, h), Color(0.9, 0.85, 0.6, 0.6), false, 1.0)
 	for pid in world.remote_players.keys():
 		var rp = world.remote_players[pid]
 		if rp == null or not is_instance_valid(rp): continue
-		var rx = clampf(rp.global_position.x / total, 0.0, 1.0) * w
-		minimap.draw_circle(Vector2(rx, h * 0.5), 3.0, Color(0.4, 0.75, 1.0))
-	var px = clampf(world.player.global_position.x / total, 0.0, 1.0) * w
-	minimap.draw_line(Vector2(px, 0), Vector2(px, h), Color(1, 0.92, 0.5), 2.0)
-	minimap.draw_circle(Vector2(px, h * 0.5), 3.5, Color(1, 1, 0.85))
+		var rx = clampf(rp.global_position.x / total_x, 0.0, 1.0) * w
+		var ry = clampf(rp.global_position.y / total_y, 0.0, 1.0) * h
+		minimap.draw_circle(Vector2(rx, ry), 3.0, Color(0.4, 0.75, 1.0))
+	var px = clampf(world.player.global_position.x / total_x, 0.0, 1.0) * w
+	var py = clampf(world.player.global_position.y / total_y, 0.0, 1.0) * h
+	minimap.draw_circle(Vector2(px, py), 3.5, Color(1, 1, 0.85))
 
 const HOTBAR_SLOT_SIZE := 52.0
 const HOTBAR_KEYS := ["Q", "E"]

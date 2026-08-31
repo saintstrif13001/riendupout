@@ -82,15 +82,26 @@ const PROFESSIONS := {
 	"necromancien": {"name":"Nécromancien Renégat", "desc":"Quêtes grises.", "npc_only":true},
 }
 
+# Le monde formait une seule bande horizontale (9200x1200, ratio ~7.7:1) —
+# village/plaine/foret/caverne/marais alignés en ligne droite d'ouest en est.
+# Retour direct du joueur ("en long c'etait nul, il faut un monde qui va de
+# tout les cotes") : les quatre zones sauvages rayonnent maintenant en croix
+# depuis Val-Repos (nord=foret, est=plaine, sud=marais, ouest=caverne), dans
+# un monde carre 5200x5200. Chaque zone garde x0/x1/y0/y1 (plus seulement
+# x0/x1) : zone_at() doit donc verifier les deux axes.
 const ZONES := {
-	"village": {"id":"village", "name":"Val-Repos", "x0":0, "x1":1400, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
-	"plaine": {"id":"plaine", "name":"Plaine d'Aubval", "x0":1400, "x1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
-	"foret": {"id":"foret", "name":"Forêt de Sylvombre", "x0":3200, "x1":5200, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
-	"caverne": {"id":"caverne", "name":"Caverne des Ossements", "x0":5200, "x1":7200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
-	"marais": {"id":"marais", "name":"Marais Putride", "x0":7200, "x1":9200, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
+	"village": {"id":"village", "name":"Val-Repos", "x0":2000, "x1":3400, "y0":2000, "y1":3200, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
+	"plaine": {"id":"plaine", "name":"Plaine d'Aubval", "x0":3400, "x1":5200, "y0":2000, "y1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
+	"foret": {"id":"foret", "name":"Forêt de Sylvombre", "x0":2000, "x1":3400, "y0":0, "y1":2000, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
+	"caverne": {"id":"caverne", "name":"Caverne des Ossements", "x0":0, "x1":2000, "y0":2000, "y1":3200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
+	"marais": {"id":"marais", "name":"Marais Putride", "x0":2000, "x1":3400, "y0":3200, "y1":5200, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
 }
-const WORLD_WIDTH := 9200.0
-const WORLD_HEIGHT := 1200.0
+const WORLD_WIDTH := 5200.0
+const WORLD_HEIGHT := 5200.0
+# Terres non revendiquees dans les coins de la croix (hors de toute zone nommee) :
+# zone_at() y retombe sur ce pseudo-lieu plutot que de renvoyer un dictionnaire
+# vide (qui ferait planter tout code lisant .id/.name/.bg sans verification).
+const VOID_ZONE := {"id":"wilds", "name":"Terres Sauvages", "x0":0, "x1":0, "y0":0, "y1":0, "safe":false, "bg":Color("3a5a30"), "lvl":[1,25]}
 
 const MONSTER_TYPES := {
 	"slime_vert": {"name":"Slime Vert", "sprite":"slime_green", "hp":24, "atk":28, "def":0, "spd":60, "xp":8, "loot":[{"id":"gelee","chance":0.6}], "zone":"plaine"},
@@ -158,75 +169,79 @@ const RECIPES := [
 	{"id":"r_amulette_marais", "profession":"alchimiste", "result":"amulette_marais", "cost":{"ichor_putride":4,"chair_pourrie":3}, "name":"Amulette du Marais"},
 ]
 
+# Repositionnes pour la disposition en croix (voir ZONES) : plaine (est) garde ses
+# coordonnees d'origine +2000/+2000 ; foret (nord)/caverne (ouest)/marais (sud)
+# sont pivotees pour rester a une distance equivalente de Val-Repos dans leur
+# nouvel axe (proche du village = pres du bord partage avec lui).
 const GATHER_NODES := [
-	{"type":"bois","x":1650,"y":300}, {"type":"bois","x":1800,"y":850}, {"type":"bois","x":3600,"y":250},
-	{"type":"bois","x":3900,"y":900}, {"type":"bois","x":4400,"y":500},
-	{"type":"minerai","x":2100,"y":900}, {"type":"minerai","x":5500,"y":300}, {"type":"minerai","x":6200,"y":850},
-	{"type":"minerai","x":6800,"y":500},
-	{"type":"herbe","x":1900,"y":500}, {"type":"herbe","x":2600,"y":300}, {"type":"herbe","x":3400,"y":700},
-	{"type":"herbe","x":4700,"y":800},
-	{"type":"bois","x":7600,"y":300}, {"type":"bois","x":8300,"y":850},
-	{"type":"minerai","x":8600,"y":400},
-	{"type":"herbe","x":7700,"y":900}, {"type":"herbe","x":8900,"y":600},
+	{"type":"bois","x":3650,"y":2300}, {"type":"bois","x":3800,"y":2850}, {"type":"bois","x":2292,"y":1600},
+	{"type":"bois","x":3050,"y":1300}, {"type":"bois","x":2583,"y":800},
+	{"type":"minerai","x":4100,"y":2900}, {"type":"minerai","x":1700,"y":2300}, {"type":"minerai","x":1000,"y":2850},
+	{"type":"minerai","x":400,"y":2500},
+	{"type":"herbe","x":3900,"y":2500}, {"type":"herbe","x":4600,"y":2300}, {"type":"herbe","x":2817,"y":1800},
+	{"type":"herbe","x":2933,"y":500},
+	{"type":"bois","x":2350,"y":3600}, {"type":"bois","x":2992,"y":4300},
+	{"type":"minerai","x":2467,"y":4600},
+	{"type":"herbe","x":3050,"y":3700}, {"type":"herbe","x":2700,"y":4900},
 ]
 
 const NPCS := [
-	{"id":"ancien", "name":"l'Ancien Malorin", "x":400, "y":400, "role":"quest_turnin", "tint":Color(1,1,1), "lore":[
+	{"id":"ancien", "name":"l'Ancien Malorin", "x":2400, "y":2400, "role":"quest_turnin", "tint":Color(1,1,1), "lore":[
 		"\"Val-Repos fut bâti par des colons fuyant la chute du vieux royaume, il y a trois générations. Les fondations que tu vois sous l'auberge sont d'origine.\"",
 		"\"Autrefois la Forêt de Sylvombre s'étendait jusqu'aux portes du village. On a coupé pour bâtir, et la forêt n'a jamais pardonné — demande aux rôdeurs.\"",
 		"\"La Caverne des Ossements n'a pas toujours porté ce nom. Avant les squelettes, on l'appelait la Grotte aux Échos. Je préfère l'ancien nom, personnellement.\"",
 	]},
-	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":600, "y":600, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53), "lore":[
+	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":2600, "y":2600, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53), "lore":[
 		"\"Le bon minerai vient de la Plaine d'Aubval — plus friable, plus facile à purifier que celui de la caverne. Mais celui de la caverne fait de meilleures lames.\"",
 		"\"Mon grand-père forgeait déjà ici. Il disait qu'un vrai forgeron reconnaît la qualité d'un métal au son qu'il fait sur l'enclume, pas à sa couleur.\"",
 		"\"Je n'ai jamais réussi à reproduire les techniques des anciennes armures qu'on trouve parfois en fouillant. Un savoir perdu, sans doute.\"",
 	]},
-	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":700, "y":300, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85), "lore":[
+	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":2700, "y":2300, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85), "lore":[
 		"\"La gelée de slime est étonnamment stable en potion — c'est l'ichor putride du marais qui est délicat, il faut le travailler vite avant qu'il ne tourne.\"",
 		"\"On m'a longtemps prise pour une sorcière. Je préfère 'chimiste appliquée', mais bon, dans ce village les nuances ne portent pas loin.\"",
 		"\"Les fleurs de la plaine et les champignons de Sylvombre ne se marient jamais bien en potion. J'ai essayé. Trois fois. Ne recommencez pas mon erreur.\"",
 	]},
-	{"id":"marchand", "name":"Bosk le Marchand", "x":500, "y":750, "role":"shop", "tint":Color(0.85,0.76,0.29), "lore":[
+	{"id":"marchand", "name":"Bosk le Marchand", "x":2500, "y":2750, "role":"shop", "tint":Color(0.85,0.76,0.29), "lore":[
 		"\"Mes prix montent avec la demande, baissent avec le stock — c'est pas de la magie, c'est du commerce. Demandez à Yvenne pour la magie.\"",
 		"\"J'ai fait la route entre trois villages avant de m'installer ici. Val-Repos a le marché le plus honnête que j'aie vu — enfin, presque.\"",
 		"\"Un jour un aventurier m'a vendu une amulette du marais encore tiède. Je n'ai pas posé de questions. Je pose rarement des questions.\"",
 	]},
-	{"id":"garde", "name":"Garde Ren", "x":1300, "y":500, "role":"quest", "tint":Color(0.29,0.43,0.85), "lore":[
+	{"id":"garde", "name":"Garde Ren", "x":3300, "y":2500, "role":"quest", "tint":Color(0.29,0.43,0.85), "lore":[
 		"\"La frontière entre le village et la plaine n'a jamais été aussi calme qu'aujourd'hui — et ça, ça m'inquiète plus que ça me rassure.\"",
 		"\"On m'a affecté ici après mon service dans la garde royale. Moins de gloire, mais je dors mieux. La plupart des nuits.\"",
 		"\"Les loups de la plaine chassent en meute organisée depuis peu. Ce n'est pas naturel pour des loups ordinaires.\"",
 	]},
-	{"id":"fermier", "name":"Fermier Otto", "x":1900, "y":700, "role":"quest", "tint":Color(0.85,0.56,0.29), "lore":[
+	{"id":"fermier", "name":"Fermier Otto", "x":3900, "y":2700, "role":"quest", "tint":Color(0.85,0.56,0.29), "lore":[
 		"\"Mes récoltes ont doublé depuis que les patrouilles du village repoussent les gobelins hors de mes champs. Petit prix à payer en impôts, franchement.\"",
 		"\"Mon père labourait cette terre avant les loups alpha. Il disait que la plaine était plus sauvage encore de son temps. Difficile à croire.\"",
 		"\"Je troque mes légumes contre les potions de Yvenne. Elle prétend que ça la 'venge' des champignons de la forêt. Je n'ai jamais compris la blague.\"",
 	]},
-	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":3900, "y":300, "role":"quest", "tint":Color(0.29,0.85,0.43), "lore":[
+	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":2350, "y":1300, "role":"quest", "tint":Color(0.29,0.85,0.43), "lore":[
 		"\"Sylvombre porte bien son nom : même en plein midi, la canopée ne laisse passer qu'un filet de lumière. On s'y perd vite si on ne connaît pas les sentiers.\"",
 		"\"Les lucioles qu'on voit la nuit ne sont pas de simples insectes — les anciens de la forêt disent qu'elles suivent les voyageurs égarés jusqu'à un chemin sûr.\"",
 		"\"J'ai cartographié la moitié de cette forêt et je découvre encore des clairières inconnues. Sylvombre garde ses secrets.\"",
 	]},
-	{"id":"ranger", "name":"Ranger Doff", "x":3400, "y":900, "role":"quest", "tint":Color(0.18,0.54,0.23), "lore":[
+	{"id":"ranger", "name":"Ranger Doff", "x":3050, "y":1800, "role":"quest", "tint":Color(0.18,0.54,0.23), "lore":[
 		"\"Les gobelins de Sylvombre ne sont pas bêtes — ils évitent nos pièges depuis qu'on en a posé un peu trop souvent au même endroit. On varie, maintenant.\"",
 		"\"Un tronc abattu dans cette forêt n'est jamais du bois mort bien longtemps — la mousse et les champignons colonisent tout en quelques semaines à peine.\"",
 		"\"Je chasse ici depuis quinze ans. Je n'ai toujours pas vu la lisière est de la forêt, du côté de la caverne. Certains coins ne m'attirent pas.\"",
 	]},
-	{"id":"pretre", "name":"Prêtre Ozias", "x":5400, "y":600, "role":"quest", "tint":Color(0.85,0.85,0.85), "lore":[
+	{"id":"pretre", "name":"Prêtre Ozias", "x":1800, "y":2600, "role":"quest", "tint":Color(0.85,0.85,0.85), "lore":[
 		"\"On m'appelait autrefois la 'Grotte aux Échos', avant qu'elle ne devienne la Caverne des Ossements. Les échos, eux, n'ont jamais cessé.\"",
 		"\"Je prie ici pour apaiser les morts qui n'ont pas trouvé le repos. Certains jours, j'ai l'impression qu'ils m'écoutent. D'autres jours, moins.\"",
 		"\"Les cristaux qu'on trouve dans la roche ne sont pas naturels — je crois qu'ils sont nés du même rituel qui a peuplé cette grotte de squelettes.\"",
 	]},
-	{"id":"hulda", "name":"Vieille Hulda", "x":7400, "y":600, "role":"quest", "tint":Color(0.55,0.7,0.4), "lore":[
+	{"id":"hulda", "name":"Vieille Hulda", "x":2700, "y":3400, "role":"quest", "tint":Color(0.55,0.7,0.4), "lore":[
 		"\"Le Marais Putride n'a pas toujours empesté ainsi. C'est le rituel raté d'un nécromancien d'autrefois qui a corrompu ces eaux, il y a bien longtemps.\"",
 		"\"Les feux follets qui dansent la nuit sur les mares ne sont pas de simples gaz — ce sont les âmes de ceux que le marais a pris et n'a jamais rendus.\"",
 		"\"Le Coeur du Marais que je cherche à récupérer contient ce qu'il reste du rituel original. Le détruire pourrait bien purifier ces terres. Ou pas.\"",
 	]},
-	{"id":"chasseur", "name":"Chasseur Kessler", "x":1100, "y":450, "role":"bounty", "tint":Color(0.6,0.45,0.25), "lore":[
+	{"id":"chasseur", "name":"Chasseur Kessler", "x":3100, "y":2450, "role":"bounty", "tint":Color(0.6,0.45,0.25), "lore":[
 		"\"Les primes payent mieux que la chasse ordinaire, mais elles attirent aussi les têtes brûlées. Je préfère les aventuriers qui savent quand fuir.\"",
 		"\"J'ai traqué un loup alpha pendant trois semaines avant de comprendre qu'il me traquait aussi. On a fini par se laisser tranquilles, tous les deux.\"",
 		"\"Chaque prime raconte une histoire — une ferme attaquée, une caravane perdue. Je ne les affiche jamais sans vérifier qu'elles sont vraies.\"",
 	]},
-	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":800, "y":500, "role":"respec", "tint":Color(0.8,0.65,0.3), "lore":[
+	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":2800, "y":2500, "role":"respec", "tint":Color(0.8,0.65,0.3), "lore":[
 		"\"Changer de voie n'est pas une honte — j'ai moi-même été trois choses avant de devenir maître d'armes. On ne trouve pas toujours sa voie du premier coup.\"",
 		"\"J'ai formé la moitié de la garde du village. Certains soirs, je regrette de ne pas avoir mieux formé Ren aux patrouilles de nuit.\"",
 		"\"Un guerrier qui ne doute jamais de ses choix n'apprend jamais rien de nouveau. Le doute, bien dirigé, est un outil comme un autre.\"",
@@ -328,11 +343,11 @@ func get_npc(id: String) -> Dictionary:
 		if n.id == id: return n
 	return {}
 
-func zone_at(x: float) -> Dictionary:
+func zone_at(x: float, y: float) -> Dictionary:
 	for key in ZONES:
 		var z = ZONES[key]
-		if x >= z.x0 and x < z.x1: return z
-	return ZONES.village
+		if x >= z.x0 and x < z.x1 and y >= z.y0 and y < z.y1: return z
+	return VOID_ZONE
 
 const FACTIONS := {
 	"garde": {"name":"Garde de Val-Repos", "desc":"La milice qui protège le village et la Plaine d'Aubval."},

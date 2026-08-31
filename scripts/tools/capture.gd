@@ -42,7 +42,7 @@ func _process(delta: float) -> bool:
 			var data = root.get_node("/root/Data")
 			if data.ZONES.has(zone_id):
 				var z = data.ZONES[zone_id]
-				inst.player.global_position = Vector2(z.x0 + 300, data.WORLD_HEIGHT/2.0)
+				inst.player.global_position = Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0)
 				var cam = inst.player.get_node_or_null("Camera2D")
 				if cam: cam.reset_smoothing()
 		return false
@@ -297,7 +297,7 @@ func _process(delta: float) -> bool:
 			inst.char_data.inventory = {"minerai": 20}
 			hud6._on_open_npc(data6.get_npc("forgeron_pnj"))
 		elif test_mode == "show_village_center":
-			inst.player.global_position = Vector2(600, 480)
+			inst.player.global_position = Vector2(2700, 2480)
 			var cam2 = inst.player.get_node_or_null("Camera2D")
 			if cam2: cam2.reset_smoothing()
 		elif test_mode == "test_char_portraits" or test_mode == "show_char_create":
@@ -661,8 +661,9 @@ func _run_travel_test() -> void:
 	var data = root.get_node("/root/Data")
 	print("TEST_INITIAL unlocked=%s" % [inst.char_data.unlocked_zones])
 	# simule le joueur qui se déplace dans marais (comme le ferait _physics_process en jeu réel)
-	inst.player.global_position = Vector2(data.ZONES.marais.x0 + 300, data.WORLD_HEIGHT/2.0)
-	var zid = data.zone_at(inst.player.global_position.x).id
+	var marais_z = data.ZONES.marais
+	inst.player.global_position = Vector2((marais_z.x0 + marais_z.x1) / 2.0, (marais_z.y0 + marais_z.y1) / 2.0)
+	var zid = data.zone_at(inst.player.global_position.x, inst.player.global_position.y).id
 	inst.death_zone_id = zid
 	if not inst.char_data.unlocked_zones.has(zid): inst.char_data.unlocked_zones.append(zid)
 	print("TEST_AFTER_VISIT zone=%s unlocked=%s" % [zid, inst.char_data.unlocked_zones])
@@ -741,12 +742,15 @@ func _run_house_collision_test() -> void:
 
 func _run_depth_sort_test() -> void:
 	print("TEST_START:depth_sort")
+	# z_index = int(y / 2.0) partout (voir player.gd/enemy.gd/world.gd) : le monde
+	# carré (5200 de haut) dépasserait sinon la limite de z_index de Godot
+	# (+/-4096) si on utilisait y brut.
 	inst.player.global_position = Vector2(inst.player.global_position.x, 543.0)
 	inst.player.update_visuals()
-	var player_ok = inst.player.z_index == 543
+	var player_ok = inst.player.z_index == int(543.0 / 2.0)
 	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": 812.0, "type_id": "slime_vert", "respawn_at": 0.0})
 	e.update_visuals()
-	var enemy_ok = e.z_index == 812
+	var enemy_ok = e.z_index == int(812.0 / 2.0)
 	print("TEST_RESULT player_z=%d player_ok=%s enemy_z=%d enemy_ok=%s" % [inst.player.z_index, player_ok, e.z_index, enemy_ok])
 
 func _run_chest_test() -> void:
@@ -938,7 +942,8 @@ func _run_zone_lighting_test() -> void:
 	# avec la vraie zone du joueur — on le téléporte donc dans la zone testée pour que
 	# ce tick concorde avec l'appel manuel au lieu de le contrer.
 	var data = root.get_node("/root/Data")
-	inst.player.global_position = Vector2(data.ZONES.caverne.x0 + 300, data.WORLD_HEIGHT/2.0)
+	var cav_z = data.ZONES.caverne
+	inst.player.global_position = Vector2((cav_z.x0 + cav_z.x1) / 2.0, (cav_z.y0 + cav_z.y1) / 2.0)
 	inst.update_zone_lighting("caverne")
 	var zone_switched = inst.current_zone_light_id == "caverne"
 	# appeler deux fois avec le même zone_id ne doit pas relancer un tween inutilement
@@ -1262,6 +1267,7 @@ func _run_plaine_decor_test() -> void:
 	var flower_patches_in_plaine = 0
 	for c in decor.get_children():
 		if c.position.x < plaine.x0 or c.position.x > plaine.x1: continue
+		if c.position.y < plaine.y0 or c.position.y > plaine.y1: continue
 		if c is Polygon2D: polygons_in_plaine += 1
 		elif c is Node2D and c.get_child_count() == 3 and c.get_child(0) is ColorRect:
 			flower_patches_in_plaine += 1
@@ -1280,6 +1286,7 @@ func _run_foret_decor_test() -> void:
 	var logs_in_foret = 0
 	for c in decor.get_children():
 		if c.position.x < foret.x0 or c.position.x > foret.x1: continue
+		if c.position.y < foret.y0 or c.position.y > foret.y1: continue
 		if c is Polygon2D: polygons_in_foret += 1
 		elif c is PointLight2D: lights_in_foret += 1
 		elif c is ColorRect and c.size.x > 25 and c.size.y < 10: logs_in_foret += 1 # troncs abattus : larges et fins
@@ -1298,6 +1305,7 @@ func _run_caverne_decor_test() -> void:
 	var bone_colorrects = 0
 	for c in decor.get_children():
 		if c.position.x < cav.x0 or c.position.x > cav.x1: continue
+		if c.position.y < cav.y0 or c.position.y > cav.y1: continue
 		if c is Polygon2D: rock_and_crystal_polygons += 1
 		elif c is PointLight2D: lights_in_caverne += 1
 		elif c is ColorRect and c.size.y < 3: bone_colorrects += 1 # ossements : fins et courts, contrairement aux torches
@@ -1316,11 +1324,12 @@ func _run_marais_decor_test() -> void:
 	var lights = 0 # feux follets + torches génériques de build_props() dans cette zone dangereuse
 	for c in decor.get_children():
 		if c.position.x < marais.x0 or c.position.x > marais.x1: continue
+		if c.position.y < marais.y0 or c.position.y > marais.y1: continue
 		if c is Polygon2D:
 			if c.polygon.size() == 3: reed_blades += 1 # roseaux : triangles fins
 			else: puddles += 1 # mares : polygones à 10 sommets
 		elif c is PointLight2D: lights += 1
-	print("TEST_RESULT reed_blades_in_marais=%d (attendu >= 100) puddles_in_marais=%d (attendu >= 18) wisp_and_torch_lights_in_marais=%d (attendu >= 20)"
+	print("TEST_RESULT reed_blades_in_marais=%d (attendu >= 100) puddles_in_marais=%d (attendu >= 18) wisp_and_torch_lights_in_marais=%d (attendu >= 18, 16 feux follets garantis + torches variables)"
 		% [reed_blades, puddles, lights])
 
 func _run_npc_collision_test() -> void:
@@ -1565,7 +1574,7 @@ func _run_save_zone_change_test() -> void:
 	var gs = root.get_node("/root/GameState")
 	# simule un joueur qui a voyagé jusqu'à la caverne, avec de l'état accumulé,
 	# puis quitte le jeu à cet endroit précis (pas au village de départ)
-	var target_pos = Vector2(data.ZONES.caverne.x0 + 400, 250.0)
+	var target_pos = Vector2(data.ZONES.caverne.x0 + 400, data.ZONES.caverne.y0 + 250.0)
 	inst.player.global_position = target_pos
 	inst.player.hp = 42.0
 	inst.player.mana = 17.0
@@ -1618,13 +1627,13 @@ func _run_plaine_cull_test() -> void:
 	var data = root.get_node("/root/Data")
 	# ajoute un ennemi de plaine tout frais (dont on est sûr qu'il est vivant)
 	# et un boss de plaine, pour vérifier que seul le premier peut être fauché.
-	var e_normal = inst.spawn_enemy({"x": data.ZONES.plaine.x0 + 100, "y": 300, "type_id": "slime_vert", "respawn_at": 0.0})
+	var e_normal = inst.spawn_enemy({"x": data.ZONES.plaine.x0 + 100, "y": data.ZONES.plaine.y0 + 300, "type_id": "slime_vert", "respawn_at": 0.0})
 	var boss_type = ""
 	for tid in data.MONSTER_TYPES.keys():
 		if data.MONSTER_TYPES[tid].zone == "plaine" and data.MONSTER_TYPES[tid].get("boss", false):
 			boss_type = tid
 			break
-	var e_boss = inst.spawn_enemy({"x": data.ZONES.plaine.x0 + 120, "y": 300, "type_id": boss_type, "respawn_at": 0.0}) if boss_type != "" else null
+	var e_boss = inst.spawn_enemy({"x": data.ZONES.plaine.x0 + 120, "y": data.ZONES.plaine.y0 + 300, "type_id": boss_type, "respawn_at": 0.0}) if boss_type != "" else null
 
 	var gold_before = inst.char_data.gold
 	var xp_before = inst.char_data.xp
@@ -1801,7 +1810,7 @@ func _run_minimap_test() -> void:
 	var minimap_found = hud.minimap != null
 	var minimap_sized = minimap_found and hud.minimap.size.x > 0 and hud.minimap.size.y > 0
 
-	inst.player.global_position.x = data.ZONES.foret.x0 + 100
+	inst.player.global_position = Vector2(data.ZONES.foret.x0 + 100, data.ZONES.foret.y0 + 100)
 	hud.minimap.queue_redraw()
 	await process_frame # le dessin reel a lieu via le signal `draw`, pas un appel direct
 	var draw_ok_no_remotes = true
@@ -1811,7 +1820,7 @@ func _run_minimap_test() -> void:
 	var ally = load("res://scenes/Player.tscn").instantiate()
 	inst.get_node("Players").add_child(ally)
 	ally.setup(ally_data, false, 998)
-	ally.global_position = Vector2(data.ZONES.plaine.x0 + 50, 0)
+	ally.global_position = Vector2(data.ZONES.plaine.x0 + 50, data.ZONES.plaine.y0 + 50)
 	inst.remote_players[998] = ally
 	hud.minimap.queue_redraw()
 	await process_frame
@@ -2219,13 +2228,14 @@ func _run_zone_event_test() -> void:
 	# (évite une croissance sans fin de la population).
 	var data = root.get_node("/root/Data")
 
-	inst.player.global_position = Vector2(data.ZONES.village.x0 + 100, 200)
+	var vil = data.ZONES.village
+	inst.player.global_position = Vector2(vil.x0 + 100, vil.y0 + 200)
 	var count_before_village = inst.enemies.size()
 	inst.trigger_zone_event()
 	var no_invasion_in_village = inst.enemies.size() == count_before_village
 
 	var foret = data.ZONES.foret
-	inst.player.global_position = Vector2((foret.x0 + foret.x1) / 2.0, 300)
+	inst.player.global_position = Vector2((foret.x0 + foret.x1) / 2.0, foret.y0 + 300)
 	var count_before = inst.enemies.size()
 	inst.trigger_zone_event()
 	var spawned = inst.enemies.size() - count_before
@@ -2242,6 +2252,7 @@ func _run_zone_event_test() -> void:
 		if not e.has_meta("spawn_def"):
 			checked += 1
 			if e.global_position.x < foret.x0 or e.global_position.x > foret.x1: all_within_zone_bounds = false
+			if e.global_position.y < foret.y0 or e.global_position.y > foret.y1: all_within_zone_bounds = false
 	var none_will_respawn = true # garanti par construction : has_meta ci-dessus est le test de non-réapparition lui-même
 	var found_invasion_enemies = checked >= 4
 
@@ -2352,13 +2363,13 @@ func _run_music_system_test() -> void:
 	# Zone sûre au départ : l'ambiance calme doit dominer. On avance par frames
 	# (pas par temps réel) pour rester synchronisé avec le budget de frames du
 	# harness, qui tourne bien plus vite que le temps réel en headless.
-	inst.player.global_position = Vector2(data.ZONES.village.x0 + 50, 0)
+	inst.player.global_position = Vector2(data.ZONES.village.x0 + 50, data.ZONES.village.y0 + 50)
 	for i in range(45): await process_frame
 	var calm_dominant_in_village = audio._calm_gain > audio._tension_gain
 
 	# Déplace le joueur en zone dangereuse et laisse le vrai tick de zone de
 	# world.gd (toutes les 0.4s) détecter le changement et appeler Audio.set_zone_mood.
-	inst.player.global_position = Vector2(data.ZONES.foret.x0 + 50, 0)
+	inst.player.global_position = Vector2(data.ZONES.foret.x0 + 50, data.ZONES.foret.y0 + 50)
 	for i in range(45): await process_frame
 	var mood_switched_to_tension = audio._target_mood_is_safe == false
 

@@ -1,4 +1,4 @@
-extends Node2D
+﻿extends Node2D
 
 const PlayerScene := preload("res://scenes/Player.tscn")
 const EnemyScene := preload("res://scenes/Enemy.tscn")
@@ -123,7 +123,7 @@ func _ready() -> void:
 	canvas_modulate.color = Color(1, 1, 1)
 	add_child(canvas_modulate)
 	spawn_local_player()
-	var start_zid = Data.zone_at(player.global_position.x).id
+	var start_zid = Data.zone_at(player.global_position.x, player.global_position.y).id
 	current_zone_light_id = start_zid
 	canvas_modulate.color = ZONE_LIGHT.get(start_zid, Color(1, 1, 1))
 	build_npcs()
@@ -151,36 +151,47 @@ const GROUND_TEXTURES := {
 func draw_world() -> void:
 	var zones_node = $Zones
 	seed(777)
+	# Fond neutre sous tout le monde : les quatre zones sauvages rayonnent en
+	# croix depuis le village (voir Data.ZONES) et ne couvrent donc plus tout
+	# le rectangle englobant — les coins entre les bras de la croix ("Terres
+	# Sauvages", Data.VOID_ZONE) doivent avoir une couleur de sol plutôt que
+	# d'afficher le fond de scène brut.
+	var base_rect = ColorRect.new()
+	base_rect.color = Data.VOID_ZONE.bg
+	base_rect.position = Vector2.ZERO
+	base_rect.size = Vector2(Data.WORLD_WIDTH, Data.WORLD_HEIGHT)
+	base_rect.z_index = -11
+	zones_node.add_child(base_rect)
 	for key in Data.ZONES.keys():
 		var z = Data.ZONES[key]
-		var w = z.x1 - z.x0
 		var rect = ColorRect.new()
 		rect.color = z.bg
-		rect.position = Vector2(z.x0, 0)
-		rect.size = Vector2(w, Data.WORLD_HEIGHT)
+		rect.position = Vector2(z.x0, z.y0)
+		rect.size = Vector2(z.x1 - z.x0, z.y1 - z.y0)
 		rect.z_index = -10
 		zones_node.add_child(rect)
 		if GROUND_TEXTURES.has(key):
 			_build_ground_mosaic(z)
 		var label = Label.new()
 		label.text = z.name
-		label.position = Vector2(z.x0 + 40, 20)
+		label.position = Vector2(z.x0 + 40, z.y0 + 20)
 		label.add_theme_font_size_override("font_size", 22)
 		label.z_index = -9
 		zones_node.add_child(label)
 		if not z.safe:
 			var lvl = Label.new()
 			lvl.text = "Niv. %d-%d" % [z.lvl[0], z.lvl[1]]
-			lvl.position = Vector2(z.x0 + 40, 50)
+			lvl.position = Vector2(z.x0 + 40, z.y0 + 50)
 			lvl.z_index = -9
 			zones_node.add_child(lvl)
 	# décor : arbres + bosquets, densité plus élevée et variée, y compris au village
+	# et dans les terres sauvages entre les bras de la croix.
 	var tree_tex = load("res://assets/tiles/small_tree.png")
 	seed(1234)
 	for i in range(420):
 		var x = randi_range(60, int(Data.WORLD_WIDTH) - 60)
-		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
-		var z = Data.zone_at(x)
+		var y = randi_range(60, int(Data.WORLD_HEIGHT) - 60)
+		var z = Data.zone_at(x, y)
 		if z.safe and randf() > 0.45:
 			continue
 		if z.id == "caverne":
@@ -192,21 +203,21 @@ func draw_world() -> void:
 		spr.scale = Vector2.ONE * (randf_range(0.7, 1.1) if is_bush else randf_range(1.6, 2.6))
 		if is_bush:
 			spr.modulate = Color(0.75, 0.95, 0.65)
-		spr.z_index = int(y)
+		spr.z_index = int(y / 2.0)
 		$Decor.add_child(spr)
 	# rochers dans la caverne (formes procédurales, pas des arbres déguisés)
 	var cav = Data.ZONES.caverne
 	for i in range(70):
 		var x = randi_range(int(cav.x0) + 60, int(cav.x1) - 60)
-		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		var y = randi_range(int(cav.y0) + 60, int(cav.y1) - 60)
 		_spawn_rock(x, y)
 	# petites touffes d'herbe (points de couleur) pour casser l'uniformité du fond
 	for i in range(260):
 		var x = randi_range(20, int(Data.WORLD_WIDTH) - 20)
-		var y = randi_range(90, int(Data.WORLD_HEIGHT) - 20)
+		var y = randi_range(20, int(Data.WORLD_HEIGHT) - 20)
 		var tuft = ColorRect.new()
 		var shade = randf_range(-0.08, 0.1)
-		var base = Data.zone_at(x).bg
+		var base = Data.zone_at(x, y).bg
 		tuft.color = Color(clamp(base.r+shade,0,1), clamp(base.g+shade+0.05,0,1), clamp(base.b+shade,0,1), 0.55)
 		tuft.size = Vector2(randf_range(10,26), randf_range(6,12))
 		tuft.position = Vector2(x, y)
@@ -230,7 +241,7 @@ func build_plaine_decor() -> void:
 	var wild_colors = [Color(0.9,0.85,0.3), Color(0.85,0.4,0.5), Color(0.6,0.5,0.85)]
 	for i in range(60):
 		var x = randi_range(int(plaine.x0) + 60, int(plaine.x1) - 60)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(plaine.y0) + 140, int(plaine.y1) - 40)
 		var patch = Node2D.new()
 		patch.position = Vector2(x, y)
 		patch.z_index = -7
@@ -243,11 +254,11 @@ func build_plaine_decor() -> void:
 		$Decor.add_child(patch)
 	for i in range(14):
 		var x = randi_range(int(plaine.x0) + 80, int(plaine.x1) - 80)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(plaine.y0) + 140, int(plaine.y1) - 40)
 		_spawn_hay_bale(x, y)
 	for i in range(10):
 		var x = randi_range(int(plaine.x0) + 80, int(plaine.x1) - 80)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(plaine.y0) + 140, int(plaine.y1) - 40)
 		_spawn_rock(x, y)
 
 func build_foret_decor() -> void:
@@ -259,15 +270,15 @@ func build_foret_decor() -> void:
 	seed(9911)
 	for i in range(45):
 		var x = randi_range(int(foret.x0) + 60, int(foret.x1) - 60)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(foret.y0) + 140, int(foret.y1) - 40)
 		_spawn_mushroom_cluster(x, y)
 	for i in range(16):
 		var x = randi_range(int(foret.x0) + 80, int(foret.x1) - 80)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(foret.y0) + 140, int(foret.y1) - 40)
 		_spawn_fallen_log(x, y)
 	for i in range(28):
 		var x = randi_range(int(foret.x0) + 40, int(foret.x1) - 40)
-		var y = randi_range(100, int(Data.WORLD_HEIGHT) - 20)
+		var y = randi_range(int(foret.y0) + 100, int(foret.y1) - 20)
 		_spawn_firefly(x, y)
 
 func _spawn_mushroom_cluster(x: int, y: int) -> void:
@@ -280,7 +291,7 @@ func _spawn_mushroom_cluster(x: int, y: int) -> void:
 		stem.color = Color(0.9, 0.85, 0.75)
 		stem.size = Vector2(2, 4)
 		stem.position = Vector2(x + ox - 1, y + oy)
-		stem.z_index = int(y)
+		stem.z_index = int(y / 2.0)
 		$Decor.add_child(stem)
 		var cap = Polygon2D.new()
 		var r = randf_range(3, 5)
@@ -291,7 +302,7 @@ func _spawn_mushroom_cluster(x: int, y: int) -> void:
 		cap.polygon = pts
 		cap.color = cap_color
 		cap.position = Vector2(x + ox, y + oy - 3)
-		cap.z_index = int(y) + 1
+		cap.z_index = int(y / 2.0) + 1
 		$Decor.add_child(cap)
 
 func _spawn_fallen_log(x: int, y: int) -> void:
@@ -301,7 +312,7 @@ func _spawn_fallen_log(x: int, y: int) -> void:
 	body.size = Vector2(log_len, 8)
 	body.position = Vector2(x - log_len / 2.0, y - 4)
 	body.rotation = randf_range(-0.15, 0.15)
-	body.z_index = int(y)
+	body.z_index = int(y / 2.0)
 	$Decor.add_child(body)
 	var end_cap = Polygon2D.new()
 	var pts = PackedVector2Array()
@@ -311,7 +322,7 @@ func _spawn_fallen_log(x: int, y: int) -> void:
 	end_cap.polygon = pts
 	end_cap.color = Color(0.55, 0.42, 0.28)
 	end_cap.position = Vector2(x - log_len / 2.0, y)
-	end_cap.z_index = int(y) + 1
+	end_cap.z_index = int(y / 2.0) + 1
 	$Decor.add_child(end_cap)
 
 func _spawn_firefly(x: int, y: int) -> void:
@@ -321,7 +332,7 @@ func _spawn_firefly(x: int, y: int) -> void:
 	glow.color = Color(0.75, 1.0, 0.55)
 	glow.energy = 0.5
 	glow.texture_scale = 0.35
-	glow.z_index = int(y) + 3
+	glow.z_index = int(y / 2.0) + 3
 	$Decor.add_child(glow)
 	var dx = randf_range(-14, 14)
 	var dy = randf_range(-10, 10)
@@ -342,15 +353,15 @@ func build_caverne_decor() -> void:
 	seed(4488)
 	for i in range(24):
 		var x = randi_range(int(cav.x0) + 60, int(cav.x1) - 60)
-		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		var y = randi_range(int(cav.y0) + 120, int(cav.y1) - 60)
 		_spawn_crystal_cluster(x, y)
 	for i in range(20):
 		var x = randi_range(int(cav.x0) + 60, int(cav.x1) - 60)
-		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		var y = randi_range(int(cav.y0) + 120, int(cav.y1) - 60)
 		_spawn_bone_pile(x, y)
 	for i in range(12):
 		var x = randi_range(int(cav.x0) + 80, int(cav.x1) - 80)
-		var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+		var y = randi_range(int(cav.y0) + 120, int(cav.y1) - 60)
 		_spawn_torch(x, y)
 
 func _spawn_crystal_cluster(x: int, y: int) -> void:
@@ -367,7 +378,7 @@ func _spawn_crystal_cluster(x: int, y: int) -> void:
 		])
 		shard.color = base_hue.lightened(randf_range(-0.1, 0.2))
 		shard.position = Vector2(x + ox, y + oy)
-		shard.z_index = int(y)
+		shard.z_index = int(y / 2.0)
 		$Decor.add_child(shard)
 	var glow = PointLight2D.new()
 	glow.texture = _radial_light_texture()
@@ -375,7 +386,7 @@ func _spawn_crystal_cluster(x: int, y: int) -> void:
 	glow.color = base_hue
 	glow.energy = 0.7
 	glow.texture_scale = 0.8
-	glow.z_index = int(y) + 2
+	glow.z_index = int(y / 2.0) + 2
 	$Decor.add_child(glow)
 	var pulse = create_tween().set_loops()
 	pulse.tween_property(glow, "energy", 1.0, 1.2).set_trans(Tween.TRANS_SINE).set_delay(randf())
@@ -390,7 +401,7 @@ func _spawn_bone_pile(x: int, y: int) -> void:
 		bone.size = Vector2(bone_len, 2)
 		bone.position = Vector2(x + randf_range(-8, 8) - bone_len / 2.0, y + randf_range(-5, 5))
 		bone.rotation = randf_range(0, PI)
-		bone.z_index = int(y)
+		bone.z_index = int(y / 2.0)
 		$Decor.add_child(bone)
 
 func build_marais_decor() -> void:
@@ -401,15 +412,15 @@ func build_marais_decor() -> void:
 	seed(6633)
 	for i in range(34):
 		var x = randi_range(int(marais.x0) + 60, int(marais.x1) - 60)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(marais.y0) + 140, int(marais.y1) - 40)
 		_spawn_reed_cluster(x, y)
 	for i in range(22):
 		var x = randi_range(int(marais.x0) + 60, int(marais.x1) - 60)
-		var y = randi_range(140, int(Data.WORLD_HEIGHT) - 40)
+		var y = randi_range(int(marais.y0) + 140, int(marais.y1) - 40)
 		_spawn_murky_puddle(x, y)
 	for i in range(16):
 		var x = randi_range(int(marais.x0) + 80, int(marais.x1) - 80)
-		var y = randi_range(100, int(Data.WORLD_HEIGHT) - 20)
+		var y = randi_range(int(marais.y0) + 100, int(marais.y1) - 20)
 		_spawn_will_o_wisp(x, y)
 
 func _spawn_reed_cluster(x: int, y: int) -> void:
@@ -421,7 +432,7 @@ func _spawn_reed_cluster(x: int, y: int) -> void:
 		blade.polygon = PackedVector2Array([Vector2(-1.5, 0), Vector2(1.5, 0), Vector2(0.5, -h)])
 		blade.color = Color(0.35, 0.42, 0.22) if randf() < 0.6 else Color(0.45, 0.36, 0.2)
 		blade.position = Vector2(x + ox, y)
-		blade.z_index = int(y)
+		blade.z_index = int(y / 2.0)
 		$Decor.add_child(blade)
 		var sway = create_tween().set_loops()
 		sway.tween_property(blade, "rotation", randf_range(0.08, 0.16), randf_range(1.2, 1.8)).set_trans(Tween.TRANS_SINE).set_delay(randf())
@@ -453,7 +464,7 @@ func _spawn_will_o_wisp(x: int, y: int) -> void:
 	glow.color = Color(0.55, 0.95, 0.75)
 	glow.energy = 0.55
 	glow.texture_scale = 0.45
-	glow.z_index = int(y) + 3
+	glow.z_index = int(y / 2.0) + 3
 	$Decor.add_child(glow)
 	var dx = randf_range(-20, 20)
 	var dy = randf_range(-16, 16)
@@ -473,13 +484,13 @@ func _spawn_hay_bale(x: int, y: int) -> void:
 	bale.polygon = pts
 	bale.color = Color(0.75, 0.62, 0.28)
 	bale.position = Vector2(x, y)
-	bale.z_index = int(y)
+	bale.z_index = int(y / 2.0)
 	$Decor.add_child(bale)
 	var band = ColorRect.new()
 	band.color = Color(0.55, 0.42, 0.15)
 	band.size = Vector2(20, 3)
 	band.position = Vector2(x - 10, y - 1)
-	band.z_index = int(y) + 1
+	band.z_index = int(y / 2.0) + 1
 	$Decor.add_child(band)
 
 func build_village_structures() -> void:
@@ -489,12 +500,14 @@ func build_village_structures() -> void:
 	var roof_brown = load("res://assets/buildings/roof_brown.png")
 	# Chaque maison est alignée avec le PNJ qui "y habite" (forge = Grondar, etc.)
 	# pour que le village ait une disposition lisible au lieu de bâtiments épars.
+	# Coordonnées décalées de +2000/+2000 (voir Data.ZONES) : le village garde
+	# exactement sa disposition d'origine, juste recentré au milieu de la croix.
 	var houses = [
-		{"x":600, "y":530, "w":100, "h":75, "wall":Color(0.7,0.62,0.48), "roof":roof_brown}, # forge (Grondar, 600,600)
-		{"x":700, "y":230, "w":90, "h":70, "wall":Color(0.75,0.65,0.5), "roof":roof_tan}, # alchimiste (Yvenne, 700,300)
-		{"x":500, "y":680, "w":100, "h":75, "wall":Color(0.72,0.63,0.47), "roof":roof_tan}, # échoppe (Bosk, 500,750)
-		{"x":400, "y":330, "w":80, "h":60, "wall":Color(0.76,0.66,0.5), "roof":roof_brown}, # cabane de l'Ancien (400,400)
-		{"x":800, "y":430, "w":85, "h":65, "wall":Color(0.65,0.6,0.6), "roof":roof_brown}, # salle d'armes (Thoric, 800,500)
+		{"x":2600, "y":2530, "w":100, "h":75, "wall":Color(0.7,0.62,0.48), "roof":roof_brown}, # forge (Grondar, 2600,2600)
+		{"x":2700, "y":2230, "w":90, "h":70, "wall":Color(0.75,0.65,0.5), "roof":roof_tan}, # alchimiste (Yvenne, 2700,2300)
+		{"x":2500, "y":2680, "w":100, "h":75, "wall":Color(0.72,0.63,0.47), "roof":roof_tan}, # échoppe (Bosk, 2500,2750)
+		{"x":2400, "y":2330, "w":80, "h":60, "wall":Color(0.76,0.66,0.5), "roof":roof_brown}, # cabane de l'Ancien (2400,2400)
+		{"x":2800, "y":2430, "w":85, "h":65, "wall":Color(0.65,0.6,0.6), "roof":roof_brown}, # salle d'armes (Thoric, 2800,2500)
 	]
 	for h in houses:
 		# ombre portée douce sous la maison
@@ -502,20 +515,20 @@ func build_village_structures() -> void:
 		shadow.color = Color(0,0,0,0.18)
 		shadow.size = Vector2(h.w + 16, h.h * 0.35)
 		shadow.position = Vector2(h.x - h.w/2.0 - 8, h.y + h.h/2.0 - h.h*0.12)
-		shadow.z_index = int(h.y) - 2
+		shadow.z_index = int(h.y / 2.0) - 2
 		$Decor.add_child(shadow)
 		# contour légèrement plus sombre derrière le mur pour donner du relief
 		var outline = ColorRect.new()
 		outline.color = h.wall.darkened(0.35)
 		outline.size = Vector2(h.w + 4, h.h + 4)
 		outline.position = Vector2(h.x - h.w/2.0 - 2, h.y - h.h/2.0 - 2)
-		outline.z_index = int(h.y) - 1
+		outline.z_index = int(h.y / 2.0) - 1
 		$Decor.add_child(outline)
 		var wall = ColorRect.new()
 		wall.color = h.wall
 		wall.size = Vector2(h.w, h.h)
 		wall.position = Vector2(h.x - h.w/2.0, h.y - h.h/2.0)
-		wall.z_index = int(h.y)
+		wall.z_index = int(h.y / 2.0)
 		$Decor.add_child(wall)
 		# Collision solide pour que le joueur ne traverse pas visuellement le mur.
 		var body = StaticBody2D.new()
@@ -531,7 +544,7 @@ func build_village_structures() -> void:
 		wall_shade.color = h.wall.darkened(0.2)
 		wall_shade.size = Vector2(h.w, h.h * 0.22)
 		wall_shade.position = Vector2(h.x - h.w/2.0, h.y + h.h/2.0 - h.h*0.22)
-		wall_shade.z_index = int(h.y) + 1
+		wall_shade.z_index = int(h.y / 2.0) + 1
 		$Decor.add_child(wall_shade)
 		var roof = Sprite2D.new()
 		roof.texture = h.roof
@@ -541,15 +554,15 @@ func build_village_structures() -> void:
 		# plutôt que de flotter au-dessus avec juste un mince contact — sinon il se
 		# détache visuellement de la maison malgré un positionnement "correct" en x.
 		roof.position = Vector2(h.x, h.y - h.h/2.0 - (h.roof.get_height() * roof_scale) * 0.02)
-		roof.z_index = int(h.y) + 2
+		roof.z_index = int(h.y / 2.0) + 2
 		$Decor.add_child(roof)
 		var door = ColorRect.new()
 		door.color = Color(0.28, 0.18, 0.1)
 		door.size = Vector2(18, 28)
 		door.position = Vector2(h.x - 9, h.y + h.h/2.0 - 28)
-		door.z_index = int(h.y) + 3
+		door.z_index = int(h.y / 2.0) + 3
 		$Decor.add_child(door)
-	_build_village_well(700, 480)
+	_build_village_well(2700, 2480)
 	_build_village_decor(houses)
 
 func _build_village_well(x: int, y: int) -> void:
@@ -559,7 +572,7 @@ func _build_village_well(x: int, y: int) -> void:
 	shadow.color = Color(0, 0, 0, 0.18)
 	shadow.size = Vector2(56, 16)
 	shadow.position = Vector2(x - 28, y + 16)
-	shadow.z_index = int(y) - 1
+	shadow.z_index = int(y / 2.0) - 1
 	$Decor.add_child(shadow)
 	var ring = Polygon2D.new()
 	var pts = PackedVector2Array()
@@ -569,7 +582,7 @@ func _build_village_well(x: int, y: int) -> void:
 	ring.polygon = pts
 	ring.color = Color(0.55, 0.53, 0.5)
 	ring.position = Vector2(x, y)
-	ring.z_index = int(y)
+	ring.z_index = int(y / 2.0)
 	$Decor.add_child(ring)
 	var inner = Polygon2D.new()
 	var pts2 = PackedVector2Array()
@@ -579,26 +592,26 @@ func _build_village_well(x: int, y: int) -> void:
 	inner.polygon = pts2
 	inner.color = Color(0.15, 0.22, 0.3)
 	inner.position = Vector2(x, y - 3)
-	inner.z_index = int(y) + 1
+	inner.z_index = int(y / 2.0) + 1
 	$Decor.add_child(inner)
 	for side in [-1, 1]:
 		var post = ColorRect.new()
 		post.color = Color(0.35, 0.24, 0.14)
 		post.size = Vector2(5, 26)
 		post.position = Vector2(x + side * 20 - 2, y - 34)
-		post.z_index = int(y) + 2
+		post.z_index = int(y / 2.0) + 2
 		$Decor.add_child(post)
 	var roof = Polygon2D.new()
 	roof.polygon = PackedVector2Array([Vector2(-30,0), Vector2(30,0), Vector2(0,-16)])
 	roof.color = Color(0.5, 0.3, 0.16)
 	roof.position = Vector2(x, y - 34)
-	roof.z_index = int(y) + 3
+	roof.z_index = int(y / 2.0) + 3
 	$Decor.add_child(roof)
 	var bucket = ColorRect.new()
 	bucket.color = Color(0.4, 0.28, 0.15)
 	bucket.size = Vector2(8, 7)
 	bucket.position = Vector2(x - 4, y - 18)
-	bucket.z_index = int(y) + 2
+	bucket.z_index = int(y / 2.0) + 2
 	$Decor.add_child(bucket)
 	_add_circle_collision(x, y, 20.0)
 
@@ -620,10 +633,11 @@ func _build_village_decor(houses: Array) -> void:
 	for h in houses:
 		_spawn_torch(int(h.x - h.w/2.0 - 6), int(h.y + h.h/2.0 - 10))
 	seed(9911)
+	var vz = Data.ZONES.village
 	var flower_colors = [Color(0.85,0.25,0.3), Color(0.9,0.75,0.2), Color(0.8,0.4,0.75), Color(0.95,0.55,0.15)]
 	for i in range(45):
-		var x = randi_range(80, 1320)
-		var y = randi_range(150, int(Data.WORLD_HEIGHT) - 40)
+		var x = randi_range(int(vz.x0) + 80, int(vz.x1) - 80)
+		var y = randi_range(int(vz.y0) + 150, int(vz.y1) - 40)
 		var patch = Node2D.new()
 		patch.position = Vector2(x, y)
 		patch.z_index = -7
@@ -634,7 +648,7 @@ func _build_village_decor(houses: Array) -> void:
 			dot.position = Vector2(randf_range(-6,6), randf_range(-4,4))
 			patch.add_child(dot)
 		$Decor.add_child(patch)
-	var crate_spots = [Vector2(560, 700), Vector2(440, 720), Vector2(650, 560), Vector2(560, 560)]
+	var crate_spots = [Vector2(2560, 2700), Vector2(2440, 2720), Vector2(2650, 2560), Vector2(2560, 2560)]
 	for i in range(crate_spots.size()):
 		var pos = crate_spots[i]
 		if i % 2 == 0:
@@ -647,13 +661,13 @@ func _spawn_crate(x: int, y: int) -> void:
 	box.color = Color(0.5, 0.36, 0.2)
 	box.size = Vector2(18, 16)
 	box.position = Vector2(x - 9, y - 8)
-	box.z_index = int(y)
+	box.z_index = int(y / 2.0)
 	$Decor.add_child(box)
 	var edge = ColorRect.new()
 	edge.color = Color(0.35, 0.24, 0.12)
 	edge.size = Vector2(18, 3)
 	edge.position = Vector2(x - 9, y - 8)
-	edge.z_index = int(y) + 1
+	edge.z_index = int(y / 2.0) + 1
 	$Decor.add_child(edge)
 	_add_circle_collision(x, y, 10.0)
 
@@ -662,14 +676,14 @@ func _spawn_barrel(x: int, y: int) -> void:
 	body.polygon = PackedVector2Array([Vector2(-8,-10), Vector2(8,-10), Vector2(9,10), Vector2(-9,10)])
 	body.color = Color(0.45, 0.32, 0.18)
 	body.position = Vector2(x, y)
-	body.z_index = int(y)
+	body.z_index = int(y / 2.0)
 	$Decor.add_child(body)
 	for oy in [-6, 6]:
 		var band = ColorRect.new()
 		band.color = Color(0.25, 0.17, 0.09)
 		band.size = Vector2(18, 2)
 		band.position = Vector2(x - 9, y + oy)
-		band.z_index = int(y) + 1
+		band.z_index = int(y / 2.0) + 1
 		$Decor.add_child(band)
 	_add_circle_collision(x, y, 9.0)
 
@@ -679,10 +693,15 @@ func build_props() -> void:
 	for key in Data.ZONES.keys():
 		var z = Data.ZONES[key]
 		if z.safe: continue
-		var count = int((z.x1 - z.x0) / 260.0)
+		# Densité par surface (et non plus par largeur seule) : les zones ne
+		# partagent plus toutes la même hauteur depuis le passage à la croix
+		# (voir Data.ZONES), un calcul basé uniquement sur x1-x0 sous-peuplerait
+		# les bras plus étroits mais plus longs (ex: marais). 260*1200 = la
+		# "cellule de densité" d'origine (largeur de référence x hauteur d'alors).
+		var count = int(((z.x1 - z.x0) * (z.y1 - z.y0)) / (260.0 * 1200.0))
 		for i in range(count):
 			var x = randi_range(int(z.x0) + 100, int(z.x1) - 100)
-			var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+			var y = randi_range(int(z.y0) + 60, int(z.y1) - 60)
 			if randf() < 0.4:
 				_spawn_torch(x, y)
 			else:
@@ -693,13 +712,13 @@ func _spawn_torch(x: int, y: int) -> void:
 	pole.color = Color(0.3, 0.2, 0.12)
 	pole.size = Vector2(4, 20)
 	pole.position = Vector2(x - 2, y - 10)
-	pole.z_index = int(y)
+	pole.z_index = int(y / 2.0)
 	$Decor.add_child(pole)
 	var flame = ColorRect.new()
 	flame.color = Color(1.0, 0.55, 0.15)
 	flame.size = Vector2(8, 10)
 	flame.position = Vector2(x - 4, y - 20)
-	flame.z_index = int(y) + 1
+	flame.z_index = int(y / 2.0) + 1
 	$Decor.add_child(flame)
 	# Scintillement : la flamme pulse en taille/teinte pour paraître vivante.
 	var flicker = create_tween().set_loops()
@@ -713,7 +732,7 @@ func _spawn_torch(x: int, y: int) -> void:
 	glow.color = Color(1.0, 0.65, 0.25)
 	glow.energy = 1.1
 	glow.texture_scale = 2.2
-	glow.z_index = int(y) + 2
+	glow.z_index = int(y / 2.0) + 2
 	$Decor.add_child(glow)
 	var glow_pulse = create_tween().set_loops()
 	glow_pulse.tween_property(glow, "energy", 1.4, 0.3).set_trans(Tween.TRANS_SINE).set_delay(randf() * 0.5)
@@ -745,7 +764,7 @@ func _spawn_rock(x: int, y: int) -> void:
 		Vector2(w/2, 0), Vector2(w/3, h/2), Vector2(-w/4, h/2.2)
 	])
 	rock.position = Vector2(x, y)
-	rock.z_index = int(y)
+	rock.z_index = int(y / 2.0)
 	$Decor.add_child(rock)
 
 func _spawn_chest(x: int, y: int) -> void:
@@ -753,14 +772,14 @@ func _spawn_chest(x: int, y: int) -> void:
 	base.color = Color(0.42, 0.28, 0.14)
 	base.size = Vector2(22, 16)
 	base.position = Vector2(x - 11, y - 8)
-	base.z_index = int(y)
+	base.z_index = int(y / 2.0)
 	$Decor.add_child(base)
 	var lid = ColorRect.new()
 	lid.color = Color(0.55, 0.4, 0.2)
 	lid.size = Vector2(22, 5)
 	lid.position = Vector2(x - 11, y - 12)
 	lid.pivot_offset = Vector2(0, 5) # charnière côté arrière : la couvercle bascule vers le haut
-	lid.z_index = int(y) + 1
+	lid.z_index = int(y / 2.0) + 1
 	$Decor.add_child(lid)
 	var gold = randi_range(5, 20)
 	chest_nodes.append({"x": x, "y": y, "lid": lid, "base": base, "opened": false, "gold": gold})
@@ -786,13 +805,13 @@ func _build_ground_mosaic(z: Dictionary) -> void:
 	var chunk_h = 256
 	var x = z.x0
 	while x < z.x1:
-		var y = 0
-		while y < Data.WORLD_HEIGHT:
+		var y = z.y0
+		while y < z.y1:
 			var tr = TextureRect.new()
 			tr.texture = texs[randi() % texs.size()]
 			tr.stretch_mode = TextureRect.STRETCH_TILE
 			tr.position = Vector2(x, y)
-			tr.size = Vector2(min(chunk_w, z.x1 - x), min(chunk_h, Data.WORLD_HEIGHT - y))
+			tr.size = Vector2(min(chunk_w, z.x1 - x), min(chunk_h, z.y1 - y))
 			tr.modulate = Color(0.8, 0.8, 0.8, 0.85)
 			tr.z_index = -10
 			$Zones.add_child(tr)
@@ -800,8 +819,11 @@ func _build_ground_mosaic(z: Dictionary) -> void:
 		x += chunk_w
 
 func get_zone_spawn(zone_id: String) -> Vector2:
+	# Le centre de la zone marche pour n'importe quelle orientation (est/nord/
+	# ouest/sud depuis le village), contrairement à "x0+200" qui supposait une
+	# seule bande horizontale.
 	var z = Data.ZONES[zone_id]
-	return Vector2(z.x0 + 200, Data.WORLD_HEIGHT / 2.0)
+	return Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0)
 
 func spawn_local_player() -> void:
 	player = PlayerScene.instantiate()
@@ -837,10 +859,10 @@ func build_teleporters() -> void:
 	# repère de navigation en plus de l'option de menu qui reste disponible.
 	for zid in Data.ZONES.keys():
 		var z = Data.ZONES[zid]
-		var pos = Vector2(z.x0 + 200, Data.WORLD_HEIGHT / 2.0 + 90)
+		var pos = Vector2((z.x0 + z.x1) / 2.0, (z.y0 + z.y1) / 2.0 + 90)
 		var node = Node2D.new()
 		node.position = pos
-		node.z_index = int(pos.y)
+		node.z_index = int(pos.y / 2.0)
 		var ring = Polygon2D.new()
 		ring.polygon = _ring_points(26.0)
 		ring.color = Color(0.55, 0.35, 0.95, 0.8)
@@ -883,7 +905,7 @@ func build_npcs() -> void:
 		# en se disputant la même propriété "position".
 		var node = Node2D.new()
 		node.position = Vector2(npc.x, npc.y)
-		node.z_index = int(npc.y) # sinon le PNJ reste toujours derrière les maisons (z_index en centaines)
+		node.z_index = int(npc.y / 2.0) # sinon le PNJ reste toujours derrière les maisons (z_index en centaines)
 		var visual = Node2D.new()
 		node.add_child(visual)
 		var legs = Sprite2D.new()
@@ -1002,14 +1024,16 @@ func build_enemy_spawns() -> void:
 		var types = by_zone[zone_id].filter(func(t): return not Data.MONSTER_TYPES[t].get("boss", false))
 		for i in range(14):
 			var x = randi_range(int(z.x0) + 80, int(z.x1) - 80)
-			var y = randi_range(120, int(Data.WORLD_HEIGHT) - 60)
+			var y = randi_range(int(z.y0) + 120, int(z.y1) - 60)
 			var tid = types[i % types.size()]
 			var sd = {"x": x, "y": y, "type_id": tid, "respawn_at": 0.0}
 			enemy_spawns.append(sd)
 			spawn_enemy(sd)
 		for t in by_zone[zone_id]:
 			if Data.MONSTER_TYPES[t].get("boss", false):
-				var sd = {"x": z.x1 - 200, "y": Data.WORLD_HEIGHT/2.0, "type_id": t, "respawn_at": 0.0, "is_boss": true}
+				# Le centre de la zone marche pour n'importe quelle orientation
+				# (voir get_zone_spawn), contrairement à "x1-200".
+				var sd = {"x": (z.x0 + z.x1) / 2.0, "y": (z.y0 + z.y1) / 2.0, "type_id": t, "respawn_at": 0.0, "is_boss": true}
 				enemy_spawns.append(sd)
 				spawn_enemy(sd)
 
@@ -1044,8 +1068,10 @@ func update_zone_events(delta: float) -> void:
 	trigger_zone_event()
 
 func trigger_zone_event() -> void:
-	var zid = Data.zone_at(player.global_position.x).id
-	if zid == "village": return # zone sûre, pas d'invasion
+	var zid = Data.zone_at(player.global_position.x, player.global_position.y).id
+	# "village" = zone sûre, "wilds" = terres non revendiquées entre les bras de
+	# la croix (Data.VOID_ZONE), ni l'une ni l'autre n'est une clé de Data.ZONES.
+	if zid == "village" or zid == "wilds": return
 	var z = Data.ZONES[zid]
 	var types = []
 	for tid in Data.MONSTER_TYPES.keys():
@@ -1055,9 +1081,10 @@ func trigger_zone_event() -> void:
 	var chosen_type = types[randi() % types.size()]
 	var count = randi_range(4, 6)
 	var cx = clampf(player.global_position.x + randf_range(-350.0, 350.0), z.x0 + 60, z.x1 - 60)
+	var cy = clampf(player.global_position.y + randf_range(-350.0, 350.0), z.y0 + 60, z.y1 - 60)
 	for i in range(count):
 		var x = clampf(cx + randf_range(-150.0, 150.0), z.x0 + 40, z.x1 - 40)
-		var y = randf_range(120.0, Data.WORLD_HEIGHT - 60.0)
+		var y = clampf(cy + randf_range(-150.0, 150.0), z.y0 + 40, z.y1 - 40)
 		var sd = {"x": x, "y": y, "type_id": chosen_type, "respawn_at": 0.0}
 		var e = spawn_enemy(sd)
 		e.set_meta("spawn_def", null) # pas de réapparition après la mort : évite une croissance sans fin de la population
@@ -1113,13 +1140,19 @@ func _physics_process(delta: float) -> void:
 	if hud_tick_accum > 0.4:
 		hud_tick_accum = 0.0
 		emit_signal("hud_update", make_hud_data())
-		var zid = Data.zone_at(player.global_position.x).id
-		death_zone_id = zid
-		update_zone_lighting(zid)
-		Audio.set_zone_mood(Data.ZONES[zid].safe)
-		if not char_data.unlocked_zones.has(zid):
-			char_data.unlocked_zones.append(zid)
-			float_text(player.global_position + Vector2(0,-90), "Zone découverte : voyage rapide débloqué", Color(0.7,1,0.85))
+		var zid = Data.zone_at(player.global_position.x, player.global_position.y).id
+		# "wilds" (Data.VOID_ZONE) = terres non revendiquées entre les bras de la
+		# croix, pas une clé de Data.ZONES : Data.ZONES[zid] planterait, et ce
+		# n'est de toute façon pas un lieu valide à retenir comme point de mort
+		# ou à débloquer pour le voyage rapide — on garde juste la dernière
+		# vraie zone connue tant qu'on n'a pas retraversé dans une zone nommée.
+		if zid != "wilds":
+			death_zone_id = zid
+			update_zone_lighting(zid)
+			Audio.set_zone_mood(Data.ZONES[zid].safe)
+			if not char_data.unlocked_zones.has(zid):
+				char_data.unlocked_zones.append(zid)
+				float_text(player.global_position + Vector2(0,-90), "Zone découverte : voyage rapide débloqué", Color(0.7,1,0.85))
 
 	autosave_accum += delta
 	if autosave_accum > 20.0:
@@ -2000,5 +2033,5 @@ func make_hud_data() -> Dictionary:
 		"hp": player.hp, "max_hp": player.stats.max_hp,
 		"mana": player.mana, "max_mana": player.stats.max_mana,
 		"level": char_data.level, "xp": char_data.xp, "xp_needed": Data.xp_for_level(char_data.level),
-		"gold": char_data.gold, "zone": Data.zone_at(player.global_position.x).name,
+		"gold": char_data.gold, "zone": Data.zone_at(player.global_position.x, player.global_position.y).name,
 	}

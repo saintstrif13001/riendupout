@@ -1058,6 +1058,9 @@ func turn_in_quest(qid: String) -> void:
 	cd.gold += q.reward.get("gold", 0)
 	var res = world.player.gain_xp(q.reward.xp)
 	for it in q.reward.get("items", []):
+		# Exemption deliberee de la capacite : une recompense de quete est
+		# unique et meritee, la perdre parce que le sac est plein serait brutal.
+		# Depasser la capacite est tolere (inventory_space_left borne a 0).
 		cd.inventory[it] = cd.inventory.get(it, 0) + 1
 	var faction = Data.QUEST_FACTION.get(qid, "")
 	if faction != "":
@@ -1101,10 +1104,14 @@ func buy_item(key: String) -> void:
 	var eco = world.village_economy
 	if eco.potion_stock <= 0: return # l'alchimiste n'a plus rien à vendre pour l'instant
 	if cd.gold < eco.potion_price: return
+	# Verifie AVANT de debiter l'or : sinon on paierait un objet non recu.
+	if GameState.inventory_is_full(cd):
+		world.float_text(world.player.global_position + Vector2(0,-50), "Sac plein !", Color(1,0.5,0.35))
+		return
 	cd.gold -= eco.potion_price
 	eco.potion_stock -= 1
 	eco.potion_price = clampi(25 - eco.potion_stock, 8, 25)
-	cd.inventory[key] = cd.inventory.get(key, 0) + 1
+	GameState.add_item(cd, key, 1)
 	Audio.play("gold_pickup", -8.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()
@@ -1114,10 +1121,13 @@ func buy_forged_weapon() -> void:
 	var eco = world.village_economy
 	if eco.arme_stock <= 0: return # Grondar n'a plus rien en stock pour l'instant
 	if cd.gold < eco.arme_price: return
+	if GameState.inventory_is_full(cd): # avant de debiter l'or (voir buy_item)
+		world.float_text(world.player.global_position + Vector2(0,-50), "Sac plein !", Color(1,0.5,0.35))
+		return
 	cd.gold -= eco.arme_price
 	eco.arme_stock -= 1
 	eco.arme_price = clampi(70 - eco.arme_stock * 5, 25, 70)
-	cd.inventory["epee_fer"] = cd.inventory.get("epee_fer", 0) + 1
+	GameState.add_item(cd, "epee_fer", 1)
 	Audio.play("gold_pickup", -8.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	render_npc_dialogue()
@@ -1128,8 +1138,11 @@ func buy_faction_item(key: String) -> void:
 	var req = it.rep_req
 	if cd.reputation.get(req.faction, 0) < req.min: return
 	if cd.gold < it.price: return
+	if GameState.inventory_is_full(cd): # avant de debiter l'or (voir buy_item)
+		world.float_text(world.player.global_position + Vector2(0,-50), "Sac plein !", Color(1,0.5,0.35))
+		return
 	cd.gold -= it.price
-	cd.inventory[key] = cd.inventory.get(key, 0) + 1
+	GameState.add_item(cd, key, 1)
 	Audio.play("gold_pickup", -8.0)
 	world.emit_signal("hud_update", world.make_hud_data())
 	world.save_now()
@@ -1187,6 +1200,9 @@ func craft_recipe(rid: String) -> void:
 
 # ---------------- Inventaire ----------------
 var inv_search_text := ""
+var inv_search_field: LineEdit = null   # persistant : voir render_inventory()
+var inv_results_box: VBoxContainer = null
+var inv_capacity_label: Label = null
 
 const ACCENT_MAP := {
 	"à":"a","â":"a","ä":"a","á":"a", "é":"e","è":"e","ê":"e","ë":"e",
@@ -1199,19 +1215,58 @@ func _normalize_search(s: String) -> String:
 		out += ACCENT_MAP.get(c, c)
 	return out
 
+## Reconstruit la coquille de l'inventaire : titre, champ de recherche
+## PERSISTANT, puis la zone de résultats. À n'appeler qu'à l'ouverture.
 func render_inventory() -> void:
 	var cd = world.char_data
 	_clear_box(inventory_box)
+	# On repart toujours sans filtre : un filtre encore actif d'une ouverture
+	# precedente donnait un inventaire mysterieusement vide a la reouverture.
+	inv_search_text = ""
 	_add_title(inventory_box, "Inventaire - " + cd.name)
 
-	var search = LineEdit.new()
-	search.placeholder_text = "Rechercher un objet..."
-	search.text = inv_search_text
-	search.custom_minimum_size = Vector2(0, 32)
-	search.text_changed.connect(func(t): inv_search_text = t; render_inventory())
-	inventory_box.add_child(search)
-	search.grab_focus()
-	search.caret_column = inv_search_text.length()
+	inv_capacity_label = Label.new()
+	inv_capacity_label.add_theme_font_size_override("font_size", 13)
+	inventory_box.add_child(inv_capacity_label)
+
+	inv_search_field = LineEdit.new()
+	inv_search_field.placeholder_text = "Rechercher un objet..."
+	inv_search_field.custom_minimum_size = Vector2(0, 32)
+	# Ne reconstruit QUE la liste de résultats. Auparavant chaque frappe
+	# appelait render_inventory(), qui detruisait puis recreait le champ de
+	# recherche lui-meme : on perdait le focus et la selection a chaque
+	# caractere, et le curseur etait force en fin de texte — donc impossible
+	# de corriger au milieu d'un mot. C'est ce qui rendait la recherche
+	# "bizarre".
+	inv_search_field.text_changed.connect(func(t):
+		inv_search_text = t
+		_render_inventory_results())
+	inventory_box.add_child(inv_search_field)
+	inv_search_field.grab_focus()
+
+	inv_results_box = VBoxContainer.new()
+	inv_results_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inv_results_box.add_theme_constant_override("separation", 8)
+	inventory_box.add_child(inv_results_box)
+	_render_inventory_results()
+
+func _render_inventory_results() -> void:
+	if inv_results_box == null or not is_instance_valid(inv_results_box): return
+	var cd = world.char_data
+	# remove_child AVANT queue_free : queue_free est differe, les anciens
+	# elements resteraient visibles a cote des nouveaux le temps d'une frame.
+	for c in inv_results_box.get_children():
+		inv_results_box.remove_child(c)
+		c.queue_free()
+	var inventory_box = inv_results_box # les sections ci-dessous s'y ajoutent
+
+	# Jauge du sac, rafraichie a chaque rendu (equiper/consommer la fait bouger).
+	if inv_capacity_label != null and is_instance_valid(inv_capacity_label):
+		var load_now = GameState.inventory_load(cd)
+		inv_capacity_label.text = "Sacoche : %d / %d" % [load_now, Data.INVENTORY_CAPACITY]
+		var ratio = float(load_now) / float(Data.INVENTORY_CAPACITY)
+		inv_capacity_label.add_theme_color_override("font_color",
+			Color(1, 0.45, 0.35) if ratio >= 1.0 else (Color(1, 0.85, 0.4) if ratio >= 0.85 else Color(0.75, 0.8, 0.75)))
 
 	var filter = _normalize_search(inv_search_text)
 	var matches = func(id): return filter == "" or _normalize_search(Data.ITEMS[id].name).contains(filter)
@@ -1297,7 +1352,7 @@ func equip_item(id: String) -> void:
 	world.player.update_equipment_visual()
 	world.emit_signal("hud_update", world.make_hud_data())
 	world.save_now()
-	render_inventory()
+	_render_inventory_results() # pas render_inventory() : garde le champ de recherche intact
 
 func use_item(id: String) -> void:
 	if world.player.dead:
@@ -1317,4 +1372,4 @@ func use_item(id: String) -> void:
 	if it.has("mana"): world.player.mana = min(world.player.stats.max_mana, world.player.mana + it.mana)
 	Audio.play("potion_drink")
 	world.emit_signal("hud_update", world.make_hud_data())
-	render_inventory()
+	_render_inventory_results() # pas render_inventory() : garde le champ de recherche intact

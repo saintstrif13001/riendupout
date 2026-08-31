@@ -60,6 +60,38 @@ func pending_talent(cd: Dictionary) -> Dictionary:
 			return tier
 	return {}
 
+## ---------------- Sac / capacite ----------------
+## Centralise ici plutot que disperse sur les 7 endroits qui ajoutaient
+## directement dans cd.inventory : c'est exactement le genre de constante
+## eparpillee qui a deja cause plusieurs bugs dans ce projet.
+
+## Nombre total d'objets portes, hors objets de quete (exemptes de la limite).
+func inventory_load(cd: Dictionary) -> int:
+	var total = 0
+	for id in cd.inventory.keys():
+		var qty = cd.inventory[id]
+		if qty <= 0: continue
+		if not Data.ITEMS.has(id): continue
+		if Data.ITEMS[id].type == "quest": continue
+		total += qty
+	return total
+
+func inventory_space_left(cd: Dictionary) -> int:
+	return maxi(0, Data.INVENTORY_CAPACITY - inventory_load(cd))
+
+func inventory_is_full(cd: Dictionary) -> bool:
+	return inventory_space_left(cd) <= 0
+
+## Ajoute jusqu'a `count` exemplaires et renvoie combien ont REELLEMENT ete
+## ajoutes (0 si le sac est plein). Les objets de quete passent toujours.
+func add_item(cd: Dictionary, id: String, count: int = 1) -> int:
+	if count <= 0: return 0
+	var is_quest = Data.ITEMS.has(id) and Data.ITEMS[id].type == "quest"
+	var added = count if is_quest else mini(count, inventory_space_left(cd))
+	if added <= 0: return 0
+	cd.inventory[id] = cd.inventory.get(id, 0) + added
+	return added
+
 func compute_stats(cd: Dictionary) -> Dictionary:
 	var race = Data.RACES[cd.race]
 	var cls = Data.CLASSES[cd["class"]]

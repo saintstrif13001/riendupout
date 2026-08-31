@@ -1730,9 +1730,11 @@ func grant_kill_rewards(p: Player, e: Enemy, partial: bool) -> void:
 	if not partial:
 		for drop in e.mdef.get("loot", []):
 			if randf() < drop.chance:
-				p.char_data.inventory[drop.id] = p.char_data.inventory.get(drop.id, 0) + 1
-				float_text(p.global_position + Vector2(0,-20), "+1 " + Data.ITEMS[drop.id].name, Color(0.75,1,0.75))
-				register_drop_for_quests(drop.id)
+				if GameState.add_item(p.char_data, drop.id, 1) > 0:
+					float_text(p.global_position + Vector2(0,-20), "+1 " + Data.ITEMS[drop.id].name, Color(0.75,1,0.75))
+					register_drop_for_quests(drop.id)
+				elif p == player:
+					float_text(p.global_position + Vector2(0,-20), "Sac plein ! (%s perdu)" % Data.ITEMS[drop.id].name, Color(1,0.5,0.35))
 	update_quest_progress("kill", e.type_id)
 	if e.mdef.get("boss", false): update_quest_progress("boss", e.type_id)
 	if p.char_data.bounty != null and p.char_data.bounty.target == e.type_id and p == player:
@@ -1913,11 +1915,15 @@ func try_interact() -> void:
 	if near_target.type == "gather":
 		var g = near_target.ref
 		if g.depleted: return
+		var mat = g.node.type
+		# Sac plein : on ne consomme PAS le gisement, sinon le joueur perdrait
+		# la ressource ET devrait attendre sa reapparition pour rien.
+		if GameState.add_item(char_data, mat, 1) <= 0:
+			float_text(Vector2(g.node.x, g.node.y - 20), "Sac plein !", Color(1,0.5,0.35))
+			return
 		g.depleted = true
 		g.respawn_at = Time.get_ticks_msec()/1000.0 + 15.0
 		g.label.modulate.a = 0.25
-		var mat = g.node.type
-		char_data.inventory[mat] = char_data.inventory.get(mat, 0) + 1
 		float_text(Vector2(g.node.x, g.node.y - 20), "+1 " + Data.ITEMS[mat].name, Color(0.75,1,0.75))
 		char_data.gather_counts[mat] = char_data.gather_counts.get(mat, 0) + 1
 		update_quest_progress("gather", mat)

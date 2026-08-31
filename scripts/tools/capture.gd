@@ -218,6 +218,10 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_inventory_capacity":
+			_run_inventory_capacity_test()
+		elif test_mode == "test_inventory_search":
+			_run_inventory_search_test()
 		elif test_mode == "test_npc_wander":
 			_run_npc_wander_test()
 		elif test_mode == "test_zone_event":
@@ -2262,6 +2266,97 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_inventory_capacity_test() -> void:
+	print("TEST_START:inventory_capacity")
+	# Retour direct : "l'inventaire n'est pas infini" — il l'etait justement,
+	# totalement : les 7 endroits qui ajoutaient des objets incrementaient le
+	# dictionnaire sans aucune limite. Ajoute une capacite centralisee dans
+	# GameState (plutot qu'une constante eparpillee, source de bugs recurrents
+	# ici) avec les objets de quete exemptes pour ne jamais bloquer une quete.
+	var data = root.get_node("/root/Data")
+	var gs = root.get_node("/root/GameState")
+	var cd = inst.char_data
+
+	cd.inventory = {"gelee": 10}
+	var load_counts_stacks = gs.inventory_load(cd) == 10
+	var space_left_ok = gs.inventory_space_left(cd) == data.INVENTORY_CAPACITY - 10
+
+	# objets de quete : ni comptes, ni bloques
+	cd.inventory = {"relique_ossements": 5}
+	var quest_items_not_counted = gs.inventory_load(cd) == 0
+
+	# sac plein : refus d'ajout d'un objet normal
+	cd.inventory = {"gelee": data.INVENTORY_CAPACITY}
+	var is_full = gs.inventory_is_full(cd)
+	var added_when_full = gs.add_item(cd, "bois", 1)
+	var refuses_when_full = added_when_full == 0 and cd.inventory.get("bois", 0) == 0
+
+	# ... mais un objet de quete passe quand meme (sinon quete impossible)
+	var quest_added_when_full = gs.add_item(cd, "relique_ossements", 1)
+	var quest_passes_when_full = quest_added_when_full == 1
+
+	# ajout partiel : il ne reste que 3 places, on en demande 10
+	cd.inventory = {"gelee": data.INVENTORY_CAPACITY - 3}
+	var partial = gs.add_item(cd, "bois", 10)
+	var partial_add_ok = partial == 3 and gs.inventory_load(cd) == data.INVENTORY_CAPACITY
+
+	# achat refuse sac plein : l'or NE DOIT PAS etre debite
+	var hud = inst.get_node("Hud")
+	cd.inventory = {"gelee": data.INVENTORY_CAPACITY}
+	cd.gold = 500
+	inst.village_economy.potion_stock = 5
+	var gold_before = cd.gold
+	hud.buy_item("potion_vie")
+	var purchase_blocked_no_gold_lost = cd.gold == gold_before and cd.inventory.get("potion_vie", 0) == 0
+
+	var all_ok = load_counts_stacks and space_left_ok and quest_items_not_counted and is_full and refuses_when_full and quest_passes_when_full and partial_add_ok and purchase_blocked_no_gold_lost
+	print("TEST_RESULT all_ok=%s capacite=%d load_counts_stacks=%s space_left_ok=%s quest_items_not_counted=%s is_full=%s refuses_when_full=%s quest_passes_when_full=%s partial_add_ok=%s (ajoutes=%d) purchase_blocked_no_gold_lost=%s"
+		% [all_ok, data.INVENTORY_CAPACITY, load_counts_stacks, space_left_ok, quest_items_not_counted, is_full, refuses_when_full, quest_passes_when_full, partial_add_ok, partial, purchase_blocked_no_gold_lost])
+
+func _run_inventory_search_test() -> void:
+	print("TEST_START:inventory_search")
+	# Retour direct : "rechercher dans son inventaire est bizzare". Chaque
+	# frappe appelait render_inventory(), qui _clear_box()ait TOUT le panneau —
+	# y compris le champ de recherche lui-meme — puis en recreait un neuf avec
+	# le curseur force en fin de texte. On perdait donc focus et selection a
+	# chaque caractere, et editer au milieu d'un mot etait impossible.
+	var hud = inst.get_node("Hud")
+	var cd = inst.char_data
+	cd.inventory = {"gelee": 3, "bois": 2, "potion_vie": 1}
+
+	hud.render_inventory()
+	for i in range(3): await process_frame
+	var field = hud.inv_search_field
+	var field_exists = field != null and is_instance_valid(field)
+	var starts_empty = field_exists and field.text == "" # pas de filtre residuel a l'ouverture
+
+	# simule une frappe comme le ferait le signal text_changed
+	field.text = "gel"
+	field.text_changed.emit("gel")
+	for i in range(3): await process_frame
+	var field_survives_typing = is_instance_valid(field) and hud.inv_search_field == field
+	var text_preserved = is_instance_valid(field) and field.text == "gel"
+
+	# le filtre doit reellement filtrer : "gel" garde Gelee, exclut Bois
+	var found_gelee = _find_label_with_text(hud.inv_results_box, "Gelée") != null
+	var excluded_bois = _find_label_with_text(hud.inv_results_box, "Bois") == null
+
+	# accents/casse ignores : "GELEE" doit trouver "Gelée"
+	field.text_changed.emit("GELEE")
+	for i in range(3): await process_frame
+	var accent_insensitive = _find_label_with_text(hud.inv_results_box, "Gelée") != null
+
+	# equiper/consommer ne doit pas non plus detruire le champ
+	field.text_changed.emit("")
+	for i in range(3): await process_frame
+	hud.use_item("potion_vie")
+	for i in range(3): await process_frame
+	var field_survives_use_item = is_instance_valid(field) and hud.inv_search_field == field
+
+	var all_ok = field_exists and starts_empty and field_survives_typing and text_preserved and found_gelee and excluded_bois and accent_insensitive and field_survives_use_item
+	print("TEST_RESULT all_ok=%s field_exists=%s starts_empty=%s field_survives_typing=%s text_preserved=%s found_gelee=%s excluded_bois=%s accent_insensitive=%s field_survives_use_item=%s"
+		% [all_ok, field_exists, starts_empty, field_survives_typing, text_preserved, found_gelee, excluded_bois, accent_insensitive, field_survives_use_item])
 
 func _run_decor_density_test() -> void:
 	print("TEST_START:decor_density")

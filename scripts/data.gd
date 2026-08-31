@@ -124,6 +124,14 @@ const MONSTER_TYPES := {
 }
 
 const ICON_PATH := "res://assets/icons/"
+
+## Capacite du sac, en nombre total d'objets (toutes piles confondues).
+## L'inventaire etait totalement illimite : on pouvait accumuler sans fin, ce
+## qui retirait tout interet a la vente chez Bosk et a l'arbitrage "que
+## garder ?". Les objets de quete sont EXEMPTES (ils ne comptent pas et sont
+## toujours acceptes) : bloquer un objet de quete sur un sac plein pourrait
+## rendre une quete impossible a terminer.
+const INVENTORY_CAPACITY := 80
 const ITEMS := {
 	"gelee": {"name":"Gelée de Slime", "type":"mat", "icon":"potion_blue.png"},
 	"peau_loup": {"name":"Peau de Loup", "type":"mat", "icon":"armor2.png"},

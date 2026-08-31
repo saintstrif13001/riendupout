@@ -237,6 +237,15 @@ func _process(delta: float) -> bool:
 			inst.player.stats = root.get_node("/root/GameState").compute_stats(inst.char_data)
 			inst.player.mana = inst.player.stats.max_mana
 			inst.get_node("Hud")._process(0.0)
+		elif test_mode.begins_with("show_pos:"):
+			# Place le joueur a des coordonnees precises (x,y) pour photographier
+			# n'importe quel point du monde — notamment les frontieres de zones.
+			var _pp = test_mode.substr(9).split(",")
+			inst.player.global_position = Vector2(float(_pp[0]), float(_pp[1]))
+			inst.player.invuln_until = Time.get_ticks_msec() / 1000.0 + 9999.0
+			inst.player.stats.max_hp = 99999.0
+			inst.player.hp = 99999.0
+			inst.update_zone_lighting(root.get_node("/root/Data").zone_at(inst.player.global_position.x, inst.player.global_position.y).id)
 		elif test_mode.begins_with("show_lm:"):
 			# Depose le joueur sur un lieu remarquable pour le photographier.
 			# root.get_node plutot que le singleton "Data" en direct : capture.gd
@@ -248,6 +257,8 @@ func _process(delta: float) -> bool:
 			inst.player.stats.max_hp = 99999.0
 			inst.player.hp = 99999.0
 			inst.update_zone_lighting(_lm.zone)
+		elif test_mode == "test_zone_borders":
+			_run_zone_borders_test()
 		elif test_mode == "test_landmarks":
 			_run_landmarks_test()
 		elif test_mode == "test_skill_progression":
@@ -2347,6 +2358,106 @@ func _run_float_text_centered_test() -> void:
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
+func _run_zone_borders_test() -> void:
+	print("TEST_START:zone_borders")
+	# Retour du joueur : "maps beaucoup trop petite, changement trop abrupt".
+	# Les zones etaient des rectangles accoles : on changeait de region en
+	# franchissant une LIGNE DROITE, sans obstacle. Pire, la Plaine (niveau
+	# 1-5) partageait toute sa frontiere sud avec la Necropole (niveau 26-30) :
+	# marcher vers le sud depuis la zone de depart menait droit sur des
+	# monstres de niveau 30. Les frontieres sont murees sauf a des passages
+	# declares, ce qui impose un itineraire.
+	var data = root.get_node("/root/Data")
+
+	# 1) Le monde a reellement grandi (la plainte portait aussi sur la taille).
+	var area = data.WORLD_WIDTH * data.WORLD_HEIGHT
+	var bigger_world = area >= 60000000.0
+	# Temps de traversee a la vitesse de base : un monde qu'on traverse en
+	# 30 secondes ne se lit pas comme un monde.
+	var cross_seconds = data.WORLD_WIDTH / 150.0
+	var takes_time = cross_seconds >= 45.0
+
+	# 2) Toute frontiere partagee est soit muree, soit ouverte par un passage
+	# DECLARE — jamais franchissable n'importe ou.
+	var ids = data.ZONES.keys()
+	var borders = []
+	for i in range(ids.size()):
+		for j in range(i + 1, ids.size()):
+			var b = data.shared_border(data.ZONES[ids[i]], data.ZONES[ids[j]])
+			if b.is_empty(): continue
+			borders.append([ids[i], ids[j], b])
+	var found_borders = borders.size()
+
+	# 3) Le saut de niveau maximal entre deux zones RELIEES doit rester
+	# raisonnable. Le village est le hub : on y revient de partout, donc il est
+	# exempte. Ailleurs, une liaison qui ferait bondir de 25 niveaux est
+	# exactement le defaut signale.
+	var worst_jump = 0
+	var worst_pair = ""
+	for l in data.ZONE_LINKS:
+		if l.a == "village" or l.b == "village": continue
+		var za = data.ZONES[l.a]
+		var zb = data.ZONES[l.b]
+		# Ecart entre le bas de gamme de l'une et le haut de l'autre : ce que
+		# le joueur subit en passant de la plus facile a la plus dure.
+		var jump = absi(zb.lvl[0] - za.lvl[1])
+		if jump > worst_jump:
+			worst_jump = jump
+			worst_pair = "%s->%s" % [l.a, l.b]
+	var smooth_progression = worst_jump <= 6
+
+	# 4) La frontiere Plaine/Necropole (25 niveaux d'ecart) doit rester
+	# ENTIEREMENT muree : c'est le cas concret qui a motive tout ceci.
+	var plaine_necro_border = not data.shared_border(data.ZONES.plaine, data.ZONES.necropole).is_empty()
+	var plaine_necro_sealed = data.passage_between("plaine", "necropole").is_empty()
+
+	# 5) Toute liaison declaree doit correspondre a une frontiere REELLE :
+	# une liaison entre deux zones qui ne se touchent pas ouvrirait un passage
+	# dans le vide et laisserait le vrai mur ferme.
+	var links_real = true
+	var bogus = []
+	for l in data.ZONE_LINKS:
+		if data.shared_border(data.ZONES[l.a], data.ZONES[l.b]).is_empty():
+			links_real = false
+			bogus.append("%s|%s" % [l.a, l.b])
+
+	# 6) Le graphe des liaisons doit rester CONNEXE : une zone injoignable a
+	# pied serait un cul-de-sac inaccessible.
+	var reachable = {"village": true}
+	var changed = true
+	while changed:
+		changed = false
+		for l in data.ZONE_LINKS:
+			if reachable.has(l.a) and not reachable.has(l.b): reachable[l.b] = true; changed = true
+			if reachable.has(l.b) and not reachable.has(l.a): reachable[l.a] = true; changed = true
+	var unreachable = []
+	for zid in ids:
+		if not reachable.has(zid): unreachable.append(zid)
+	var all_connected = unreachable.is_empty()
+
+	# 7) Les murs sont reellement construits et bloquent : on verifie qu'un
+	# corps physique existe sur la frontiere Plaine/Necropole, ailleurs qu'au
+	# passage (il n'y en a pas ici, la frontiere est pleine).
+	var built = inst.barrier_bodies.size() > 0
+	var pn = data.shared_border(data.ZONES.plaine, data.ZONES.necropole)
+	var covered = false
+	for body in inst.barrier_bodies:
+		var sh = body.get_child(0).shape
+		var half = sh.size / 2.0
+		# Un mur couvre le milieu de cette frontiere ?
+		var mid = Vector2((pn.from + pn.to) / 2.0, pn.at) if pn.axis == "y" else Vector2(pn.at, (pn.from + pn.to) / 2.0)
+		if absf(body.position.x - mid.x) <= half.x + 1.0 and absf(body.position.y - mid.y) <= half.y + 1.0:
+			covered = true
+	var sealed_in_world = covered
+
+	var all_ok = bigger_world and takes_time and smooth_progression and plaine_necro_border and plaine_necro_sealed and links_real and all_connected and built and sealed_in_world
+	print("TEST_RESULT all_ok=%s monde(%dx%d=%.0fMpx2 plus_grand=%s traversee=%.0fs assez_vaste=%s) frontieres(partagees=%d liaisons=%d reelles=%s%s connexe=%s%s) progression(saut_max=%d %s ok=%s) plaine_necropole(se_touchent=%s muree_en_donnees=%s muree_en_jeu=%s murs=%d)"
+		% [all_ok, int(data.WORLD_WIDTH), int(data.WORLD_HEIGHT), area / 1000000.0, bigger_world, cross_seconds, takes_time,
+		   found_borders, data.ZONE_LINKS.size(), links_real, ("" if links_real else str(bogus)),
+		   all_connected, ("" if all_connected else str(unreachable)),
+		   worst_jump, worst_pair, smooth_progression,
+		   plaine_necro_border, plaine_necro_sealed, sealed_in_world, inst.barrier_bodies.size()])
+
 func _run_landmarks_test() -> void:
 	print("TEST_START:landmarks")
 	# Explorer ne rapportait RIEN : une zone se resumait au trajet teleporteur
@@ -2538,7 +2649,7 @@ func _run_skill_progression_test() -> void:
 	# 6) L'onde de choc doit reellement repousser ET interrompre : c'est ce qui
 	# rattache ces competences au systeme de telegraphes/interruptions, au lieu
 	# d'etre un enieme bouton de degats.
-	p.global_position = Vector2(2700, 2600)
+	p.global_position = Vector2(4300, 4200)
 	var e = inst.spawn_enemy({"x": p.global_position.x + 60, "y": p.global_position.y, "type_id": "orc_chef", "respawn_at": 0.0})
 	e.hp = 99999.0
 	e.max_hp = 99999.0
@@ -2763,7 +2874,7 @@ func _run_hit_reaction_test() -> void:
 	var p = inst.player
 	p.dead = false
 	p.hp = p.stats.max_hp
-	p.global_position = Vector2(2700, 2600)
+	p.global_position = Vector2(4300, 4200)
 	var now = Time.get_ticks_msec() / 1000.0
 
 	# 1) Un coup repousse l'ennemi et le sonne.
@@ -2868,7 +2979,7 @@ func _run_dodge_test() -> void:
 	p.invuln_until = 0.0
 	p.dodge_until = 0.0
 	p.cooldowns.erase("dodge")
-	p.global_position = Vector2(2700, 2600)
+	p.global_position = Vector2(4300, 4200)
 	p.dir = "right"
 
 	var start = p.global_position
@@ -2889,7 +3000,7 @@ func _run_dodge_test() -> void:
 	var actually_moved = p.global_position.distance_to(start) > 40.0
 
 	# Invulnerable : un coup encaisse pendant les i-frames ne doit rien faire.
-	p.global_position = Vector2(2700, 2600)
+	p.global_position = Vector2(4300, 4200)
 	p.hp = p.stats.max_hp
 	p.invuln_until = Time.get_ticks_msec() / 1000.0 + 1.0
 	var hp_before = p.hp

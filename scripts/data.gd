@@ -128,18 +128,18 @@ const PROFESSIONS := {
 ##    Fosse de Braisombre  |    Marais Putride     | Necropole d'Ombrelune
 ##          (20-26)        |       (16-25)         |       (26-30)
 const ZONES := {
-	"village": {"id":"village", "name":"Val-Repos", "x0":2000, "x1":3400, "y0":2000, "y1":3200, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
-	"plaine": {"id":"plaine", "name":"Plaine d'Aubval", "x0":3400, "x1":5200, "y0":2000, "y1":3200, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
-	"foret": {"id":"foret", "name":"Forêt de Sylvombre", "x0":2000, "x1":3400, "y0":0, "y1":2000, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
-	"ruines": {"id":"ruines", "name":"Ruines de Kaldremm", "x0":3400, "x1":5200, "y0":0, "y1":2000, "safe":false, "bg":Color("6b6250"), "lvl":[8,14]},
-	"caverne": {"id":"caverne", "name":"Caverne des Ossements", "x0":0, "x1":2000, "y0":2000, "y1":3200, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
-	"cimes": {"id":"cimes", "name":"Cimes de Givrefer", "x0":0, "x1":2000, "y0":0, "y1":2000, "safe":false, "bg":Color("9fb4c8"), "lvl":[14,20]},
-	"marais": {"id":"marais", "name":"Marais Putride", "x0":2000, "x1":3400, "y0":3200, "y1":5200, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
-	"fosse": {"id":"fosse", "name":"Fosse de Braisombre", "x0":0, "x1":2000, "y0":3200, "y1":5200, "safe":false, "bg":Color("4a2f26"), "lvl":[20,26]},
-	"necropole": {"id":"necropole", "name":"Nécropole d'Ombrelune", "x0":3400, "x1":5200, "y0":3200, "y1":5200, "safe":false, "bg":Color("3b3245"), "lvl":[26,30]},
+	"village": {"id":"village", "name":"Val-Repos", "x0":3600, "x1":5000, "y0":3600, "y1":4800, "safe":true, "bg":Color("4a7a3a"), "lvl":[1,1]},
+	"plaine": {"id":"plaine", "name":"Plaine d'Aubval", "x0":5000, "x1":8600, "y0":3600, "y1":4800, "safe":false, "bg":Color("5a8a42"), "lvl":[1,5]},
+	"foret": {"id":"foret", "name":"Forêt de Sylvombre", "x0":3600, "x1":5000, "y0":0, "y1":3600, "safe":false, "bg":Color("2f5a34"), "lvl":[5,12]},
+	"ruines": {"id":"ruines", "name":"Ruines de Kaldremm", "x0":5000, "x1":8600, "y0":0, "y1":3600, "safe":false, "bg":Color("6b6250"), "lvl":[8,14]},
+	"caverne": {"id":"caverne", "name":"Caverne des Ossements", "x0":0, "x1":3600, "y0":3600, "y1":4800, "safe":false, "bg":Color("332b2b"), "lvl":[10,18]},
+	"cimes": {"id":"cimes", "name":"Cimes de Givrefer", "x0":0, "x1":3600, "y0":0, "y1":3600, "safe":false, "bg":Color("9fb4c8"), "lvl":[14,20]},
+	"marais": {"id":"marais", "name":"Marais Putride", "x0":3600, "x1":5000, "y0":4800, "y1":8400, "safe":false, "bg":Color("3a4a2e"), "lvl":[16,25]},
+	"fosse": {"id":"fosse", "name":"Fosse de Braisombre", "x0":0, "x1":3600, "y0":4800, "y1":8400, "safe":false, "bg":Color("4a2f26"), "lvl":[20,26]},
+	"necropole": {"id":"necropole", "name":"Nécropole d'Ombrelune", "x0":5000, "x1":8600, "y0":4800, "y1":8400, "safe":false, "bg":Color("3b3245"), "lvl":[26,30]},
 }
-const WORLD_WIDTH := 5200.0
-const WORLD_HEIGHT := 5200.0
+const WORLD_WIDTH := 8600.0
+const WORLD_HEIGHT := 8400.0
 # Terres non revendiquees dans les coins de la croix (hors de toute zone nommee) :
 # zone_at() y retombe sur ce pseudo-lieu plutot que de renvoyer un dictionnaire
 # vide (qui ferait planter tout code lisant .id/.name/.bg sans verification).
@@ -395,39 +395,39 @@ const RECIPES := [
 ##          stele / autel / camp / epave / arche / statue / bassin
 const LANDMARK_RADIUS := 90.0
 const LANDMARKS := [
-	{"id":"puits_fondateurs","zone":"village","x":3015,"y":2870,"kind":"bassin","name":"Le Puits des Fondateurs",
+	{"id":"puits_fondateurs","zone":"village","x":4615, "y":4470,"kind":"bassin","name":"Le Puits des Fondateurs",
 		"lore":"Le premier puits creusé par les colons. L'eau y est encore claire — c'est autour de lui que Val-Repos s'est bâti.","reward":{"xp":30,"gold":15}},
-	{"id":"chene_solitaire","zone":"plaine","x":4705,"y":2870,"kind":"statue","name":"Le Chêne Solitaire",
+	{"id":"chene_solitaire","zone":"plaine","x":7610, "y":4470,"kind":"statue","name":"Le Chêne Solitaire",
 		"lore":"Un chêne immense, seul au milieu de la plaine. Les bergers y attachent des rubans pour que leurs bêtes rentrent au soir.","reward":{"xp":60,"gold":25}},
-	{"id":"epave_caravane","zone":"plaine","x":3895,"y":2330,"kind":"epave","name":"L'Épave de la Caravane",
+	{"id":"epave_caravane","zone":"plaine","x":5990, "y":3930,"kind":"epave","name":"L'Épave de la Caravane",
 		"lore":"Des essieux brisés, des caisses éventrées. La marchandise a disparu depuis longtemps ; les ornières, elles, mènent vers la forêt.","reward":{"xp":70,"gold":40}},
-	{"id":"autel_sylvestre","zone":"foret","x":2385,"y":550,"kind":"autel","name":"L'Autel Sylvestre",
+	{"id":"autel_sylvestre","zone":"foret","x":3985, "y":990,"kind":"autel","name":"L'Autel Sylvestre",
 		"lore":"Une dalle moussue couverte d'offrandes fanées. Les rangers y déposent encore une flèche avant les longues traques.","reward":{"xp":140,"gold":60}},
-	{"id":"camp_braconniers","zone":"foret","x":3015,"y":1450,"kind":"camp","name":"Le Camp des Braconniers",
+	{"id":"camp_braconniers","zone":"foret","x":4615, "y":2610,"kind":"camp","name":"Le Camp des Braconniers",
 		"lore":"Un foyer froid, des peaux mal tannées. Ceux qui campaient ici sont partis vite — ou n'ont pas eu le choix.","reward":{"xp":160,"gold":75}},
-	{"id":"grande_arche","zone":"ruines","x":3895,"y":550,"kind":"arche","name":"La Grande Arche de Kaldremm",
+	{"id":"grande_arche","zone":"ruines","x":5990, "y":990,"kind":"arche","name":"La Grande Arche de Kaldremm",
 		"lore":"La porte nord de la cité, toujours debout alors que les remparts sont tombés. On lit encore un mot gravé au sommet : « Reviens ».","reward":{"xp":230,"gold":110}},
-	{"id":"cadran_brise","zone":"ruines","x":4705,"y":1450,"kind":"stele","name":"Le Cadran Brisé",
+	{"id":"cadran_brise","zone":"ruines","x":7610, "y":2610,"kind":"stele","name":"Le Cadran Brisé",
 		"lore":"Un cadran solaire fendu en deux. L'ombre qu'il projette n'indique plus rien, mais elle tombe toujours au même endroit.","reward":{"xp":250,"gold":120}},
-	{"id":"lac_souterrain","zone":"caverne","x":550,"y":2330,"kind":"bassin","name":"Le Lac Souterrain",
+	{"id":"lac_souterrain","zone":"caverne","x":990, "y":3930,"kind":"bassin","name":"Le Lac Souterrain",
 		"lore":"Une nappe d'eau noire et parfaitement immobile. C'est d'ici que venait le nom de « Grotte aux Échos » : un mot crié met sept secondes à revenir.","reward":{"xp":300,"gold":140}},
-	{"id":"fresque_anciens","zone":"caverne","x":1450,"y":2870,"kind":"stele","name":"La Fresque des Anciens",
+	{"id":"fresque_anciens","zone":"caverne","x":2610, "y":4470,"kind":"stele","name":"La Fresque des Anciens",
 		"lore":"Des silhouettes peintes à l'ocre, en procession vers un cercle. Le rituel qui a peuplé cette grotte d'ossements est là, sur la paroi.","reward":{"xp":320,"gold":150}},
-	{"id":"cairn_guetteur","zone":"cimes","x":550,"y":550,"kind":"stele","name":"Le Cairn du Guetteur",
+	{"id":"cairn_guetteur","zone":"cimes","x":990, "y":990,"kind":"stele","name":"Le Cairn du Guetteur",
 		"lore":"Un empilement de pierres plates, entretenu depuis des générations. De là on voit toute la forêt — et ce qui en sort.","reward":{"xp":420,"gold":200}},
-	{"id":"crevasse_bleue","zone":"cimes","x":1450,"y":1450,"kind":"bassin","name":"La Crevasse Bleue",
+	{"id":"crevasse_bleue","zone":"cimes","x":2610, "y":2610,"kind":"bassin","name":"La Crevasse Bleue",
 		"lore":"Une faille dans le glacier, d'un bleu impossible. Brann prétend qu'elle n'a pas de fond ; il n'a jamais tenu à le vérifier.","reward":{"xp":450,"gold":210}},
-	{"id":"arbre_noye","zone":"marais","x":3015,"y":4650,"kind":"statue","name":"L'Arbre Noyé",
+	{"id":"arbre_noye","zone":"marais","x":4615, "y":7410,"kind":"statue","name":"L'Arbre Noyé",
 		"lore":"Un tronc mort dressé au milieu de l'eau croupie, couvert d'oiseaux qui ne chantent pas. Le marais monte d'un doigt chaque année.","reward":{"xp":520,"gold":240}},
-	{"id":"pierres_chantantes","zone":"marais","x":2385,"y":3750,"kind":"stele","name":"Les Pierres Chantantes",
+	{"id":"pierres_chantantes","zone":"marais","x":3985, "y":5790,"kind":"stele","name":"Les Pierres Chantantes",
 		"lore":"Trois menhirs percés par le vent. Le son qu'ils produisent la nuit ressemble à s'y méprendre à une plainte humaine.","reward":{"xp":560,"gold":260}},
-	{"id":"forge_eteinte","zone":"fosse","x":550,"y":3750,"kind":"camp","name":"La Forge Éteinte",
+	{"id":"forge_eteinte","zone":"fosse","x":990, "y":5790,"kind":"camp","name":"La Forge Éteinte",
 		"lore":"Une enclume fendue et un soufflet calciné. Quelqu'un a travaillé ici bien avant Karsk, et n'a pas eu le temps de ranger.","reward":{"xp":700,"gold":330}},
-	{"id":"puits_braise","zone":"fosse","x":1450,"y":4650,"kind":"bassin","name":"Le Puits de Braise",
+	{"id":"puits_braise","zone":"fosse","x":2610, "y":7410,"kind":"bassin","name":"Le Puits de Braise",
 		"lore":"Un gouffre d'où monte une colonne d'air brûlant. C'est de là que vient la chaleur de toute la Fosse. On n'en voit pas le fond.","reward":{"xp":760,"gold":360}},
-	{"id":"mausolee_scelle","zone":"necropole","x":4705,"y":4650,"kind":"arche","name":"Le Mausolée Scellé",
+	{"id":"mausolee_scelle","zone":"necropole","x":7610, "y":7410,"kind":"arche","name":"Le Mausolée Scellé",
 		"lore":"Une porte de pierre sans serrure ni gonds, couverte de sceaux intacts. Ce qui est derrière n'est pas encore sorti.","reward":{"xp":950,"gold":450}},
-	{"id":"obelisque_ombrelune","zone":"necropole","x":3895,"y":3750,"kind":"stele","name":"L'Obélisque d'Ombrelune",
+	{"id":"obelisque_ombrelune","zone":"necropole","x":5990, "y":5790,"kind":"stele","name":"L'Obélisque d'Ombrelune",
 		"lore":"Une aiguille noire gravée des noms de tous ceux qu'on a portés ici. La dernière ligne a été ajoutée récemment.","reward":{"xp":1000,"gold":480}},
 ]
 
@@ -436,87 +436,143 @@ func landmark_by_id(lid: String) -> Dictionary:
 		if l.id == lid: return l
 	return {}
 
+
+## ---------------- Frontieres et passages ----------------
+## Les zones etaient de simples rectangles accoles : on franchissait une LIGNE
+## DROITE et on changeait de region d'un pas, sans transition ni obstacle. Le
+## pire cas : la Plaine d'Aubval (niveau 1-5) partageait toute sa frontiere sud
+## avec la Necropole d'Ombrelune (niveau 26-30) — un debutant qui marchait vers
+## le sud se retrouvait devant des monstres de niveau 30 sans le moindre
+## avertissement. Les frontieres sont desormais infranchissables (falaises,
+## eboulis) SAUF a des passages precis, ce qui impose un itineraire de
+## progression au lieu de laisser traverser n'importe ou.
+##   a, b     : les deux zones reliees
+##   at       : position du passage le long de la frontiere partagee
+##   width    : largeur de l'ouverture
+## Une frontiere entre deux zones qui n'apparait PAS ici est entierement murée.
+const PASSAGE_WIDTH := 300.0
+const ZONE_LINKS := [
+	{"a":"village", "b":"plaine", "at":4200.0},
+	{"a":"village", "b":"foret", "at":4300.0},
+	{"a":"village", "b":"caverne", "at":4200.0},
+	{"a":"village", "b":"marais", "at":4300.0},
+	{"a":"plaine", "b":"ruines", "at":6800.0},
+	{"a":"foret", "b":"ruines", "at":1800.0},
+	{"a":"foret", "b":"cimes", "at":1800.0},
+	{"a":"caverne", "b":"cimes", "at":1800.0},
+	{"a":"caverne", "b":"fosse", "at":1800.0},
+	{"a":"marais", "b":"fosse", "at":6600.0},
+	{"a":"marais", "b":"necropole", "at":6600.0},
+	# Volontairement ABSENT : plaine (1-5) / necropole (26-30). Ces deux zones
+	# se touchent geometriquement, mais 25 niveaux d'ecart : le mur reste plein,
+	# il faut faire le tour par le marais.
+]
+
+## Frontiere partagee par deux zones, ou {} si elles ne se touchent pas.
+## Retourne {axis:"x"|"y", at:<coordonnee de la frontiere>, from:<debut>, to:<fin>}.
+func shared_border(a: Dictionary, b: Dictionary) -> Dictionary:
+	# Cote a cote horizontalement : le bord droit de l'une touche le bord
+	# gauche de l'autre, et leurs plages verticales se recouvrent.
+	for pair in [[a, b], [b, a]]:
+		var l = pair[0]
+		var r = pair[1]
+		if is_equal_approx(l.x1, r.x0):
+			var y0 = maxf(l.y0, r.y0)
+			var y1 = minf(l.y1, r.y1)
+			if y1 > y0: return {"axis":"x", "at":l.x1, "from":y0, "to":y1}
+		if is_equal_approx(l.y1, r.y0):
+			var x0 = maxf(l.x0, r.x0)
+			var x1 = minf(l.x1, r.x1)
+			if x1 > x0: return {"axis":"y", "at":l.y1, "from":x0, "to":x1}
+	return {}
+
+## Passage declare entre deux zones ({} si la frontiere est muree).
+func passage_between(a_id: String, b_id: String) -> Dictionary:
+	for l in ZONE_LINKS:
+		if (l.a == a_id and l.b == b_id) or (l.a == b_id and l.b == a_id): return l
+	return {}
+
 const GATHER_NODES := [
-	{"type":"bois","x":3650,"y":2300}, {"type":"bois","x":3800,"y":2850}, {"type":"bois","x":2292,"y":1600},
-	{"type":"bois","x":3050,"y":1300}, {"type":"bois","x":2583,"y":800},
-	{"type":"minerai","x":4100,"y":2900}, {"type":"minerai","x":1700,"y":2300}, {"type":"minerai","x":1000,"y":2850},
-	{"type":"minerai","x":400,"y":2500},
-	{"type":"herbe","x":3900,"y":2500}, {"type":"herbe","x":4600,"y":2300}, {"type":"herbe","x":2817,"y":1800},
-	{"type":"herbe","x":2933,"y":500},
-	{"type":"bois","x":2350,"y":3600}, {"type":"bois","x":2992,"y":4300},
-	{"type":"minerai","x":2467,"y":4600},
-	{"type":"herbe","x":3050,"y":3700}, {"type":"herbe","x":2700,"y":4900},
+	{"type":"bois","x":5500, "y":3900}, {"type":"bois","x":5800, "y":4450}, {"type":"bois","x":3892, "y":2880},
+	{"type":"bois","x":4650, "y":2340}, {"type":"bois","x":4183, "y":1440},
+	{"type":"minerai","x":6400, "y":4500}, {"type":"minerai","x":3060, "y":3900}, {"type":"minerai","x":1800, "y":4450},
+	{"type":"minerai","x":720, "y":4100},
+	{"type":"herbe","x":6000, "y":4100}, {"type":"herbe","x":7400, "y":3900}, {"type":"herbe","x":4417, "y":3240},
+	{"type":"herbe","x":4533, "y":900},
+	{"type":"bois","x":3950, "y":5520}, {"type":"bois","x":4592, "y":6780},
+	{"type":"minerai","x":4067, "y":7320},
+	{"type":"herbe","x":4650, "y":5700}, {"type":"herbe","x":4300, "y":7860},
 	# Ruines de Kaldremm : on fouille les gravats, on ne bucheronne pas.
-	{"type":"minerai","x":3900,"y":700}, {"type":"minerai","x":4700,"y":1500}, {"type":"minerai","x":4200,"y":1250},
-	{"type":"herbe","x":3700,"y":1600}, {"type":"bois","x":4900,"y":500},
+	{"type":"minerai","x":6000, "y":1260}, {"type":"minerai","x":7600, "y":2700}, {"type":"minerai","x":6600, "y":2250},
+	{"type":"herbe","x":5600, "y":2880}, {"type":"bois","x":8000, "y":900},
 	# Cimes de Givrefer : filons a nu dans la roche gelee.
-	{"type":"minerai","x":600,"y":600}, {"type":"minerai","x":1500,"y":1300}, {"type":"minerai","x":300,"y":1600},
-	{"type":"bois","x":1200,"y":400}, {"type":"herbe","x":900,"y":1100},
+	{"type":"minerai","x":1080, "y":1080}, {"type":"minerai","x":2700, "y":2340}, {"type":"minerai","x":540, "y":2880},
+	{"type":"bois","x":2160, "y":720}, {"type":"herbe","x":1620, "y":1980},
 	# Fosse de Braisombre : mineraux cuits, presque rien de vivant.
-	{"type":"minerai","x":500,"y":3700}, {"type":"minerai","x":1400,"y":4400}, {"type":"minerai","x":900,"y":4900},
-	{"type":"bois","x":1600,"y":3600}, {"type":"herbe","x":400,"y":4200},
+	{"type":"minerai","x":900, "y":5700}, {"type":"minerai","x":2520, "y":6960}, {"type":"minerai","x":1620, "y":7860},
+	{"type":"bois","x":2880, "y":5520}, {"type":"herbe","x":720, "y":6600},
 	# Necropole d'Ombrelune : herbes funeraires et pierre taillee.
-	{"type":"herbe","x":3800,"y":3700}, {"type":"herbe","x":4800,"y":4600}, {"type":"herbe","x":4200,"y":4100},
-	{"type":"minerai","x":4600,"y":3600}, {"type":"bois","x":3600,"y":4800},
+	{"type":"herbe","x":5800, "y":5700}, {"type":"herbe","x":7800, "y":7320}, {"type":"herbe","x":6600, "y":6420},
+	{"type":"minerai","x":7400, "y":5520}, {"type":"bois","x":5400, "y":7680},
 ]
 
 const NPCS := [
-	{"id":"ancien", "name":"l'Ancien Malorin", "x":2400, "y":2400, "role":"quest_turnin", "tint":Color(1,1,1), "lore":[
+	{"id":"ancien", "name":"l'Ancien Malorin", "x":4000, "y":4000, "role":"quest_turnin", "tint":Color(1,1,1), "lore":[
 		"\"Val-Repos fut bâti par des colons fuyant la chute du vieux royaume, il y a trois générations. Les fondations que tu vois sous l'auberge sont d'origine.\"",
 		"\"Autrefois la Forêt de Sylvombre s'étendait jusqu'aux portes du village. On a coupé pour bâtir, et la forêt n'a jamais pardonné — demande aux rôdeurs.\"",
 		"\"La Caverne des Ossements n'a pas toujours porté ce nom. Avant les squelettes, on l'appelait la Grotte aux Échos. Je préfère l'ancien nom, personnellement.\"",
 	]},
-	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":2600, "y":2600, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53), "lore":[
+	{"id":"forgeron_pnj", "name":"Grondar le Forgeron", "x":4200, "y":4200, "role":"profession", "profession":"forgeron", "tint":Color(0.53,0.53,0.53), "lore":[
 		"\"Le bon minerai vient de la Plaine d'Aubval — plus friable, plus facile à purifier que celui de la caverne. Mais celui de la caverne fait de meilleures lames.\"",
 		"\"Mon grand-père forgeait déjà ici. Il disait qu'un vrai forgeron reconnaît la qualité d'un métal au son qu'il fait sur l'enclume, pas à sa couleur.\"",
 		"\"Je n'ai jamais réussi à reproduire les techniques des anciennes armures qu'on trouve parfois en fouillant. Un savoir perdu, sans doute.\"",
 	]},
-	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":2700, "y":2300, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85), "lore":[
+	{"id":"alchimiste_pnj", "name":"Yvenne l'Alchimiste", "x":4300, "y":3900, "role":"profession", "profession":"alchimiste", "tint":Color(0.56,0.29,0.85), "lore":[
 		"\"La gelée de slime est étonnamment stable en potion — c'est l'ichor putride du marais qui est délicat, il faut le travailler vite avant qu'il ne tourne.\"",
 		"\"On m'a longtemps prise pour une sorcière. Je préfère 'chimiste appliquée', mais bon, dans ce village les nuances ne portent pas loin.\"",
 		"\"Les fleurs de la plaine et les champignons de Sylvombre ne se marient jamais bien en potion. J'ai essayé. Trois fois. Ne recommencez pas mon erreur.\"",
 	]},
-	{"id":"marchand", "name":"Bosk le Marchand", "x":2500, "y":2750, "role":"shop", "tint":Color(0.85,0.76,0.29), "lore":[
+	{"id":"marchand", "name":"Bosk le Marchand", "x":4100, "y":4350, "role":"shop", "tint":Color(0.85,0.76,0.29), "lore":[
 		"\"Mes prix montent avec la demande, baissent avec le stock — c'est pas de la magie, c'est du commerce. Demandez à Yvenne pour la magie.\"",
 		"\"J'ai fait la route entre trois villages avant de m'installer ici. Val-Repos a le marché le plus honnête que j'aie vu — enfin, presque.\"",
 		"\"Un jour un aventurier m'a vendu une amulette du marais encore tiède. Je n'ai pas posé de questions. Je pose rarement des questions.\"",
 	]},
-	{"id":"garde", "name":"Garde Ren", "x":3300, "y":2500, "role":"quest", "tint":Color(0.29,0.43,0.85), "lore":[
+	{"id":"garde", "name":"Garde Ren", "x":4900, "y":4100, "role":"quest", "tint":Color(0.29,0.43,0.85), "lore":[
 		"\"La frontière entre le village et la plaine n'a jamais été aussi calme qu'aujourd'hui — et ça, ça m'inquiète plus que ça me rassure.\"",
 		"\"On m'a affecté ici après mon service dans la garde royale. Moins de gloire, mais je dors mieux. La plupart des nuits.\"",
 		"\"Les loups de la plaine chassent en meute organisée depuis peu. Ce n'est pas naturel pour des loups ordinaires.\"",
 	]},
-	{"id":"fermier", "name":"Fermier Otto", "x":3900, "y":2700, "role":"quest", "tint":Color(0.85,0.56,0.29), "lore":[
+	{"id":"fermier", "name":"Fermier Otto", "x":6000, "y":4300, "role":"quest", "tint":Color(0.85,0.56,0.29), "lore":[
 		"\"Mes récoltes ont doublé depuis que les patrouilles du village repoussent les gobelins hors de mes champs. Petit prix à payer en impôts, franchement.\"",
 		"\"Mon père labourait cette terre avant les loups alpha. Il disait que la plaine était plus sauvage encore de son temps. Difficile à croire.\"",
 		"\"Je troque mes légumes contre les potions de Yvenne. Elle prétend que ça la 'venge' des champignons de la forêt. Je n'ai jamais compris la blague.\"",
 	]},
-	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":2350, "y":1300, "role":"quest", "tint":Color(0.29,0.85,0.43), "lore":[
+	{"id":"eclaireur", "name":"Éclaireuse Lira", "x":3950, "y":2340, "role":"quest", "tint":Color(0.29,0.85,0.43), "lore":[
 		"\"Sylvombre porte bien son nom : même en plein midi, la canopée ne laisse passer qu'un filet de lumière. On s'y perd vite si on ne connaît pas les sentiers.\"",
 		"\"Les lucioles qu'on voit la nuit ne sont pas de simples insectes — les anciens de la forêt disent qu'elles suivent les voyageurs égarés jusqu'à un chemin sûr.\"",
 		"\"J'ai cartographié la moitié de cette forêt et je découvre encore des clairières inconnues. Sylvombre garde ses secrets.\"",
 	]},
-	{"id":"ranger", "name":"Ranger Doff", "x":3050, "y":1800, "role":"quest", "tint":Color(0.18,0.54,0.23), "lore":[
+	{"id":"ranger", "name":"Ranger Doff", "x":4650, "y":3240, "role":"quest", "tint":Color(0.18,0.54,0.23), "lore":[
 		"\"Les gobelins de Sylvombre ne sont pas bêtes — ils évitent nos pièges depuis qu'on en a posé un peu trop souvent au même endroit. On varie, maintenant.\"",
 		"\"Un tronc abattu dans cette forêt n'est jamais du bois mort bien longtemps — la mousse et les champignons colonisent tout en quelques semaines à peine.\"",
 		"\"Je chasse ici depuis quinze ans. Je n'ai toujours pas vu la lisière est de la forêt, du côté de la caverne. Certains coins ne m'attirent pas.\"",
 	]},
-	{"id":"pretre", "name":"Prêtre Ozias", "x":1800, "y":2600, "role":"quest", "tint":Color(0.85,0.85,0.85), "lore":[
+	{"id":"pretre", "name":"Prêtre Ozias", "x":3240, "y":4200, "role":"quest", "tint":Color(0.85,0.85,0.85), "lore":[
 		"\"On m'appelait autrefois la 'Grotte aux Échos', avant qu'elle ne devienne la Caverne des Ossements. Les échos, eux, n'ont jamais cessé.\"",
 		"\"Je prie ici pour apaiser les morts qui n'ont pas trouvé le repos. Certains jours, j'ai l'impression qu'ils m'écoutent. D'autres jours, moins.\"",
 		"\"Les cristaux qu'on trouve dans la roche ne sont pas naturels — je crois qu'ils sont nés du même rituel qui a peuplé cette grotte de squelettes.\"",
 	]},
-	{"id":"hulda", "name":"Vieille Hulda", "x":2700, "y":3400, "role":"quest", "tint":Color(0.55,0.7,0.4), "lore":[
+	{"id":"hulda", "name":"Vieille Hulda", "x":4300, "y":5160, "role":"quest", "tint":Color(0.55,0.7,0.4), "lore":[
 		"\"Le Marais Putride n'a pas toujours empesté ainsi. C'est le rituel raté d'un nécromancien d'autrefois qui a corrompu ces eaux, il y a bien longtemps.\"",
 		"\"Les feux follets qui dansent la nuit sur les mares ne sont pas de simples gaz — ce sont les âmes de ceux que le marais a pris et n'a jamais rendus.\"",
 		"\"Le Coeur du Marais que je cherche à récupérer contient ce qu'il reste du rituel original. Le détruire pourrait bien purifier ces terres. Ou pas.\"",
 	]},
-	{"id":"chasseur", "name":"Chasseur Kessler", "x":3100, "y":2450, "role":"bounty", "tint":Color(0.6,0.45,0.25), "lore":[
+	{"id":"chasseur", "name":"Chasseur Kessler", "x":4700, "y":4050, "role":"bounty", "tint":Color(0.6,0.45,0.25), "lore":[
 		"\"Les primes payent mieux que la chasse ordinaire, mais elles attirent aussi les têtes brûlées. Je préfère les aventuriers qui savent quand fuir.\"",
 		"\"J'ai traqué un loup alpha pendant trois semaines avant de comprendre qu'il me traquait aussi. On a fini par se laisser tranquilles, tous les deux.\"",
 		"\"Chaque prime raconte une histoire — une ferme attaquée, une caravane perdue. Je ne les affiche jamais sans vérifier qu'elles sont vraies.\"",
 	]},
-	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":2800, "y":2500, "role":"respec", "tint":Color(0.8,0.65,0.3), "lore":[
+	{"id":"maitre_armes_pnj", "name":"Maître Thoric", "x":4400, "y":4100, "role":"respec", "tint":Color(0.8,0.65,0.3), "lore":[
 		"\"Changer de voie n'est pas une honte — j'ai moi-même été trois choses avant de devenir maître d'armes. On ne trouve pas toujours sa voie du premier coup.\"",
 		"\"J'ai formé la moitié de la garde du village. Certains soirs, je regrette de ne pas avoir mieux formé Ren aux patrouilles de nuit.\"",
 		"\"Un guerrier qui ne doute jamais de ses choix n'apprend jamais rien de nouveau. Le doute, bien dirigé, est un outil comme un autre.\"",
@@ -526,22 +582,22 @@ const NPCS := [
 	# temoin, poste pres de son entree, qui explique ce qu'on regarde et la
 	# rattache au reste du monde (Kaldremm est le "vieux royaume" dont l'Ancien
 	# Malorin dit que les colons de Val-Repos ont fui la chute).
-	{"id":"archeologue", "name":"Sivelle l'Archéologue", "x":4300, "y":1750, "role":"quest", "tint":Color(0.85,0.75,0.5), "lore":[
+	{"id":"archeologue", "name":"Sivelle l'Archéologue", "x":6800, "y":3150, "role":"quest", "tint":Color(0.85,0.75,0.5), "lore":[
 		"\"Kaldremm, c'est le vieux royaume. Celui que les fondateurs de Val-Repos ont fui. Ils n'ont jamais raconté pourquoi — moi, je creuse pour le savoir.\"",
 		"\"Les sentinelles de pierre ne sont pas des statues animées : ce sont les gardes de la cité, changés en pierre pendant leur tour de garde. Ils tiennent encore leur poste.\"",
 		"\"Les pillards qui rôdent ici ne cherchent que de l'or. Ils passent à côté de l'essentiel : ces ruines racontent comment un royaume entier a pu disparaître en une nuit.\"",
 	]},
-	{"id":"guide_montagne", "name":"Brann le Guide", "x":1200, "y":1750, "role":"quest", "tint":Color(0.7,0.85,0.95), "lore":[
+	{"id":"guide_montagne", "name":"Brann le Guide", "x":2160, "y":3150, "role":"quest", "tint":Color(0.7,0.85,0.95), "lore":[
 		"\"Les Cimes de Givrefer ne pardonnent pas l'imprudence. Le froid tue plus d'aventuriers que les loups — et pourtant les loups en tuent beaucoup.\"",
 		"\"Le Jarl Givrefer régnait sur un clan, avant. Le gel l'a pris sans le tuer. Il commande toujours, mais à des colosses de glace maintenant.\"",
 		"\"Le givre éternel qu'on récolte ici ne fond jamais, même dans une forge. Yvenne l'Alchimiste m'en achète tout ce que je descends.\"",
 	]},
-	{"id":"forgeron_cendres", "name":"Karsk des Cendres", "x":1200, "y":3450, "role":"quest", "tint":Color(0.85,0.45,0.3), "lore":[
+	{"id":"forgeron_cendres", "name":"Karsk des Cendres", "x":2160, "y":5250, "role":"quest", "tint":Color(0.85,0.45,0.3), "lore":[
 		"\"La Fosse brûle depuis avant ma naissance et brûlera après ma mort. Personne ne sait ce qui l'alimente. Personne ne descend assez profond pour vérifier.\"",
 		"\"La braise vive garde sa chaleur des années. Grondar refuse d'en travailler — il dit que ça déforme le métal. Il a raison, mais ça fait de meilleures lames.\"",
 		"\"Le Seigneur Braise était un orc, avant. La Fosse ne tue pas toujours : parfois elle garde, et transforme. C'est bien pire.\"",
 	]},
-	{"id":"gardienne_tombes", "name":"Soeur Vaelis", "x":3700, "y":3450, "role":"quest", "tint":Color(0.6,0.5,0.75), "lore":[
+	{"id":"gardienne_tombes", "name":"Soeur Vaelis", "x":5600, "y":5250, "role":"quest", "tint":Color(0.6,0.5,0.75), "lore":[
 		"\"Ombrelune est la dernière nécropole du vieux royaume. Tout ce que Kaldremm a perdu est enterré ici — y compris ce qu'il aurait mieux valu brûler.\"",
 		"\"Le Roi Ossuaire Vhalmir a été enseveli avec sa couronne, sa garde et sa rancune. Deux de ces trois choses se sont relevées.\"",
 		"\"Le Prêtre Ozias prie pour apaiser les morts de sa grotte. Ici, prier ne suffit plus depuis longtemps. Ici, on tranche.\"",

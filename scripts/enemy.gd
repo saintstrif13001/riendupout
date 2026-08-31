@@ -184,6 +184,6 @@ func die() -> void:
 	if collider: collider.disabled = true
 
 func update_visuals() -> void:
-	z_index = int(global_position.y / 2.0) # même échelle que player.gd/world.gd (voir leur commentaire) — tri en profondeur : sinon disparait derrière les maisons/décors
+	z_index = int(global_position.y / 4.0) # même échelle que player.gd/world.gd (voir leur commentaire) — tri en profondeur : sinon disparait derrière les maisons/décors
 	var pct = clamp(hp / max(1.0, max_hp), 0.0, 1.0)
 	hp_fg.size.x = 28 * pct

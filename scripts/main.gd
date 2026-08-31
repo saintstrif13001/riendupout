@@ -83,20 +83,54 @@ func show_main() -> void:
 	_clear()
 	_title("Rien du Pout Online")
 	_sub("Une aventure coopérative jusqu'à 4 joueurs. Val-Repos t'attend...")
-	if GameState.has_save():
-		var saved = GameState.load_saved_character()
-		if not saved.is_empty():
-			var race_name = Data.RACES.get(saved.race, {}).get("name", saved.race)
-			var class_name_ = Data.CLASSES.get(saved.get("class"), {}).get("name", saved.get("class"))
-			_button("▶ Continuer : %s — %s Nv.%d" % [saved.name, class_name_, saved.level], func():
-				GameState.char_data = saved
-				show_continue_mode_select())
-	_button("Nouveau personnage (Solo)", func(): GameState.mode = "solo"; show_char_create())
-	_button("Nouveau personnage (Héberger)", func(): GameState.mode = "host"; show_char_create())
-	_button("Nouveau personnage (Rejoindre)", func(): GameState.mode = "join"; show_join_ip())
+	# Il n'existait qu'UN seul fichier de sauvegarde : creer un nouveau
+	# personnage ecrasait definitivement le precedent, sans avertissement.
+	# Les emplacements sont maintenant listes directement ici — un plein se
+	# reprend, un vide cree un personnage a cet emplacement.
+	_title("Emplacements de sauvegarde", 18)
+	for slot in range(1, GameState.SAVE_SLOTS + 1):
+		var s = GameState.slot_summary(slot)
+		if s.is_empty():
+			_button("Emplacement %d — Vide (nouveau personnage)" % slot, func(): _pick_slot_new(slot))
+		else:
+			var where = " · %s" % s.zone if s.zone != "" else ""
+			_button("▶ Emplacement %d — %s, %s Nv.%d%s" % [slot, s.name, s.class_name, s.level, where],
+				func(): _pick_slot_continue(slot))
+	if GameState.any_save_exists():
+		_button("Supprimer une sauvegarde", show_delete_slots)
 	_button("Options", show_options)
-	if GameState.has_save():
-		_button("Supprimer la sauvegarde", func(): GameState.delete_save(); show_main())
+
+func _pick_slot_new(slot: int) -> void:
+	GameState.current_slot = slot
+	show_new_mode_select()
+
+func _pick_slot_continue(slot: int) -> void:
+	GameState.current_slot = slot
+	GameState.char_data = GameState.load_saved_character(slot)
+	show_continue_mode_select()
+
+func show_new_mode_select() -> void:
+	_clear()
+	_button("< Retour", show_main)
+	_title("Nouveau personnage")
+	_sub("Emplacement %d — Comment veux-tu jouer ?" % GameState.current_slot)
+	_button("Solo", func(): GameState.mode = "solo"; show_char_create())
+	_button("Héberger (coop)", func(): GameState.mode = "host"; show_char_create())
+	_button("Rejoindre", func(): GameState.mode = "join"; show_join_ip())
+
+func show_delete_slots() -> void:
+	_clear()
+	_button("< Retour", show_main)
+	_title("Supprimer une sauvegarde", 22)
+	_sub("Attention : cette action est définitive.")
+	for slot in range(1, GameState.SAVE_SLOTS + 1):
+		var s = GameState.slot_summary(slot)
+		if s.is_empty(): continue
+		_button("Supprimer l'emplacement %d — %s Nv.%d" % [slot, s.name, s.level], func():
+			GameState.delete_save(slot)
+			# Plus rien a supprimer : inutile de rester sur un ecran vide.
+			if GameState.any_save_exists(): show_delete_slots()
+			else: show_main())
 
 func show_options() -> void:
 	_clear()

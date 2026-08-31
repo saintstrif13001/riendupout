@@ -6,21 +6,61 @@ var char_data: Dictionary = {}
 var roster: Dictionary = {} # peer_id(int) -> char_data (host/clients)
 var join_ip: String = "127.0.0.1"
 
-const SAVE_PATH := "user://save.json"
+## ---------------- Sauvegardes (emplacements multiples) ----------------
+## Le jeu n'avait qu'UN seul fichier de sauvegarde : creer un nouveau
+## personnage ecrasait definitivement le precedent. On gere desormais
+## plusieurs emplacements independants.
+const SAVE_SLOTS := 3
+const SAVE_PATH_LEGACY := "user://save.json" # ancien fichier unique, migre vers l'emplacement 1
+var current_slot: int = 1
 
-func has_save() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
+func _ready() -> void:
+	migrate_legacy_save()
 
-func save_character() -> void:
+func slot_path(slot: int) -> String:
+	return "user://save_%d.json" % slot
+
+## Recupere l'ancienne sauvegarde unique dans l'emplacement 1 pour ne pas
+## faire perdre son personnage a un joueur qui met le jeu a jour. Le fichier
+## d'origine est supprime APRES copie reussie : sinon, supprimer l'emplacement
+## 1 le ferait "ressusciter" au lancement suivant.
+func migrate_legacy_save() -> void:
+	if not FileAccess.file_exists(SAVE_PATH_LEGACY): return
+	if FileAccess.file_exists(slot_path(1)): return # emplacement deja occupe, on ne l'ecrase pas
+	var src = FileAccess.open(SAVE_PATH_LEGACY, FileAccess.READ)
+	if src == null: return
+	var txt = src.get_as_text()
+	src.close()
+	var dst = FileAccess.open(slot_path(1), FileAccess.WRITE)
+	if dst == null: return
+	dst.store_string(txt)
+	dst.close()
+	if FileAccess.file_exists(slot_path(1)):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH_LEGACY))
+
+## slot < 0 => emplacement courant. Garde les appels existants valides.
+func _resolve_slot(slot: int) -> int:
+	return current_slot if slot < 0 else slot
+
+func has_save(slot: int = -1) -> bool:
+	return FileAccess.file_exists(slot_path(_resolve_slot(slot)))
+
+func any_save_exists() -> bool:
+	for s in range(1, SAVE_SLOTS + 1):
+		if has_save(s): return true
+	return false
+
+func save_character(slot: int = -1) -> void:
 	if char_data.is_empty(): return
-	var f = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var f = FileAccess.open(slot_path(_resolve_slot(slot)), FileAccess.WRITE)
 	if f == null: return
 	f.store_string(JSON.stringify(char_data))
 	f.close()
 
-func load_saved_character() -> Dictionary:
-	if not has_save(): return {}
-	var f = FileAccess.open(SAVE_PATH, FileAccess.READ)
+func load_saved_character(slot: int = -1) -> Dictionary:
+	var s = _resolve_slot(slot)
+	if not has_save(s): return {}
+	var f = FileAccess.open(slot_path(s), FileAccess.READ)
 	if f == null: return {}
 	var txt = f.get_as_text()
 	f.close()
@@ -32,8 +72,23 @@ func load_saved_character() -> Dictionary:
 		if not parsed.has(k): parsed[k] = defaults[k]
 	return parsed
 
-func delete_save() -> void:
-	if has_save(): DirAccess.remove_absolute(ProjectSettings.globalize_path(SAVE_PATH))
+func delete_save(slot: int = -1) -> void:
+	var s = _resolve_slot(slot)
+	if has_save(s): DirAccess.remove_absolute(ProjectSettings.globalize_path(slot_path(s)))
+
+## Resume d'un emplacement pour l'affichage du menu ({} si vide).
+func slot_summary(slot: int) -> Dictionary:
+	var cd = load_saved_character(slot)
+	if cd.is_empty(): return {}
+	var zone_name = ""
+	if cd.get("last_x") != null and cd.get("last_y") != null:
+		zone_name = Data.zone_at(cd.last_x, cd.last_y).name
+	return {
+		"name": cd.get("name", "?"),
+		"level": cd.get("level", 1),
+		"class_name": Data.CLASSES.get(cd.get("class"), {}).get("name", str(cd.get("class"))),
+		"zone": zone_name,
+	}
 
 func new_character(cname: String, race: String, cls: String, hair_color: String = "#3f2a1a") -> Dictionary:
 	return {

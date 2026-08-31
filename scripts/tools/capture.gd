@@ -218,6 +218,8 @@ func _process(delta: float) -> bool:
 			_run_zone_spawn_safety_test()
 		elif test_mode == "test_decor_density":
 			_run_decor_density_test()
+		elif test_mode == "test_save_slots":
+			_run_save_slots_test()
 		elif test_mode == "test_chat_placeholder_fits":
 			_run_chat_placeholder_fits_test()
 		elif test_mode == "test_npc_dialogue_text":
@@ -2289,6 +2291,71 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_save_slots_test() -> void:
+	print("TEST_START:save_slots")
+	# Demande du joueur : "AJOUT DES SLOT DE SAVE". Le jeu n'avait qu'UN fichier
+	# (user://save.json) : creer un nouveau personnage ecrasait definitivement
+	# le precedent sans prevenir. Verifie que les emplacements sont bien
+	# INDEPENDANTS, et surtout que l'ancienne sauvegarde unique est recuperee
+	# dans l'emplacement 1 (sinon une mise a jour ferait perdre son perso).
+	var gs = root.get_node("/root/GameState")
+
+	# repart d'un etat propre
+	for s in range(1, gs.SAVE_SLOTS + 1): gs.delete_save(s)
+	var starts_empty = not gs.any_save_exists()
+
+	# ecrit trois personnages differents dans trois emplacements
+	gs.current_slot = 1
+	gs.char_data = gs.new_character("Alpha", "humain", "guerrier")
+	gs.char_data.level = 3
+	gs.save_character()
+	gs.current_slot = 2
+	gs.char_data = gs.new_character("Beta", "elfe", "mage")
+	gs.char_data.level = 7
+	gs.save_character()
+
+	var slot1 = gs.load_saved_character(1)
+	var slot2 = gs.load_saved_character(2)
+	var slots_independent = slot1.name == "Alpha" and slot1.level == 3 and slot2.name == "Beta" and slot2.level == 7
+	var empty_slot_stays_empty = not gs.has_save(3) and gs.slot_summary(3).is_empty()
+
+	# le resume alimente le menu
+	var summary = gs.slot_summary(2)
+	var summary_ok = summary.get("name") == "Beta" and summary.get("level") == 7 and String(summary.get("class_name")).contains("Mage")
+
+	# supprimer un emplacement ne doit pas toucher les autres
+	gs.delete_save(1)
+	var delete_is_isolated = not gs.has_save(1) and gs.has_save(2) and gs.load_saved_character(2).name == "Beta"
+
+	# MIGRATION : un ancien user://save.json doit atterrir dans l'emplacement 1
+	# et l'ancien fichier doit disparaitre (sinon il "ressusciterait" apres
+	# suppression de l'emplacement 1).
+	for s in range(1, gs.SAVE_SLOTS + 1): gs.delete_save(s)
+	var legacy = FileAccess.open(gs.SAVE_PATH_LEGACY, FileAccess.WRITE)
+	legacy.store_string(JSON.stringify({"name": "AncienHeros", "race": "nain", "class": "pretre", "level": 12}))
+	legacy.close()
+	gs.migrate_legacy_save()
+	var migrated = gs.load_saved_character(1)
+	var migration_ok = migrated.get("name") == "AncienHeros" and migrated.get("level") == 12
+	var legacy_removed = not FileAccess.file_exists(gs.SAVE_PATH_LEGACY)
+	# la migration comble aussi les champs absents d'une vieille sauvegarde
+	var migration_backfills = migrated.has("inventory") and migrated.has("unlocked_zones")
+
+	# ne doit pas ecraser un emplacement 1 deja occupe
+	var legacy2 = FileAccess.open(gs.SAVE_PATH_LEGACY, FileAccess.WRITE)
+	legacy2.store_string(JSON.stringify({"name": "NeDoitPasEcraser", "race": "orc", "class": "voleur", "level": 1}))
+	legacy2.close()
+	gs.migrate_legacy_save()
+	var no_overwrite = gs.load_saved_character(1).get("name") == "AncienHeros"
+
+	for s in range(1, gs.SAVE_SLOTS + 1): gs.delete_save(s)
+	if FileAccess.file_exists(gs.SAVE_PATH_LEGACY):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(gs.SAVE_PATH_LEGACY))
+
+	var all_ok = starts_empty and slots_independent and empty_slot_stays_empty and summary_ok and delete_is_isolated and migration_ok and legacy_removed and migration_backfills and no_overwrite
+	print("TEST_RESULT all_ok=%s slots=%d starts_empty=%s slots_independent=%s empty_slot_stays_empty=%s summary_ok=%s delete_is_isolated=%s migration_ok=%s legacy_removed=%s migration_backfills=%s no_overwrite=%s"
+		% [all_ok, gs.SAVE_SLOTS, starts_empty, slots_independent, empty_slot_stays_empty, summary_ok, delete_is_isolated, migration_ok, legacy_removed, migration_backfills, no_overwrite])
 
 func _run_chat_placeholder_fits_test() -> void:
 	print("TEST_START:chat_placeholder_fits")

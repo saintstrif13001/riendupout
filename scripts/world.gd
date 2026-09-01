@@ -1631,8 +1631,14 @@ func update_adventurers(delta: float) -> void:
 		# Mise en veille hors de portee de tout joueur : personne ne regarde.
 		if not _near_any_player(a.node.position): continue
 		# Cible conservee entre deux balayages (voir ADV_RETARGET_INTERVAL).
-		var target: Enemy = a.get("target")
-		if target != null and (not is_instance_valid(target) or target.dead): target = null
+		# Verifier la validite AVANT de typer : affecter une instance liberee a une
+		# variable typee "Enemy" leve une erreur en GDScript ("Trying to assign
+		# invalid previously freed instance"). La cible memorisee peut tres bien
+		# avoir ete liberee entre deux ticks (mort, changement de zone).
+		var cached = a.get("target")
+		var target: Enemy = null
+		if cached != null and is_instance_valid(cached) and not cached.dead:
+			target = cached
 		if target == null or now >= a.get("retarget_at", 0.0):
 			target = _adv_find_prey(a)
 			a["target"] = target

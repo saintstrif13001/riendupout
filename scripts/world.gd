@@ -1552,6 +1552,16 @@ const ADV_ATTACK_CD := 1.4
 const ADV_SPEED := 132.0
 const ADV_WANDER_RADIUS := 620.0
 const ADV_RESPAWN := 22.0
+## Rayon d'activite de l'IA. Le monde fait 72 Mpx2 et porte plus de 400
+## monstres : faire decider CHACUN a chaque image coutait la moitie du budget
+## d'une frame a 60 im/s. Au-dela de ce rayon autour d'un joueur, personne ne
+## voit la scene — l'IA est donc mise en veille (les creatures existent
+## toujours, elles ne decident simplement rien).
+const AI_ACTIVE_RADIUS := 1700.0
+## Un aventurier balayait les 400+ monstres a CHAQUE image pour choisir sa
+## proie, soit ~6800 tests de distance par tick a lui seul. Il garde sa cible
+## et ne rebalaye qu'a cet intervalle.
+const ADV_RETARGET_INTERVAL := 0.6
 
 func build_adventurers() -> void:
 	var body_tex = load("res://assets/sprites/player/body_walk.png")
@@ -1601,6 +1611,7 @@ func build_adventurers() -> void:
 				"level": lvl, "max_hp": 70.0 + lvl * 12.0, "hp": 70.0 + lvl * 12.0,
 				"atk": 16.0 + lvl * 3.2, "home": pos, "dest": pos,
 				"last_attack": -100.0, "down_until": 0.0, "dir": "down",
+			"target": null, "retarget_at": 0.0,
 			})
 
 func update_adventurers(delta: float) -> void:
@@ -1617,7 +1628,15 @@ func update_adventurers(delta: float) -> void:
 			for k in a.parts.keys(): a.parts[k].modulate.a = 1.0
 			a.parts.hair.modulate = NPC_HAIR_COLORS[a.level % NPC_HAIR_COLORS.size()]
 			continue
-		var target = _adv_find_prey(a)
+		# Mise en veille hors de portee de tout joueur : personne ne regarde.
+		if not _near_any_player(a.node.position): continue
+		# Cible conservee entre deux balayages (voir ADV_RETARGET_INTERVAL).
+		var target: Enemy = a.get("target")
+		if target != null and (not is_instance_valid(target) or target.dead): target = null
+		if target == null or now >= a.get("retarget_at", 0.0):
+			target = _adv_find_prey(a)
+			a["target"] = target
+			a["retarget_at"] = now + ADV_RETARGET_INTERVAL
 		var moving = false
 		if target != null:
 			var to = target.global_position - a.node.position
@@ -1651,6 +1670,15 @@ func update_adventurers(delta: float) -> void:
 				a.dir = _dir_from_vec(mv)
 		_adv_animate(a, moving)
 		a.node.z_index = int(a.node.position.y / 4.0)
+
+## Un point est-il assez pres d'un joueur pour meriter une IA active ?
+func _near_any_player(p: Vector2) -> bool:
+	if player != null and is_instance_valid(player) and p.distance_to(player.global_position) <= AI_ACTIVE_RADIUS:
+		return true
+	for pid in remote_players.keys():
+		if not is_instance_valid(remote_players[pid]): continue
+		if p.distance_to(remote_players[pid].global_position) <= AI_ACTIVE_RADIUS: return true
+	return false
 
 func _adv_find_prey(a: Dictionary) -> Enemy:
 	var best: Enemy = null
@@ -2779,6 +2807,10 @@ func update_enemies(delta: float) -> void:
 			e.windup_until = 0.0
 			_resolve_enemy_strike(e, target)
 		var winding_up = e.windup_until > 0.0
+		# Mise en veille hors de portee de tout joueur. Place APRES la resolution
+		# d'un coup deja arme ci-dessus : un ennemi ne doit pas rester fige avec
+		# une attaque en suspens parce qu'on s'est eloigne au mauvais moment.
+		if not _near_any_player(e.global_position): continue
 		# Sonne ou repousse : l'ennemi subit son recul et ne decide rien ce
 		# tick. Place APRES la resolution d'armement ci-dessus pour qu'un coup
 		# deja parti aboutisse normalement — seule une interruption l'annule.

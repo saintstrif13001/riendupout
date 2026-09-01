@@ -265,6 +265,8 @@ func _process(delta: float) -> bool:
 			inst.player.stats.max_hp = 99999.0
 			inst.player.hp = 99999.0
 			inst.update_zone_lighting(_a.zone)
+		elif test_mode == "test_perf_budget":
+			_run_perf_budget_test()
 		elif test_mode == "test_name_labels":
 			_run_name_labels_test()
 		elif test_mode == "test_adventurers":
@@ -2497,6 +2499,40 @@ func _run_float_text_centered_test() -> void:
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
 
+func _run_perf_budget_test() -> void:
+	print("TEST_START:perf_budget")
+	# Le monde a ete agrandi 2.7x (27 -> 72 Mpx2) et peuple d'aventuriers.
+	# Le decor et les ennemis etant proportionnels a la SURFACE, tout a grossi
+	# d'un coup. Une carte plus vaste qui rame serait pire que la petite.
+	var data = root.get_node("/root/Data")
+	var counts = {}
+	for group in ["Decor", "Enemies", "NPCs", "GatherNodes", "Zones"]:
+		counts[group] = inst.get_node(group).get_child_count() if inst.has_node(group) else 0
+	var total_nodes = inst.get_tree().get_node_count()
+	var enemies = inst.enemies.size()
+	var advs = inst.adventurers.size()
+
+	# Cout par tick des deux boucles d'IA, mesure sur le vrai chemin de jeu.
+	var t0 = Time.get_ticks_usec()
+	for i in range(30): inst.update_enemies(0.016)
+	var enemy_us = (Time.get_ticks_usec() - t0) / 30.0
+	t0 = Time.get_ticks_usec()
+	for i in range(30): inst.update_adventurers(0.016)
+	var adv_us = (Time.get_ticks_usec() - t0) / 30.0
+	var ai_us = enemy_us + adv_us
+	# 16.6ms = un tick a 60 images/s. L'IA seule ne doit pas en manger plus
+	# d'un quart, sinon il ne reste rien pour le rendu et le reste du jeu.
+	var ai_within_budget = ai_us < 4000.0
+
+	# Godot cale au-dela de quelques dizaines de milliers de noeuds ; on garde
+	# une marge nette pour le decor a venir.
+	var nodes_reasonable = total_nodes < 30000
+
+	var all_ok = ai_within_budget and nodes_reasonable
+	print("TEST_RESULT all_ok=%s monde=%.0fMpx2 noeuds(total=%d %s) population(ennemis=%d aventuriers=%d) ia_par_tick(ennemis=%.0fus aventuriers=%.0fus total=%.0fus budget_ok=%s) noeuds_ok=%s"
+		% [all_ok, data.WORLD_WIDTH * data.WORLD_HEIGHT / 1000000.0, total_nodes, str(counts),
+		   enemies, advs, enemy_us, adv_us, ai_us, ai_within_budget, nodes_reasonable])
+
 func _run_name_labels_test() -> void:
 	print("TEST_START:name_labels")
 	# BUG VU A L'ECRAN : les noms de PNJ n'imposaient aucune taille de police,
@@ -2591,6 +2627,10 @@ func _run_adventurers_test() -> void:
 	var spot = Vector2((z0.x0 + z0.x1) / 2.0, (z0.y0 + z0.y1) / 2.0) + Vector2(0, 240)
 	a0.node.position = spot
 	a0.home = spot
+	# L'IA se met en veille hors du rayon d'activite autour d'un joueur (voir
+	# world.AI_ACTIVE_RADIUS) : sans amener le joueur a portee, cet aventurier
+	# dort et le test observerait une immobilite parfaitement normale.
+	inst.player.global_position = spot + Vector2(0, 120)
 	var prey = inst.spawn_enemy({"x": spot.x + 300, "y": spot.y, "type_id": "slime_vert", "respawn_at": 0.0})
 	prey.hp = 99999.0
 	prey.max_hp = 99999.0
@@ -2608,6 +2648,12 @@ func _run_adventurers_test() -> void:
 	# 3) Arrive a portee, il frappe REELLEMENT : les PV du monstre baissent.
 	a0.node.position = prey.global_position - Vector2(40, 0)
 	a0.last_attack = -100.0
+	# L'aventurier CONSERVE sa cible entre deux balayages (voir
+	# ADV_RETARGET_INTERVAL) : sans vider ce cache il continuerait de viser la
+	# proie choisie a l'etape precedente au lieu de celle qu'on lui met sous le
+	# nez, et le test conclurait a tort qu'il ne frappe pas.
+	a0["target"] = null
+	a0["retarget_at"] = 0.0
 	var hp_before = prey.hp
 	inst.update_adventurers(0.016)
 	var deals_damage = prey.hp < hp_before
@@ -2616,6 +2662,8 @@ func _run_adventurers_test() -> void:
 	# nettoierait la zone tout seul, privant le joueur de ses proies.
 	var adv_hp_before = a0.hp
 	a0.last_attack = -100.0
+	a0["target"] = null
+	a0["retarget_at"] = 0.0
 	inst.update_adventurers(0.016)
 	var takes_damage = a0.hp < adv_hp_before
 
@@ -2623,6 +2671,8 @@ func _run_adventurers_test() -> void:
 	# definitivement du monde).
 	a0.hp = 0.5
 	a0.last_attack = -100.0
+	a0["target"] = null
+	a0["retarget_at"] = 0.0
 	inst.update_adventurers(0.016)
 	var goes_down = a0.down_until > 0.0
 	var stays_down = true
@@ -2671,6 +2721,8 @@ func _run_adventurers_test() -> void:
 	a0.hp = a0.max_hp
 	a0.down_until = 0.0
 	a0.last_attack = -100.0
+	a0["target"] = null
+	a0["retarget_at"] = 0.0
 	inst.update_adventurers(0.016)
 	var victim_died = victim.dead
 	var no_xp_leak = inst.char_data.xp == 0 and inst.char_data.level == 1
@@ -3288,7 +3340,11 @@ func _run_hit_reaction_test() -> void:
 	# resolution et croire que l'ennemi restait inerte.
 	var attack_before = e4.last_attack
 	e4.stagger_until = 0.0
-	for i in range(5):
+	# Assez de ticks pour qu'il COMBLE la distance avant de frapper : la
+	# collision le repousse a ~36px du joueur, soit juste au-dela des 34px ou
+	# l'archetype cesse d'avancer. Avec 5 ticks il passait son temps a
+	# s'approcher sans jamais arriver a portee.
+	for i in range(40):
 		inst.update_enemies(0.016)
 	var resumes_after_stagger = e4.last_attack > attack_before
 

@@ -544,13 +544,49 @@ func _find_button_with_text(node: Node, needle: String) -> Button:
 
 func _run_continue_menu_test() -> void:
 	print("TEST_START:continue_menu")
-	var btn = _find_button_with_text(inst, "Continuer")
-	print("TEST_CONTINUE_BUTTON_FOUND=%s text=%s" % [btn != null, btn.text if btn else ""])
-	if btn:
-		btn.pressed.emit()
-		print("TEST_AFTER_CLICK mode_screen_shown=%s" % [_find_button_with_text(inst, "Solo") != null])
-		var gs = root.get_node("/root/GameState")
-		print("TEST_RESULT loaded_char_name=%s loaded_level=%s" % [gs.char_data.get("name"), gs.char_data.get("level")])
+	# Ce test cherchait un bouton "Continuer" sur l'ecran d'accueil. Ce bouton
+	# n'existe plus depuis le passage aux EMPLACEMENTS de sauvegarde : le menu
+	# liste directement les emplacements. Il rapportait donc FOUND=false depuis,
+	# sans que personne le voie — il n'imprimait aucune ligne "TEST_RESULT", et
+	# le balayage de regression ne reconnaissait que ce prefixe. Il teste
+	# desormais le vrai parcours.
+	var gs = root.get_node("/root/GameState")
+	var slot_btn = null
+	var new_btn = null
+	for b in _all_buttons(inst):
+		if b.text.begins_with("▶ Emplacement"): slot_btn = b
+		elif "Vide (nouveau personnage)" in b.text and new_btn == null: new_btn = b
+	# Un emplacement occupe s'affiche avec le nom, la classe et le niveau du
+	# personnage : c'est ce qui permet de choisir sans ouvrir la partie.
+	var lists_filled_slot = slot_btn != null
+	var shows_identity = false
+	if slot_btn:
+		var saved = gs.load_saved_character(1)
+		shows_identity = saved.get("name", "?") in slot_btn.text and ("Nv.%d" % saved.get("level", 0)) in slot_btn.text
+	# Un emplacement vide propose de creer un personnage a cet endroit.
+	var offers_empty_slot = new_btn != null
+
+	# Cliquer un emplacement occupe charge CE personnage et mene au choix du
+	# mode de jeu (solo / heberger / rejoindre).
+	var loaded_ok = false
+	var mode_screen = false
+	if slot_btn:
+		slot_btn.pressed.emit()
+		mode_screen = _find_button_with_text(inst, "Solo") != null
+		loaded_ok = gs.char_data.get("name", "") != "" and gs.char_data.get("level", 0) >= 1
+
+	var all_ok = lists_filled_slot and shows_identity and offers_empty_slot and mode_screen and loaded_ok
+	print("TEST_RESULT all_ok=%s emplacements(occupe_liste=%s identite_affichee=%s vide_propose=%s) clic(ecran_mode=%s personnage_charge=%s %s Nv.%s)"
+		% [all_ok, lists_filled_slot, shows_identity, offers_empty_slot, mode_screen, loaded_ok,
+		   gs.char_data.get("name", "-"), gs.char_data.get("level", "-")])
+
+## Tous les Button de l'arbre, pour inspecter un ecran de menu sans dependre de
+## la structure exacte des conteneurs.
+func _all_buttons(node: Node) -> Array:
+	var out = []
+	if node is Button: out.append(node)
+	for c in node.get_children(): out.append_array(_all_buttons(c))
+	return out
 
 func _run_dead_actions_test() -> void:
 	print("TEST_START:dead_actions")
@@ -612,6 +648,7 @@ func _run_crafting_test() -> void:
 func _run_all_class_skills_test() -> void:
 	print("TEST_START:all_class_skills")
 	var data = root.get_node("/root/Data")
+	var failed_classes = []
 	for cls_id in data.CLASSES.keys():
 		inst.char_data["class"] = cls_id
 		inst.player.setup(inst.char_data, true, 1)
@@ -634,8 +671,20 @@ func _run_all_class_skills_test() -> void:
 			inst.player.hp, inst.player.mana, inst.player.stats.atk, inst.player.stats.def, inst.player.stats.spd,
 			pos_before.distance_to(inst.player.global_position)]
 		print("TEST_CLASS=%s skill0[%s] skill1[%s]" % [cls_id, mid, final])
+		# Verdict par classe : chaque competence de depart doit AVOIR un effet
+		# (degats, soin, bouclier, deplacement ou statistique modifiee) et couter
+		# sa mana. Sans ce controle, une classe dont la competence ne faisait plus
+		# rien passait inapercue — le test n'imprimait que des chiffres.
+		var spent = inst.player.mana < mana_before
+		var did_something = (e.hp < e.max_hp or inst.player.hp > hp_before
+			or inst.player.shield > 0.0 or inst.player.stats.atk > atk_before
+			or pos_before.distance_to(inst.player.global_position) > 1.0)
+		if not (spent and did_something): failed_classes.append(cls_id)
+		inst.player.shield = 0.0
 		e.queue_free()
 		inst.enemies.erase(e.uid)
+	var all_ok = failed_classes.is_empty()
+	print("TEST_RESULT all_ok=%s classes_testees=%d sans_effet=%s" % [all_ok, data.CLASSES.size(), str(failed_classes)])
 
 func _run_party_targeting_test() -> void:
 	print("TEST_START:party_targeting")
@@ -702,14 +751,34 @@ func _run_souls_test() -> void:
 	print("TEST_RECLAIM gold_before=%d gold_after=%d bloodstain_cleared=%s" % [gold_before_reclaim, inst.char_data.gold, inst.char_data.bloodstain == null])
 
 	# test cooldown de potion
+	# Le joueur est MORT depuis le test de tache de sang ci-dessus, et un mort
+	# ne peut pas boire (voir test_dead_actions) : cette section ne testait donc
+	# rien du tout — elle imprimait "hp_after_1st=10" sans que personne le
+	# releve, faute de verdict machine. On le remet debout d'abord.
+	p.respawn(inst.get_zone_spawn("village"))
 	inst.char_data.inventory["potion_vie"] = 5
 	p.hp = 10
+	p.cooldowns.erase("item_potion_vie")
 	var hud = inst.get_node("Hud")
 	hud.use_item("potion_vie")
 	var hp_after_1st = p.hp
 	hud.use_item("potion_vie") # doit être bloqué par le cooldown
 	print("TEST_POTION_CD hp_after_1st_use=%.1f hp_after_2nd_immediate=%.1f (doit être identique) inv_left=%d"
 		% [hp_after_1st, p.hp, inst.char_data.inventory.potion_vie])
+	# Verdict machine (ce test ne produisait que des diagnostics a lire a l'oeil).
+	# Les seuils traduisent l'intention "souls-like" : un coup ordinaire pique,
+	# un coup de boss ampute une grosse part de la barre, la mort coute la
+	# moitie de l'or et la tache est recuperable une fois, et une potion ne se
+	# spamme pas.
+	var slime_hurts = applied1 / p.stats.max_hp > 0.05
+	var boss_hurts_more = applied2 > applied1 * 2.0
+	var death_costs_gold = gold_before_reclaim < 100 and inst.char_data.bloodstain == null
+	var reclaim_worked = inst.char_data.gold > gold_before_reclaim
+	var potion_healed = hp_after_1st > 10.0
+	var potion_cd_blocks = absf(p.hp - hp_after_1st) < 0.01 and inst.char_data.inventory.potion_vie == 4
+	var all_ok = slime_hurts and boss_hurts_more and death_costs_gold and reclaim_worked and potion_healed and potion_cd_blocks
+	print("TEST_RESULT all_ok=%s degats(coup_ordinaire_pique=%s boss_bien_pire=%s) mort(or_perdu=%s tache_recuperee=%s) potion(soigne=%s recharge_bloque=%s)"
+		% [all_ok, slime_hurts, boss_hurts_more, death_costs_gold, reclaim_worked, potion_healed, potion_cd_blocks])
 
 func _run_respec_test() -> void:
 	print("TEST_START:respec")
@@ -754,6 +823,7 @@ func _run_race_quest_test() -> void:
 	print("TEST_START:race_quests")
 	var data = root.get_node("/root/Data")
 	var hud = inst.get_node("Hud")
+	var wrong_races = []
 	for race in ["humain", "elfe", "nain", "orc", "ratkin", "golem"]:
 		inst.char_data.race = race
 		inst.char_data.quests_active = {}
@@ -767,6 +837,12 @@ func _run_race_quest_test() -> void:
 			var btn = _find_button_with_text(hud.dialogue_box, "Accepter : " + q.name)
 			if btn: visible_race_quest_names.append(qid)
 		print("TEST_RACE=%s hud_shows=%s" % [race, visible_race_quest_names])
+		# Chaque race ne doit voir QUE sa propre quete raciale. Sans verdict
+		# machine, une race qui se serait mise a voir celle d'une autre (ou
+		# aucune) serait passee inapercue : le test n'imprimait qu'une liste.
+		if visible_race_quest_names != ["q_race_" + race]: wrong_races.append("%s->%s" % [race, str(visible_race_quest_names)])
+	var all_ok = wrong_races.is_empty()
+	print("TEST_RESULT all_ok=%s races_testees=6 mauvaise_quete=%s" % [all_ok, str(wrong_races)])
 
 func _run_travel_test() -> void:
 	print("TEST_START:travel")
@@ -1068,8 +1144,9 @@ func _run_zone_lighting_test() -> void:
 	var final_color = inst.canvas_modulate.color
 	var expected = inst.ZONE_LIGHT["caverne"]
 	var converged = final_color.is_equal_approx(expected)
-	print("TEST_RESULT zone_switched=%s no_duplicate_retrigger=%s converged_to_caverne_tint=%s final_color=%s expected=%s"
-		% [zone_switched, color_unchanged_on_repeat, converged, final_color, expected])
+	var all_ok = zone_switched and color_unchanged_on_repeat and converged
+	print("TEST_RESULT all_ok=%s zone_switched=%s no_duplicate_retrigger=%s converged_to_caverne_tint=%s final_color=%s expected=%s"
+		% [all_ok, zone_switched, color_unchanged_on_repeat, converged, final_color, expected])
 
 func _run_quest_chain_test() -> void:
 	print("TEST_START:quest_chain")
@@ -1561,8 +1638,11 @@ func _run_enemy_anim_test() -> void:
 	await create_timer(0.5).timeout # laisse l'attaque se terminer et la respiration reprendre
 	var scale_restored = e.sprite.scale.is_equal_approx(Vector2(1,1))
 	var idle_restarted = e._idle_tween != null and e._idle_tween.is_valid()
-	print("TEST_RESULT has_idle_field=%s scaled_up_during_attack=%s scale_restored_after=%s idle_restarted_after=%s"
-		% [has_idle_tween_field, scaled_up_immediately, scale_restored, idle_restarted])
+	# Verdict machine : sans "all_ok", le balayage de regression ne pouvait pas
+	# juger ce test — il restait invisible meme en echec.
+	var all_ok = has_idle_tween_field and scaled_up_immediately and scale_restored and idle_restarted
+	print("TEST_RESULT all_ok=%s has_idle_field=%s scaled_up_during_attack=%s scale_restored_after=%s idle_restarted_after=%s"
+		% [all_ok, has_idle_tween_field, scaled_up_immediately, scale_restored, idle_restarted])
 
 func _run_spell_fx_test() -> void:
 	print("TEST_START:spell_fx")
@@ -4180,8 +4260,9 @@ func _run_music_system_test() -> void:
 	for i in range(45): await process_frame
 	var tension_gain_rising = audio._tension_gain > 0.02
 
-	print("TEST_RESULT music_bus_exists=%s music_bus_routed_to_master=%s music_volume_persisted=%s calm_dominant_in_village=%s mood_switched_to_tension=%s tension_gain_rising=%s (tension_gain=%.2f)"
-		% [music_bus_exists, music_bus_routed_to_master, music_volume_persisted, calm_dominant_in_village, mood_switched_to_tension, tension_gain_rising, audio._tension_gain])
+	var all_ok = music_bus_exists and music_bus_routed_to_master and music_volume_persisted and calm_dominant_in_village and mood_switched_to_tension and tension_gain_rising
+	print("TEST_RESULT all_ok=%s music_bus_exists=%s music_bus_routed_to_master=%s music_volume_persisted=%s calm_dominant_in_village=%s mood_switched_to_tension=%s tension_gain_rising=%s (tension_gain=%.2f)"
+		% [all_ok, music_bus_exists, music_bus_routed_to_master, music_volume_persisted, calm_dominant_in_village, mood_switched_to_tension, tension_gain_rising, audio._tension_gain])
 
 func _run_chat_test() -> void:
 	print("TEST_START:chat")
@@ -4298,16 +4379,27 @@ func _run_skills_test() -> void:
 	var atk_before = inst.player.stats.atk
 	var def_before = inst.player.stats.def
 	inst.use_skill(0) # Coup Puissant (dmg)
+	var mana_after0 = inst.player.mana
+	var enemy_damaged = e.hp < e.max_hp
+	var had_cd0 = inst.player.cooldowns.has("skill0")
 	print("TEST_SKILL0 mana_before=%.1f mana_after=%.1f enemy_hp=%.1f/%.1f cooldown_set=%s"
 		% [mana_before, inst.player.mana, e.hp, e.max_hp, inst.player.cooldowns.has("skill0")])
 	inst.player.mana = inst.player.stats.max_mana # assure assez de mana pour tester le buff isolément
 	inst.use_skill(1) # Cri de Guerre (buff)
+	var atk_rose = inst.player.stats.atk > atk_before
 	print("TEST_SKILL1 atk_before=%.2f atk_after=%.2f def_before=%.2f def_after=%.2f mana_after=%.1f"
 		% [atk_before, inst.player.stats.atk, def_before, inst.player.stats.def, inst.player.mana])
 	# re-tente immédiatement : doit être bloqué par le cooldown (aucun changement de mana)
 	var mana_before_cd = inst.player.mana
 	inst.use_skill(0)
-	print("TEST_COOLDOWN_BLOCKS_REUSE mana_unchanged=%s" % [inst.player.mana == mana_before_cd])
+	var cd_blocks = inst.player.mana == mana_before_cd
+	print("TEST_COOLDOWN_BLOCKS_REUSE mana_unchanged=%s" % [cd_blocks])
+	# Verdict machine : ce test n'imprimait que des diagnostics a lire a l'oeil,
+	# donc le balayage de regression ne pouvait pas le juger — il aurait pu
+	# echouer des mois sans que personne le voie.
+	var all_ok = mana_after0 < mana_before and enemy_damaged and had_cd0 and atk_rose and cd_blocks
+	print("TEST_RESULT all_ok=%s cout_mana=%s degats_infliges=%s recharge_posee=%s buff_applique=%s recharge_bloque=%s"
+		% [all_ok, mana_after0 < mana_before, enemy_damaged, had_cd0, atk_rose, cd_blocks])
 
 func _run_reputation_test() -> void:
 	print("TEST_START:reputation")

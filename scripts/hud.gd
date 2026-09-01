@@ -243,10 +243,24 @@ const HOTBAR_SLOT_SIZE := 52.0
 ## systeme au lieu de le supposer.
 const HOTBAR_PHYSICAL_KEYS := [KEY_Q, KEY_E, KEY_R, KEY_T]
 
+## Libelles resolus UNE fois et memorises. keyboard_get_keycode_from_physical
+## n'est pas supportee par tous les serveurs d'affichage (elle echoue en
+## headless) : appelee depuis _process pour chaque emplacement, elle produisait
+## une erreur par emplacement et par frame. La disposition clavier ne change
+## pas en cours de partie, donc un cache suffit — et il rend l'echec inoffensif.
+static var _key_label_cache: Dictionary = {}
+
 static func key_label(physical: Key) -> String:
-	var local = DisplayServer.keyboard_get_keycode_from_physical(physical)
-	if local == 0: local = physical
-	return OS.get_keycode_string(local)
+	if _key_label_cache.has(physical): return _key_label_cache[physical]
+	var local = physical
+	# La methode existe toujours mais ECHOUE selon le serveur d'affichage
+	# (headless notamment) : has_method ne suffit pas, on ecarte le cas explicitement.
+	if DisplayServer.get_name() != "headless":
+		var mapped = DisplayServer.keyboard_get_keycode_from_physical(physical)
+		if mapped != 0: local = mapped
+	var out = OS.get_keycode_string(local)
+	_key_label_cache[physical] = out
+	return out
 
 static func hotbar_key_labels() -> Array:
 	var out = []

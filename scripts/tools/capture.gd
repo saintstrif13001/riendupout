@@ -496,7 +496,10 @@ func _run_quest_test() -> void:
 	print("TEST_QUESTS_AFTER_TALK active=%s" % [inst.char_data.quests_active])
 	var q = data.get_quest("q_intro")
 	var done = inst.char_data.quests_active.get("q_intro", 0) >= q.obj.count
-	print("TEST_RESULT quest_ready_to_turn_in=%s" % [done])
+	# Verdict : parler au bon PNJ doit faire progresser la quete jusqu'a la
+	# rendre rendable.
+	var all_ok = done
+	print("TEST_RESULT all_ok=%s prete_a_rendre=%s progression=%d/%d" % [all_ok, done, inst.char_data.quests_active.get("q_intro", 0), q.obj.count])
 
 func _run_bounty_test() -> void:
 	print("TEST_START:bounty")
@@ -512,6 +515,8 @@ func _run_bounty_test() -> void:
 			e.take_damage(9999)
 			tries += 1
 		inst.grant_kill_rewards(inst.player, e, false)
+	var progressed = inst.char_data.bounty != null and inst.char_data.bounty.progress >= b.count
+	var not_paid_yet = inst.char_data.gold == gold_before
 	print("TEST_RESULT bounty_progress=%d/%d gold_before=%d gold_after=%d bounty_cleared=%s"
 		% [inst.char_data.bounty.progress if inst.char_data.bounty else -1, b.count, gold_before, inst.char_data.gold, inst.char_data.bounty == null])
 	# la progression seule ne paie rien : il faut encaisser via collect_bounty() (bouton PNJ "Chasseur")
@@ -524,9 +529,16 @@ func _run_bounty_test() -> void:
 	# pas un bug de jeu. collect_bounty() renvoie maintenant le résultat de
 	# gain_xp() (montant réel + a-t-il fait monter de niveau) pour un test fiable.
 	var xp_res = hud.collect_bounty()
-	print("TEST_RESULT2 collected=%s gold_gained=%d xp_gained=%d leveled=%s bounties_done_incremented=%s bounty_now_null=%s"
-		% [true, inst.char_data.gold - gold_before_collect, xp_res.get("amount", -1), xp_res.get("leveled", false),
-			inst.char_data.bounties_done == bounties_done_before + 1, inst.char_data.bounty == null])
+	# Verdict : tuer la cible remplit la prime SANS payer, et seul l'encaissement
+	# aupres du chasseur verse or et xp, incremente le compteur et libere la
+	# prime pour la suivante.
+	var paid = inst.char_data.gold - gold_before_collect >= b.reward_gold
+	var xp_given = xp_res.get("amount", -1) > 0
+	var counted = inst.char_data.bounties_done == bounties_done_before + 1
+	var cleared = inst.char_data.bounty == null
+	var all_ok = progressed and not_paid_yet and paid and xp_given and counted and cleared
+	print("TEST_RESULT2 all_ok=%s chasse(progresse=%s pas_paye_avant=%s) encaissement(or=%s xp=%s compteur=%s prime_liberee=%s) gold_gained=%d xp_gained=%d"
+		% [all_ok, progressed, not_paid_yet, paid, xp_given, counted, cleared, inst.char_data.gold - gold_before_collect, xp_res.get("amount", -1)])
 
 func _run_save_test() -> void:
 	print("TEST_START:save")
@@ -540,8 +552,17 @@ func _run_save_test() -> void:
 	inst.save_now()
 	print("TEST_SAVE_FILE_EXISTS=%s" % gs.has_save())
 	var loaded = gs.load_saved_character()
-	print("TEST_RESULT level=%d gold=%d quests=%s inv=%s last_x=%s last_y=%s hp_field=%s"
-		% [loaded.get("level"), loaded.get("gold"), loaded.get("quests_completed"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y"), loaded.get("hp")])
+	# Verdict : tout ce qu'on vient d'ecrire doit se relire a l'identique. Une
+	# sauvegarde qui perd un champ en silence est le pire bug possible.
+	var file_ok = gs.has_save()
+	var lvl_ok = loaded.get("level") == 7
+	var gold_ok = loaded.get("gold") == 555
+	var quests_ok = loaded.get("quests_completed") == ["q_intro", "q_slime1"]
+	var inv_ok = loaded.get("inventory", {}).get("minerai", 0) == 3 and loaded.get("inventory", {}).get("epee_fer", 0) == 1
+	var pos_ok = absf(float(loaded.get("last_x", 0)) - 3333.0) < 1.0 and absf(float(loaded.get("last_y", 0)) - 444.0) < 1.0
+	var all_ok = file_ok and lvl_ok and gold_ok and quests_ok and inv_ok and pos_ok
+	print("TEST_RESULT all_ok=%s fichier=%s niveau=%s or=%s quetes=%s inventaire=%s position=%s (level=%s gold=%s inv=%s last=%s,%s)"
+		% [all_ok, file_ok, lvl_ok, gold_ok, quests_ok, inv_ok, pos_ok, loaded.get("level"), loaded.get("gold"), JSON.stringify(loaded.get("inventory")), loaded.get("last_x"), loaded.get("last_y")])
 
 func _find_button_with_text(node: Node, needle: String) -> Button:
 	if node is Button and needle in node.text: return node
@@ -607,20 +628,26 @@ func _run_dead_actions_test() -> void:
 	var hp_before = p.hp
 	var qty_before = inst.char_data.inventory.potion_vie
 	hud.use_item("potion_vie")
+	var potion_blocked = p.hp == hp_before and inst.char_data.inventory.potion_vie == qty_before
 	print("TEST_RESULT potion_blocked_while_dead=%s hp_unchanged=%s qty_unchanged=%s"
 		% [p.hp == hp_before and inst.char_data.inventory.potion_vie == qty_before, p.hp == hp_before, inst.char_data.inventory.potion_vie == qty_before])
 	# équiper : ne doit rien faire non plus tant qu'on est mort
 	inst.char_data.inventory["epee_fer"] = 1
 	var equip_before = inst.char_data.equipment.get("weapon", "")
 	hud.equip_item("epee_fer")
-	print("TEST_RESULT equip_blocked_while_dead=%s" % [inst.char_data.equipment.get("weapon","") == equip_before])
+	var equip_blocked = inst.char_data.equipment.get("weapon","") == equip_before
+	print("TEST_RESULT equip_blocked_while_dead=%s" % [equip_blocked])
 	# après réapparition, les deux doivent refonctionner normalement
 	p.respawn(inst.get_zone_spawn("village"))
 	p.hp = 50.0
 	hud.use_item("potion_vie")
 	hud.equip_item("epee_fer")
-	print("TEST_RESULT works_again_after_respawn=%s hp_after=%.1f weapon=%s"
-		% [inst.char_data.equipment.get("weapon","") == "epee_fer" and p.hp > 50.0, p.hp, inst.char_data.equipment.get("weapon","")])
+	# Verdict : mort, on ne peut ni boire ni s'equiper (sinon on gaspille des
+	# objets limites) ; une fois releve, les deux refonctionnent.
+	var works_again = inst.char_data.equipment.get("weapon","") == "epee_fer" and p.hp > 50.0
+	var all_ok = potion_blocked and equip_blocked and works_again
+	print("TEST_RESULT all_ok=%s mort(potion_bloquee=%s equipement_bloque=%s) vivant(refonctionne=%s hp=%.1f arme=%s)"
+		% [all_ok, potion_blocked, equip_blocked, works_again, p.hp, inst.char_data.equipment.get("weapon","")])
 
 func _run_crafting_test() -> void:
 	print("TEST_START:crafting")
@@ -881,8 +908,9 @@ func _run_travel_test() -> void:
 	inst.respawn_at = 0.0
 	inst.handle_respawn(0.0)
 	var expected = inst.get_zone_spawn("marais")
-	print("TEST_RESULT respawn_pos=%s expected_marais_spawn=%s village_spawn=%s dead=%s"
-		% [inst.player.global_position, expected, inst.get_zone_spawn("village"), inst.player.dead])
+	var all_ok = expected.distance_to(inst.player.global_position) < 1.0 and not inst.player.dead
+	print("TEST_RESULT all_ok=%s respawn_pos=%s expected_marais_spawn=%s village_spawn=%s dead=%s"
+		% [all_ok, inst.player.global_position, expected, inst.get_zone_spawn("village"), inst.player.dead])
 	# teste le voyage rapide vers le village depuis le marais (travel_to est une coroutine
 	# depuis l'ajout du fondu écran-noir : il faut l'attendre pour lire la position finale)
 	var hud = inst.get_node("Hud")
@@ -937,8 +965,15 @@ func _run_death_test() -> void:
 	print("TEST_HIT_WHILE_DEAD applied=%.1f (doit être 0)" % applied2)
 	var village_spawn = inst.get_zone_spawn("village")
 	p.respawn(village_spawn)
-	print("TEST_RESULT after_respawn dead=%s hp=%.1f max_hp=%.1f pos=%s expected_pos=%s"
-		% [p.dead, p.hp, p.stats.max_hp, p.global_position, village_spawn])
+	# Verdict : mourir doit tuer, un coup sur un mort ne doit rien faire, et la
+	# reapparition doit rendre toute la vie AU BON ENDROIT.
+	var died = applied > 0.0
+	var no_hit_while_dead = applied2 == 0.0
+	var revived = not p.dead and absf(p.hp - p.stats.max_hp) < 0.01
+	var right_spot = p.global_position.distance_to(village_spawn) < 1.0
+	var all_ok = died and no_hit_while_dead and revived and right_spot
+	print("TEST_RESULT all_ok=%s mort(subit=%s insensible_une_fois_mort=%s) reapparition(vivant_pv_pleins=%s bon_endroit=%s) hp=%.1f/%.1f pos=%s attendu=%s"
+		% [all_ok, died, no_hit_while_dead, revived, right_spot, p.hp, p.stats.max_hp, p.global_position, village_spawn])
 
 func _run_house_collision_test() -> void:
 	print("TEST_START:house_collision")
@@ -967,20 +1002,43 @@ func _run_house_collision_test() -> void:
 			inst.player.move_and_slide()
 		var dist_to_center = inst.player.global_position.distance_to(house_center)
 		var moved = start_pos.distance_to(inst.player.global_position)
-		print("TEST_RESULT2 dist_to_house_center=%.1f moved=%.1f blocked=%s" % [dist_to_center, moved, dist_to_center > 30.0])
+		var all_ok = bodies.size() > 0 and dist_to_center > 30.0
+		print("TEST_RESULT2 all_ok=%s corps_de_collision=%d bloque=%s dist_centre=%.1f deplacement=%.1f" % [all_ok, bodies.size(), dist_to_center > 30.0, dist_to_center, moved])
 
 func _run_depth_sort_test() -> void:
 	print("TEST_START:depth_sort")
-	# z_index = int(y / 2.0) partout (voir player.gd/enemy.gd/world.gd) : le monde
-	# carré (5200 de haut) dépasserait sinon la limite de z_index de Godot
-	# (+/-4096) si on utilisait y brut.
+	# Tri en profondeur : z_index derive de y, divise par une constante, sinon
+	# le monde (8400 de haut) depasse la limite de z_index de Godot (+/-4096).
+	# Ce test comparait a "y / 2.0" EN DUR. Le diviseur est passe a 4 quand le
+	# monde a ete agrandi, et le test est reste faux sans que ca se voie : il
+	# n'imprimait aucun verdict, donc rien ne pouvait echouer. On deduit
+	# desormais le diviseur du comportement reel, et on verifie ce qui compte
+	# vraiment — l'ORDRE relatif — plutot qu'une formule recopiee.
 	inst.player.global_position = Vector2(inst.player.global_position.x, 543.0)
 	inst.player.update_visuals()
-	var player_ok = inst.player.z_index == int(543.0 / 2.0)
+	var z_low = inst.player.z_index
+	inst.player.global_position = Vector2(inst.player.global_position.x, 2400.0)
+	inst.player.update_visuals()
+	var z_high = inst.player.z_index
+	# Plus bas a l'ecran (y grand) = dessine par-dessus.
+	var order_ok = z_high > z_low
 	var e = inst.spawn_enemy({"x": inst.player.global_position.x + 40, "y": 812.0, "type_id": "slime_vert", "respawn_at": 0.0})
 	e.update_visuals()
-	var enemy_ok = e.z_index == int(812.0 / 2.0)
-	print("TEST_RESULT player_z=%d player_ok=%s enemy_z=%d enemy_ok=%s" % [inst.player.z_index, player_ok, e.z_index, enemy_ok])
+	# Joueur et monstres doivent partager la MEME echelle, sinon ils se
+	# trient incoheremment l'un par rapport a l'autre.
+	inst.player.global_position = Vector2(inst.player.global_position.x, 812.0)
+	inst.player.update_visuals()
+	var same_scale = e.z_index == inst.player.z_index
+	# Et l'echelle doit tenir dans la limite de Godot sur toute la hauteur.
+	var data = root.get_node("/root/Data")
+	inst.player.global_position = Vector2(inst.player.global_position.x, data.WORLD_HEIGHT)
+	inst.player.update_visuals()
+	var within_limit = absi(inst.player.z_index) < 4096
+	inst.enemies.erase(e.uid)
+	e.queue_free()
+	var all_ok = order_ok and same_scale and within_limit
+	print("TEST_RESULT all_ok=%s ordre_par_profondeur=%s(%d<%d) meme_echelle_joueur_monstre=%s dans_la_limite=%s(z_max=%d pour y=%d)"
+		% [all_ok, order_ok, z_low, z_high, same_scale, within_limit, inst.player.z_index, int(data.WORLD_HEIGHT)])
 
 func _run_chest_test() -> void:
 	print("TEST_START:chest")
@@ -1061,7 +1119,12 @@ func _run_gather_test() -> void:
 	# simule le passage du temps : le nœud doit redevenir récoltable après son délai
 	g.respawn_at = (Time.get_ticks_msec()/1000.0) - 1.0
 	inst.update_gather_respawns(0.0)
-	print("TEST_RESULT2 respawned=%s label_alpha_restored=%.2f" % [not g.depleted, g.label.modulate.a])
+	# Verdict : recolter donne le materiau, epuise le noeud, un second essai ne
+	# donne rien, et le noeud redevient recoltable apres son delai.
+	var respawned = not g.depleted
+	var all_ok = (after_qty > before_qty) and (after_second_try == after_qty) and respawned and g.label.modulate.a > 0.9
+	print("TEST_RESULT2 all_ok=%s recolte=%s epuise_bloque_2e=%s reapparait=%s opacite_restauree=%.2f"
+		% [all_ok, after_qty > before_qty, after_second_try == after_qty, respawned, g.label.modulate.a])
 	# une fois respawné, la récolte doit fonctionner à nouveau normalement
 	inst.try_interact()
 	var after_respawn_gather = inst.char_data.inventory.get(mat, 0)
@@ -1619,8 +1682,11 @@ func _run_npc_collision_test() -> void:
 	var moved = start_pos.distance_to(inst.player.global_position)
 	# le joueur doit être bloqué avant d'atteindre le centre du PNJ, mais rester
 	# assez proche pour interagir (portée F = 70px)
-	print("TEST_RESULT blocked=%s dist_to_npc=%.1f moved=%.1f still_within_interact_range=%s"
-		% [dist > 8.0, dist, moved, dist < 70.0])
+	# Un PNJ doit bloquer le passage SANS sortir de la portee d'interaction :
+	# sinon on ne pourrait plus lui parler en le touchant.
+	var all_ok = dist > 8.0 and dist < 70.0
+	print("TEST_RESULT all_ok=%s bloque=%s dist_pnj=%.1f deplacement=%.1f reste_interactif=%s"
+		% [all_ok, dist > 8.0, dist, moved, dist < 70.0])
 
 func _run_prop_collision_test() -> void:
 	print("TEST_START:prop_collision")
@@ -1636,8 +1702,9 @@ func _run_prop_collision_test() -> void:
 		inst.player.velocity = (crate_pos - inst.player.global_position).normalized() * 200.0
 		inst.player.move_and_slide()
 	var dist_crate = inst.player.global_position.distance_to(crate_pos)
-	print("TEST_RESULT well_blocked=%s dist_well=%.1f crate_blocked=%s dist_crate=%.1f"
-		% [dist_well > 10.0, dist_well, dist_crate > 5.0, dist_crate])
+	var all_ok = dist_well > 10.0 and dist_crate > 5.0
+	print("TEST_RESULT all_ok=%s puits_bloque=%s dist_puits=%.1f caisse_bloquee=%s dist_caisse=%.1f"
+		% [all_ok, dist_well > 10.0, dist_well, dist_crate > 5.0, dist_crate])
 
 func _run_enemy_collision_test() -> void:
 	print("TEST_START:enemy_collision")
@@ -1651,7 +1718,8 @@ func _run_enemy_collision_test() -> void:
 		inst.player.move_and_slide()
 	var dist = inst.player.global_position.distance_to(enemy_pos)
 	var moved = start_pos.distance_to(inst.player.global_position)
-	print("TEST_RESULT enemy_blocks_player=%s dist_to_enemy=%.1f moved=%.1f" % [dist > 5.0, dist, moved])
+	var all_ok = dist > 5.0
+	print("TEST_RESULT all_ok=%s ennemi_bloque_le_joueur=%s dist=%.1f deplacement=%.1f" % [all_ok, dist > 5.0, dist, moved])
 
 func _run_char_portraits_test() -> void:
 	print("TEST_START:char_portraits")
@@ -2357,8 +2425,11 @@ func _run_teleporter_test() -> void:
 	inst.try_interact()
 	var opens_travel_menu = hud.travel_overlay.visible == true
 
-	print("TEST_RESULT one_per_zone=%s detected_as_nearest=%s opens_travel_menu=%s"
-		% [one_per_zone, detected_as_nearest, opens_travel_menu])
+	# Verdict : un teleporteur par zone, reconnu comme interactif le plus proche
+	# quand on est dessus, et l'interaction ouvre bien le menu de voyage.
+	var all_ok = one_per_zone and detected_as_nearest and opens_travel_menu
+	print("TEST_RESULT all_ok=%s un_par_zone=%s detecte=%s ouvre_le_menu=%s"
+		% [all_ok, one_per_zone, detected_as_nearest, opens_travel_menu])
 
 func _run_camera_zoom_test() -> void:
 	print("TEST_START:camera_zoom")
@@ -4523,7 +4594,14 @@ func _run_reputation_test() -> void:
 	cd.reputation["garde"] = 300
 	hud.buy_faction_item("cape_heros")
 	var after_buy_unlocked = cd.inventory.get("cape_heros", 0)
-	print("TEST_RESULT buy_locked=%d buy_unlocked=%d gold_after=%d" % [after_buy_locked, after_buy_unlocked, cd.gold])
+	# Verdict : la reputation monte en rendant une quete, et l'article de
+	# faction est refuse sous le seuil puis accorde au-dessus.
+	var rep_gained = rep > 0
+	var locked_refused = after_buy_locked == 0
+	var unlocked_bought = after_buy_unlocked > 0
+	var all_ok = rep_gained and locked_refused and unlocked_bought
+	print("TEST_RESULT2 all_ok=%s reputation_gagnee=%s(%d) achat_refuse_sous_seuil=%s achat_permis_au_seuil=%s or=%d"
+		% [all_ok, rep_gained, rep, locked_refused, unlocked_bought, cd.gold])
 
 func _run_talent_test() -> void:
 	print("TEST_START:talent")
@@ -4539,5 +4617,10 @@ func _run_talent_test() -> void:
 	inst.player.stats = gs.compute_stats(inst.char_data)
 	var atk_after = inst.player.stats.atk
 	var still_pending = gs.pending_talent(inst.char_data)
-	print("TEST_RESULT chosen=%s atk_before=%.2f atk_after=%.2f still_pending=%s"
-		% [chosen.id, atk_before, atk_after, still_pending.get("level")])
+	# Verdict : choisir un talent doit modifier les statistiques ET consommer le
+	# palier (sinon on pourrait le reprendre indefiniment).
+	var stats_changed = atk_after != atk_before
+	var tier_consumed = still_pending.is_empty() or still_pending.get("level") != tier.get("level")
+	var all_ok = stats_changed and tier_consumed
+	print("TEST_RESULT all_ok=%s talent=%s stats_modifiees=%s(%.2f->%.2f) palier_consomme=%s"
+		% [all_ok, chosen.id, stats_changed, atk_before, atk_after, tier_consumed])

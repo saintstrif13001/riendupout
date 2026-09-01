@@ -1452,10 +1452,20 @@ func build_npcs() -> void:
 		tw.tween_property(visual, "position:y", 0.0, 1.1).set_trans(Tween.TRANS_SINE)
 		var label = Label.new()
 		label.text = npc.name
-		label.position = Vector2(-50, -54)
-		label.size = Vector2(100, 20)
+		# Aucune taille n'etait imposee : le libelle heritait de la police du
+		# theme (bien plus grosse que celle du joueur et des monstres), dans une
+		# boite de 100px trop etroite pour lui. "Grondar le Forgeron" debordait
+		# donc des deux cotes, recouvrait les maisons et se superposait au nom du
+		# joueur. Meme taille que les autres etiquettes du monde, boite assez
+		# large pour que le centrage fonctionne, et contour noir pour rester
+		# lisible sur n'importe quel fond.
+		label.position = Vector2(-110, -56)
+		label.size = Vector2(220, 18)
 		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.add_theme_font_size_override("font_size", 13)
 		label.add_theme_color_override("font_color", Color(1, 0.88, 0.4))
+		label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+		label.add_theme_constant_override("outline_size", 4)
 		visual.add_child(label)
 		var icon = Label.new()
 		icon.text = "$" if npc.role == "shop" else ("*" if npc.role == "profession" else "!")

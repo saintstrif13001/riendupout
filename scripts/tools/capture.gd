@@ -265,6 +265,8 @@ func _process(delta: float) -> bool:
 			inst.player.stats.max_hp = 99999.0
 			inst.player.hp = 99999.0
 			inst.update_zone_lighting(_a.zone)
+		elif test_mode == "test_name_labels":
+			_run_name_labels_test()
 		elif test_mode == "test_adventurers":
 			_run_adventurers_test()
 		elif test_mode == "test_zone_borders":
@@ -2367,6 +2369,66 @@ func _run_float_text_centered_test() -> void:
 	var all_ok = short_alignment_ok and both_centered_on_target_x
 	print("TEST_RESULT all_ok=%s short_alignment_ok=%s both_centered_on_target_x=%s short_center_x=%.1f long_center_x=%.1f target_x=%.1f"
 		% [all_ok, short_alignment_ok, both_centered_on_target_x, short_center_x, long_center_x, target.x])
+
+func _run_name_labels_test() -> void:
+	print("TEST_START:name_labels")
+	# BUG VU A L'ECRAN : les noms de PNJ n'imposaient aucune taille de police,
+	# donc heritaient de celle du theme — bien plus grosse que celle du joueur
+	# et des monstres — dans une boite de 100px trop etroite. "Grondar le
+	# Forgeron" debordait des deux cotes, recouvrait les maisons et se
+	# superposait au nom du joueur.
+	var data = root.get_node("/root/Data")
+	var p = inst.player
+
+	# 1) Toutes les etiquettes du monde partagent un ordre de grandeur : une
+	# seule famille beaucoup plus grosse ecrase visuellement les autres.
+	var sizes = {}
+	sizes["joueur"] = p.name_label.get_theme_font_size("font_size")
+	var e = inst.spawn_enemy({"x": p.global_position.x + 40, "y": p.global_position.y, "type_id": "squelette_guerrier", "respawn_at": 0.0})
+	sizes["monstre"] = e.name_label.get_theme_font_size("font_size")
+	var npc_label = inst.npc_nodes[0].node.get_child(0).get_children().filter(func(c): return c is Label)[0]
+	sizes["pnj"] = npc_label.get_theme_font_size("font_size")
+	var biggest = 0
+	var smallest = 999
+	for k in sizes.keys():
+		biggest = maxi(biggest, sizes[k])
+		smallest = mini(smallest, sizes[k])
+	var consistent_sizes = biggest - smallest <= 2
+
+	# 2) La boite doit contenir le texte : sinon le centrage ne centre rien et
+	# le nom deborde. On mesure la largeur reelle du texte rendu.
+	var overflowing = []
+	for n in inst.npc_nodes:
+		var lbl = n.node.get_child(0).get_children().filter(func(c): return c is Label)[0]
+		var w = lbl.get_theme_font("font").get_string_size(lbl.text, HORIZONTAL_ALIGNMENT_LEFT, -1, lbl.get_theme_font_size("font_size")).x
+		if w > lbl.size.x: overflowing.append("%s(%.0f>%.0f)" % [lbl.text, w, lbl.size.x])
+	var fits = overflowing.is_empty()
+	# Le nom de monstre le plus long du jeu doit tenir lui aussi.
+	var ew = e.name_label.get_theme_font("font").get_string_size(e.name_label.text, HORIZONTAL_ALIGNMENT_LEFT, -1, e.name_label.get_theme_font_size("font_size")).x
+	var enemy_fits = ew <= e.name_label.size.x
+
+	# 3) Contour noir : sans lui le nom est illisible sur la neige des Cimes
+	# comme dans la penombre de la Caverne.
+	var outlined = (p.name_label.get_theme_constant("outline_size") > 0
+		and e.name_label.get_theme_constant("outline_size") > 0
+		and npc_label.get_theme_constant("outline_size") > 0)
+
+	# 4) Centrage : le nom doit rester au-dessus de son porteur quelle que soit
+	# sa longueur.
+	var centered = (npc_label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER
+		and e.name_label.horizontal_alignment == HORIZONTAL_ALIGNMENT_CENTER)
+	var npc_center = npc_label.position.x + npc_label.size.x / 2.0
+	var npc_over_head = absf(npc_center) < 4.0
+	var enemy_center = e.name_label.position.x + e.name_label.size.x / 2.0
+	var enemy_over_head = absf(enemy_center) < 4.0
+
+	inst.enemies.erase(e.uid)
+	e.queue_free()
+
+	var all_ok = consistent_sizes and fits and enemy_fits and outlined and centered and npc_over_head and enemy_over_head
+	print("TEST_RESULT all_ok=%s tailles(%s coherentes=%s) boites(pnj_tiennent=%s%s monstre_tient=%s) lisibilite(contour=%s centre=%s pnj_au_dessus=%s monstre_au_dessus=%s)"
+		% [all_ok, str(sizes), consistent_sizes, fits, ("" if fits else str(overflowing)), enemy_fits,
+		   outlined, centered, npc_over_head, enemy_over_head])
 
 func _run_adventurers_test() -> void:
 	print("TEST_START:adventurers")

@@ -87,6 +87,10 @@ func setup(cd: Dictionary, local: bool, pid: int) -> void:
 	head_sprite.modulate = race.tint
 
 	name_label.text = cd.name
+	# Contour noir : sans lui le nom devient illisible sur la neige des Cimes
+	# comme dans la penombre de la Caverne.
+	name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	name_label.add_theme_constant_override("outline_size", 4)
 	name_label.modulate = Color(1, 0.88, 0.4) if is_local else Color(0.65, 0.85, 1)
 	hp_fg.color = Color(0.23, 0.82, 0.23)
 	update_equipment_visual()

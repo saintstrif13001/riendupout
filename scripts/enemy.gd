@@ -91,8 +91,15 @@ func setup(tid: String, u: String, lvl: int) -> void:
 
 	var yoff = -52.0 if mdef.get("boss", false) else -40.0
 	name_label.text = "%s Nv.%d" % [mdef.name, level]
+	name_label.add_theme_font_size_override("font_size", 12)
+	name_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.85))
+	name_label.add_theme_constant_override("outline_size", 4)
 	name_label.modulate = Color(1, 0.4, 0.4) if mdef.get("boss", false) else Color(1, 0.67, 0.67)
-	name_label.position = Vector2(-40, yoff - 14)
+	# Boite large + centrage : a -40 avec une boite de 80, "Squelette Guerrier
+	# Nv.18" debordait vers la droite au lieu de rester au-dessus du monstre.
+	name_label.position = Vector2(-110, yoff - 14)
+	name_label.size = Vector2(220, 18)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	hp_bg.position = Vector2(-16, yoff)
 	hp_fg.position = Vector2(-14, yoff + 2)
 

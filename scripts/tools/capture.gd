@@ -763,8 +763,10 @@ func _run_party_targeting_test() -> void:
 	var ally_hp_before = ally.hp
 	var self_hp_before = inst.player.hp
 	inst.use_skill(0) # pretre soin : doit cibler l'allié proche plutôt que soi-même
-	print("TEST_RESULT heal_targeted_ally_not_self=%s self_hp_unchanged=%s"
-		% [true, inst.player.hp == self_hp_before])
+	# Verdict : le soin de groupe doit viser l'ALLIE le plus proche, pas soi.
+	var all_ok = found != null and inst.player.hp == self_hp_before
+	print("TEST_RESULT all_ok=%s allie_trouve=%s soin_sur_allie_pas_sur_soi=%s"
+		% [all_ok, found != null, inst.player.hp == self_hp_before])
 	# net_apply_heal ne s'applique qu'au pair qui le reçoit (rpc_id ne se déclenche pas localement
 	# sur soi-même en solo), donc on vérifie ici juste que le soin n'a PAS été appliqué à soi-même
 	ally.queue_free()
@@ -861,8 +863,9 @@ func _run_respec_test() -> void:
 	for i in range(2): await process_frame
 	var plural_ok = _find_label_with_text(hud.dialogue_box, "tes 2 spécialisations choisies") != null
 
-	print("TEST_RESULT3 grammar_ok=%s singular_ok=%s plural_ok=%s no_paren_plural=%s"
-		% [singular_ok and plural_ok and no_paren_plural, singular_ok, plural_ok, no_paren_plural])
+	var all_ok = singular_ok and plural_ok and no_paren_plural
+	print("TEST_RESULT3 all_ok=%s singular_ok=%s plural_ok=%s no_paren_plural=%s"
+		% [all_ok, singular_ok, plural_ok, no_paren_plural])
 
 func _run_race_quest_test() -> void:
 	print("TEST_START:race_quests")
@@ -1075,7 +1078,19 @@ func _run_fade_test() -> void:
 	inst.char_data.unlocked_zones = ["village", "plaine"]
 	var hud_ref = inst.get_node("Hud")
 	hud_ref.travel_to("plaine")
-	print("TEST_RESULT2 travel_triggered_no_error=true player_zone_x=%.0f" % inst.player.global_position.x)
+	# travel_to est une COROUTINE : elle enchaine un fondu avant de deplacer le
+	# joueur. Sans cette attente on constatait qu'il n'avait pas bouge... parce
+	# que le voyage n'avait pas encore eu lieu.
+	await create_timer(1.2).timeout
+	# Verdict : le rectangle de fondu existe, couvre TOUT l'ecran (sinon on voit
+	# le monde par les bords pendant la transition) et part transparent ; et le
+	# voyage rapide depose bien le joueur dans la zone demandee.
+	var data_f = root.get_node("/root/Data")
+	var pz = data_f.ZONES.plaine
+	var arrived = inst.player.global_position.x >= pz.x0 and inst.player.global_position.x <= pz.x1
+	var all_ok = has_rect and anchors_full and initial_alpha == 0.0 and arrived
+	print("TEST_RESULT2 all_ok=%s rectangle=%s plein_ecran=%s transparent_au_depart=%s voyage_arrive_en_plaine=%s (x=%.0f)"
+		% [all_ok, has_rect, anchors_full, initial_alpha == 0.0, arrived, inst.player.global_position.x])
 
 func _run_bar_tween_test() -> void:
 	print("TEST_START:bar_tween")
@@ -1096,7 +1111,9 @@ func _run_bar_tween_test() -> void:
 	hud._tween_bar(hud.hp_bar, 70.0)
 	await create_timer(0.5).timeout
 	var final_val = hud.hp_bar.value
-	print("TEST_RESULT final_value=%.1f expected=70.0 converged=%s" % [final_val, absf(final_val - 70.0) < 1.0])
+	# Verdict : la barre doit CONVERGER vers sa valeur cible, pas juste bouger.
+	var all_ok = absf(final_val - 70.0) < 1.0
+	print("TEST_RESULT all_ok=%s final_value=%.1f expected=70.0 converged=%s" % [all_ok, final_val, absf(final_val - 70.0) < 1.0])
 
 func _run_gather_test() -> void:
 	print("TEST_START:gather")
@@ -1144,7 +1161,11 @@ func _run_npc_variety_test() -> void:
 	# doit être déterministe : reconstruire donnerait le même résultat pour un même PNJ
 	var h1 = hash(inst.npc_nodes[0].npc.id)
 	var h2 = hash(inst.npc_nodes[0].npc.id)
-	print("TEST_RESULT2 hash_deterministic=%s" % [h1 == h2])
+	# Verdict : assez de variete d'apparence entre PNJ, et une apparence STABLE
+	# d'une partie a l'autre (elle derive d'un hash de l'identifiant).
+	var all_ok = inst.npc_nodes.size() > 0 and colors.size() >= 3 and h1 == h2
+	print("TEST_RESULT2 all_ok=%s pnj=%d couleurs_distinctes=%d chauves=%d hash_deterministe=%s"
+		% [all_ok, inst.npc_nodes.size(), colors.size(), bald_count, h1 == h2])
 
 func _run_tooltip_test() -> void:
 	print("TEST_START:tooltip")
@@ -1584,8 +1605,11 @@ func _run_village_economy_test() -> void:
 	hud.buy_item("potion_vie")
 	var blocked_when_out_of_stock = inst.char_data.inventory.get("potion_vie", 0) == inv_before
 
-	print("TEST_RESULT stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s blocked_when_out_of_stock=%s"
-		% [stock_grew, price_dropped_with_stock, stock_consumed, paid_dynamic_price, blocked_when_out_of_stock])
+	# Verdict : le stock monte avec le temps, le prix suit le stock, un achat
+	# consomme le stock au prix courant, et la rupture bloque la vente.
+	var all_ok = stock_grew and price_dropped_with_stock and stock_consumed and paid_dynamic_price and blocked_when_out_of_stock
+	print("TEST_RESULT all_ok=%s stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s blocked_when_out_of_stock=%s"
+		% [all_ok, stock_grew, price_dropped_with_stock, stock_consumed, paid_dynamic_price, blocked_when_out_of_stock])
 
 func _run_village_decor_test() -> void:
 	print("TEST_START:village_decor")
@@ -1813,7 +1837,12 @@ func _run_spell_fx_test() -> void:
 	var hp2_before = e2.hp
 	inst.use_skill(0) # coup_puissant
 	var hp2_after = e2.hp
-	print("TEST_RESULT2 melee_damage_instant=%s" % [hp2_after < hp2_before])
+	# Verdict : un projectile met un temps de vol AVANT d'infliger ses degats
+	# (sinon l'orbe est purement decoratif), alors qu'un coup de melee touche
+	# immediatement.
+	var all_ok = (hp_immediately_after == hp_before_cast) and (hp_after_travel < hp_before_cast) and (hp2_after < hp2_before)
+	print("TEST_RESULT2 all_ok=%s projectile_retarde=%s projectile_touche=%s melee_instantane=%s"
+		% [all_ok, hp_immediately_after == hp_before_cast, hp_after_travel < hp_before_cast, hp2_after < hp2_before])
 
 func _run_projectile_target_freed_test() -> void:
 	print("TEST_START:projectile_target_freed")
@@ -1931,8 +1960,9 @@ func _run_forge_economy_test() -> void:
 	hud.buy_forged_weapon()
 	var blocked_when_out_of_stock = inst.char_data.inventory.get("epee_fer", 0) == inv2_before
 
-	print("TEST_RESULT stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s item_received=%s blocked_when_out_of_stock=%s"
-		% [stock_grew, price_tracks_stock, stock_consumed, paid_dynamic_price, item_received, blocked_when_out_of_stock])
+	var all_ok = stock_grew and price_tracks_stock and stock_consumed and paid_dynamic_price and item_received and blocked_when_out_of_stock
+	print("TEST_RESULT all_ok=%s stock_grew_from_ticks=%s price_tracks_stock=%s stock_consumed_on_buy=%s paid_dynamic_price=%s item_received=%s blocked_when_out_of_stock=%s"
+		% [all_ok, stock_grew, price_tracks_stock, stock_consumed, paid_dynamic_price, item_received, blocked_when_out_of_stock])
 
 func _run_save_zone_change_test() -> void:
 	print("TEST_START:save_zone_change")
@@ -2032,8 +2062,10 @@ func _run_garde_patrol_dialogue_test() -> void:
 	inst.village_economy.monsters_culled = 3
 	hud._on_open_npc(data.get_npc("garde"))
 	var lbl = _find_label_with_text(hud.dialogue_box, "patrouilles ont repoussé")
-	print("TEST_RESULT hidden_when_zero=%s shown_when_nonzero=%s text=%s"
-		% [label_absent, lbl != null, lbl.text if lbl else ""])
+	# Verdict : la ligne de patrouilles ne s'affiche QUE lorsqu'il y en a eu.
+	var all_ok = label_absent and (lbl != null)
+	print("TEST_RESULT all_ok=%s hidden_when_zero=%s shown_when_nonzero=%s text=%s"
+		% [all_ok, label_absent, lbl != null, lbl.text if lbl else ""])
 
 func _run_gather_stats_display_test() -> void:
 	print("TEST_START:gather_stats_display")
@@ -2047,8 +2079,11 @@ func _run_gather_stats_display_test() -> void:
 	hud.render_inventory()
 	var stats_lbl = _find_label_with_text(hud.inventory_box, "Minerai")
 	var shows_nonzero_only = stats_lbl != null and "12" in stats_lbl.text and "5" in stats_lbl.text and not ("Bois" in stats_lbl.text)
-	print("TEST_RESULT section_hidden_when_empty=%s section_shown_with_data=%s zero_counts_excluded=%s text=%s"
-		% [section_absent, stats_lbl != null, shows_nonzero_only, stats_lbl.text if stats_lbl else ""])
+	# Verdict : la section de recolte est masquee tant qu'on n'a rien recolte,
+	# apparait ensuite, et n'enumere que les materiaux effectivement obtenus.
+	var all_ok = section_absent and stats_lbl != null and shows_nonzero_only
+	print("TEST_RESULT all_ok=%s section_hidden_when_empty=%s section_shown_with_data=%s zero_counts_excluded=%s text=%s"
+		% [all_ok, section_absent, stats_lbl != null, shows_nonzero_only, stats_lbl.text if stats_lbl else ""])
 
 func _run_progression_stats_display_test() -> void:
 	print("TEST_START:progression_stats_display")
@@ -2059,7 +2094,10 @@ func _run_progression_stats_display_test() -> void:
 	var lbl = _find_label_with_text(hud.inventory_box, "quête")
 	print("TEST_RESULT progression_shown=%s text=%s" % [lbl != null, lbl.text if lbl else ""])
 	var counts_correct = lbl != null and "3 quêtes" in lbl.text and "1 prime" in lbl.text
-	print("TEST_RESULT2 counts_and_plurals_correct=%s" % counts_correct)
+	# Verdict : la fiche de progression affiche les bons comptes avec le bon
+	# accord singulier/pluriel.
+	var all_ok = lbl != null and counts_correct
+	print("TEST_RESULT2 all_ok=%s progression_affichee=%s comptes_et_pluriels=%s" % [all_ok, lbl != null, counts_correct])
 
 func _any_pool_player_playing_stream(audio, path: String) -> bool:
 	for p in audio._pool:
@@ -2199,8 +2237,9 @@ func _run_minimap_test() -> void:
 	var draw_ok_with_freed_remote = true
 
 	inst.remote_players.erase(998)
-	print("TEST_RESULT minimap_found=%s minimap_sized=%s draw_ok_no_remotes=%s draw_ok_with_valid_remote=%s draw_ok_with_freed_remote=%s"
-		% [minimap_found, minimap_sized, draw_ok_no_remotes, draw_ok_with_valid_remote, draw_ok_with_freed_remote])
+	var all_ok = minimap_found and minimap_sized and draw_ok_no_remotes and draw_ok_with_valid_remote and draw_ok_with_freed_remote
+	print("TEST_RESULT all_ok=%s minimap_found=%s minimap_sized=%s draw_ok_no_remotes=%s draw_ok_with_valid_remote=%s draw_ok_with_freed_remote=%s"
+		% [all_ok, minimap_found, minimap_sized, draw_ok_no_remotes, draw_ok_with_valid_remote, draw_ok_with_freed_remote])
 
 func _run_hotbar_test() -> void:
 	print("TEST_START:hotbar")
@@ -2289,8 +2328,9 @@ func _run_player_hit_flash_test() -> void:
 	var no_flash_when_shield_absorbs_all = p.body_sprite.modulate == original_modulate
 	p.shield = 0.0
 
-	print("TEST_RESULT flashes_on_real_damage=%s restores_original_tint=%s no_flash_while_invulnerable=%s no_flash_when_shield_absorbs_all=%s"
-		% [flashes_on_real_damage, restores_original_tint, no_flash_while_invulnerable, no_flash_when_shield_absorbs_all])
+	var all_ok = flashes_on_real_damage and restores_original_tint and no_flash_while_invulnerable and no_flash_when_shield_absorbs_all
+	print("TEST_RESULT all_ok=%s flashes_on_real_damage=%s restores_original_tint=%s no_flash_while_invulnerable=%s no_flash_when_shield_absorbs_all=%s"
+		% [all_ok, flashes_on_real_damage, restores_original_tint, no_flash_while_invulnerable, no_flash_when_shield_absorbs_all])
 
 func _run_client_enemy_visuals_test() -> void:
 	print("TEST_START:client_enemy_visuals")
@@ -4413,8 +4453,9 @@ func _run_stats_screen_test() -> void:
 	hud._unhandled_key_input(ev_esc)
 	var closed_on_escape = hud.stats_overlay.visible == false
 
-	print("TEST_RESULT opened_on_c=%s atk_shown_correctly=%s (expected %d, saw \"%s\") weapon_row_found=%s closed_on_escape=%s"
-		% [opened_on_c, atk_shown_correctly, expected_atk, combat_text, weapon_row_found, closed_on_escape])
+	var all_ok = opened_on_c and atk_shown_correctly and weapon_row_found and closed_on_escape
+	print("TEST_RESULT all_ok=%s opened_on_c=%s atk_shown_correctly=%s (expected %d, saw \"%s\") weapon_row_found=%s closed_on_escape=%s"
+		% [all_ok, opened_on_c, atk_shown_correctly, expected_atk, combat_text, weapon_row_found, closed_on_escape])
 
 func _run_music_system_test() -> void:
 	print("TEST_START:music_system")

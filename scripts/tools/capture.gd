@@ -475,8 +475,14 @@ func _run_combat_test() -> void:
 		var roll = inst.roll_damage(inst.player.stats.atk, 1.0, 0.0)
 		inst.deal_damage_to_enemy(e, roll.dmg, roll.crit)
 		hits += 1
-	print("TEST_RESULT hits=%d enemy_dead=%s hp_left=%s player_xp_before=%s player_xp_after=%s player_level=%s inventory=%s"
-		% [hits, e.dead, e.hp, start_xp, inst.char_data.xp, inst.char_data.level, JSON.stringify(inst.char_data.inventory)])
+	# Verdict : l'ennemi doit mourir en un nombre RAISONNABLE de coups (30 =
+	# la borne de securite de la boucle : l'atteindre signifie qu'il ne mourait
+	# pas), et le joueur doit etre recompense.
+	var killed = e.dead and hits < 30
+	var rewarded = inst.char_data.xp > start_xp or inst.char_data.level > 1
+	var all_ok = killed and rewarded
+	print("TEST_RESULT all_ok=%s tue=%s recompense=%s hits=%d enemy_dead=%s hp_left=%s player_xp_before=%s player_xp_after=%s player_level=%s inventory=%s"
+		% [all_ok, killed, rewarded, hits, e.dead, e.hp, start_xp, inst.char_data.xp, inst.char_data.level, JSON.stringify(inst.char_data.inventory)])
 
 func _run_quest_test() -> void:
 	print("TEST_START:quest")
@@ -626,24 +632,34 @@ func _run_crafting_test() -> void:
 	#    (testé indirectement : on vérifie juste que craft_recipe refuse sans les matériaux)
 	cd.inventory.clear()
 	hud.craft_recipe(recipe.id)
-	print("TEST_RESULT craft_without_materials_blocked=%s inventory_empty=%s" % [not cd.inventory.has(recipe.result), cd.inventory.is_empty()])
+	var blocked_empty = not cd.inventory.has(recipe.result) and cd.inventory.is_empty()
 
 	# 2) avec pas assez de matériaux
 	cd.inventory["minerai"] = 2 # il en faut 5
 	hud.craft_recipe(recipe.id)
-	print("TEST_RESULT craft_insufficient_blocked=%s minerai_unchanged=%s" % [not cd.inventory.has(recipe.result), cd.inventory.minerai == 2])
+	var blocked_partial = not cd.inventory.has(recipe.result) and cd.inventory.minerai == 2
 
 	# 3) avec assez de matériaux -> doit réussir et déduire exactement le coût
 	cd.inventory["minerai"] = 8
 	hud.learn_profession(recipe.profession)
 	hud.craft_recipe(recipe.id)
-	print("TEST_RESULT craft_success=%s minerai_left=%d (attendu 3) result_qty=%d profession=%s"
-		% [cd.inventory.get(recipe.result, 0) > 0, cd.inventory.get("minerai", 0), cd.inventory.get(recipe.result, 0), cd.profession])
+	var crafted = cd.inventory.get(recipe.result, 0) > 0
+	var cost_deducted = cd.inventory.get("minerai", 0) == 8 - recipe.cost.minerai
 
-	# 4) craft répété doit à nouveau consommer les bons matériaux
+	# 4) craft répété doit à nouveau consommer les bons matériaux.
+	# La recette coute 5 minerais et le test en fournissait 8 : apres le premier
+	# craft il n'en restait que 3, donc ce second craft etait TOUJOURS refuse et
+	# la section ne testait rien. Elle n'imprimait que des chiffres, personne ne
+	# l'a vu. On reapprovisionne pour tester la repetition pour de vrai.
+	cd.inventory["minerai"] = cd.inventory.get("minerai", 0) + recipe.cost.minerai
 	var before2 = cd.inventory.minerai
 	hud.craft_recipe(recipe.id)
-	print("TEST_RESULT second_craft_result_qty=%d minerai_after=%d (attendu %d)" % [cd.inventory[recipe.result], cd.inventory.minerai, before2 - recipe.cost.minerai])
+	var second_ok = cd.inventory[recipe.result] == 2 and cd.inventory.minerai == before2 - recipe.cost.minerai
+	# Verdict : refuser sans materiaux, refuser avec trop peu, reussir avec
+	# assez EN DEDUISANT le cout exact, et recommencer correctement.
+	var all_ok = blocked_empty and blocked_partial and crafted and cost_deducted and second_ok
+	print("TEST_RESULT all_ok=%s refus_sans_materiaux=%s refus_insuffisant=%s fabrique=%s cout_deduit=%s second_craft=%s (minerai=%d resultat=%d profession=%s)"
+		% [all_ok, blocked_empty, blocked_partial, crafted, cost_deducted, second_ok, cd.inventory.minerai, cd.inventory[recipe.result], cd.profession])
 
 func _run_all_class_skills_test() -> void:
 	print("TEST_START:all_class_skills")
@@ -876,14 +892,37 @@ func _run_boss_phase_test() -> void:
 	var boss = inst.spawn_enemy({"x": inst.player.global_position.x + 50, "y": inst.player.global_position.y, "type_id": "zombie_ancien", "respawn_at": 0.0})
 	var before_count = inst.enemies.size()
 	print("TEST_BOSS_SPAWNED hp=%.0f max_hp=%.0f enemies_before=%d" % [boss.hp, boss.max_hp, before_count])
-	# fait tomber le boss à 60% (au-dessus du 1er seuil à 66%... on vise juste sous 66%)
-	boss.take_damage(boss.max_hp * 0.35)
+	# On PLACE les PV juste sous chaque seuil puis on applique un coup minime
+	# pour declencher la verification, au lieu de calculer une fraction de
+	# degats. L'ancienne version infligeait max_hp*0.35, mais take_damage
+	# retranche la defense : le resultat tombait a moins d'un PV au-dessus du
+	# seuil de 66%, donc la phase 1 ne se declenchait pas — et le test se
+	# contentait d'imprimer les nombres sans rien verifier.
+	boss.hp = boss.max_hp * 0.60
+	boss.take_damage(1.0)
 	var after_phase1 = inst.enemies.size()
 	print("TEST_AFTER_PHASE1 hp=%.0f enemies=%d (devrait avoir +3 zombies invoqués)" % [boss.hp, after_phase1])
-	boss.take_damage(boss.max_hp * 0.34)
+	# Le palier a 45% ne convoque RIEN : il change le style de combat du boss
+	# (behavior "ranged"). C'est ce que la version precedente prenait pour une
+	# invocation manquante.
+	boss.hp = boss.max_hp * 0.40
+	boss.take_damage(1.0)
+	var behavior_at_p45 = boss.behavior_override
+	var behavior_changed = behavior_at_p45 == "ranged"
+	# Le palier a 25% convoque a nouveau (zombies pourrissants).
+	var before_phase3 = inst.enemies.size()
+	boss.hp = boss.max_hp * 0.20
+	boss.take_damage(1.0)
 	var after_phase2 = inst.enemies.size()
-	print("TEST_RESULT hp=%.0f enemies=%d (devrait avoir +2 zombies pourrissants de plus) triggered=%s"
-		% [boss.hp, after_phase2, boss.triggered_phases.keys()])
+	# Verdict : chaque seuil franchi doit AJOUTER des renforts et marquer la
+	# phase comme declenchee. Le test se contentait d'imprimer les nombres avec
+	# un commentaire "devrait avoir +3" que personne ne verifiait.
+	var phase1_summoned = after_phase1 > before_count
+	var phase2_summoned = after_phase2 > before_phase3
+	var phases_recorded = boss.triggered_phases.size() >= 3
+	var all_ok = phase1_summoned and behavior_changed and phase2_summoned and phases_recorded
+	print("TEST_RESULT all_ok=%s p66_invoque=%s(%d->%d) p45_change_style=%s(%s) p25_invoque=%s(%d->%d) phases_enregistrees=%s(%d) hp=%.0f"
+		% [all_ok, phase1_summoned, before_count, after_phase1, behavior_changed, behavior_at_p45, phase2_summoned, before_phase3, after_phase2, phases_recorded, boss.triggered_phases.size(), boss.hp])
 
 func _run_death_test() -> void:
 	print("TEST_START:death")
@@ -951,12 +990,19 @@ func _run_chest_test() -> void:
 	print("TEST_STATE opened_before=%s lid_rot_before=%.2f gold=%d" % [c.opened, c.lid.rotation, c.gold])
 	inst.open_chest(c)
 	var gold_gained = inst.char_data.gold - before_gold
-	print("TEST_RESULT opened_after=%s lid_rot_after=%.2f gold_gained=%d expected_gain=%d"
-		% [c.opened, c.lid.rotation, gold_gained, c.gold])
 	# Un second appel ne doit pas régénérer d'or (coffre déjà vidé).
 	var gold_before_second = inst.char_data.gold
 	inst.open_chest(c)
-	print("TEST_RESULT2 second_open_no_extra_gold=%s" % [inst.char_data.gold == gold_before_second])
+	var no_double = inst.char_data.gold == gold_before_second
+	var opened = c.opened
+	var paid = gold_gained == c.gold and gold_gained > 0
+	# La rotation du couvercle est ANIMEE par un tween : elle vaut encore 0
+	# juste apres l'appel. On verifie l'effet synchrone — le couvercle prend la
+	# teinte sombre de l'interieur du coffre.
+	var lid_moved = c.lid.color.is_equal_approx(Color(0.3, 0.22, 0.12))
+	var all_ok = opened and paid and lid_moved and no_double
+	print("TEST_RESULT all_ok=%s ouvert=%s or_verse=%s couvercle_anime=%s pas_de_double_ouverture=%s (gain=%d attendu=%d)"
+		% [all_ok, opened, paid, lid_moved, no_double, gold_gained, c.gold])
 
 func _run_fade_test() -> void:
 	print("TEST_START:fade")
@@ -1747,8 +1793,7 @@ func _run_cc_effects_test() -> void:
 	var spd_before = e1.effective_speed()
 	inst.use_skill(1) # piege
 	var spd_during = e1.effective_speed()
-	print("TEST_RESULT trap_normal_speed_before=%s trap_immobilized_after=%s"
-		% [spd_before > 0.0, spd_during == 0.0])
+	var trap_ok = spd_before > 0.0 and spd_during == 0.0
 
 	# Nova de Glace (mage, skill 1) : degats de zone + ralentissement.
 	inst.char_data["class"] = "mage"
@@ -1759,8 +1804,10 @@ func _run_cc_effects_test() -> void:
 	var base_spd = e2.spd
 	inst.use_skill(1) # nova_glace
 	var spd_slowed = e2.effective_speed()
-	print("TEST_RESULT2 nova_slows_target=%s (base=%.1f effectif=%.1f, attendu ~50%%)"
-		% [absf(spd_slowed - base_spd * 0.5) < 0.5, base_spd, spd_slowed])
+	var nova_ok = absf(spd_slowed - base_spd * 0.5) < 0.5
+	var all_ok = trap_ok and nova_ok
+	print("TEST_RESULT all_ok=%s piege(vitesse_avant=%s immobilise_apres=%s) nova(ralentit=%s base=%.1f effectif=%.1f attendu ~50%%)"
+		% [all_ok, spd_before > 0.0, spd_during == 0.0, nova_ok, base_spd, spd_slowed])
 
 func _run_forge_economy_test() -> void:
 	print("TEST_START:forge_economy")
@@ -4367,7 +4414,10 @@ func _run_data_integrity_test() -> void:
 	for q in data.QUESTS:
 		if not reachable.has(q.id): errors.append("quest %s: INATTEIGNABLE (dépendance circulaire ou cassée)" % q.id)
 
-	print("TEST_RESULT total_quests=%d total_errors=%d" % [data.QUESTS.size(), errors.size()])
+	# Verdict : la moindre reference cassee rend une quete infaisable. Ce test
+	# comptait les erreurs sans jamais dire si c'etait un echec.
+	var all_ok = errors.is_empty()
+	print("TEST_RESULT all_ok=%s total_quests=%d total_errors=%d %s" % [all_ok, data.QUESTS.size(), errors.size(), ("" if all_ok else str(errors.slice(0, 5)))])
 	for e in errors:
 		print("  ERROR: " + e)
 	print("TEST_DONE:data_integrity")

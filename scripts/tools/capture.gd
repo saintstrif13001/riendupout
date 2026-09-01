@@ -1157,7 +1157,12 @@ func _run_tooltip_test() -> void:
 	print("TEST_RESULT3 mat_has_label=%s mat_tt=%s" % [mat_tt.contains("Matériau"), mat_tt.replace("\n"," | ")])
 	# vérifie que les icônes d'inventaire portent bien le tooltip (pas juste la fonction isolée)
 	var icon = hud._icon_tex("epee_fer")
-	print("TEST_RESULT4 icon_tooltip_set=%s" % [icon.tooltip_text == weapon_tt])
+	# Verdict : chaque nature d'objet doit produire une infobulle informative,
+	# et l'icone d'inventaire doit la porter reellement.
+	var all_ok = (weapon_tt.contains("Attaque +5") and potion_tt.contains("Soigne 55")
+		and mat_tt.contains("Matériau") and icon.tooltip_text == weapon_tt)
+	print("TEST_RESULT4 all_ok=%s arme=%s potion=%s materiau=%s icone_porte_infobulle=%s"
+		% [all_ok, weapon_tt.contains("Attaque +5"), potion_tt.contains("Soigne 55"), mat_tt.contains("Matériau"), icon.tooltip_text == weapon_tt])
 	icon.free() # créé hors-arbre juste pour le test, à nettoyer immédiatement
 
 func _run_save_roundtrip_test() -> void:
@@ -1204,7 +1209,7 @@ func _run_save_roundtrip_test() -> void:
 	var all_ok = true
 	for k in checks.keys():
 		if not checks[k]: all_ok = false
-	print("TEST_RESULT all_fields_ok=%s details=%s" % [all_ok, checks])
+	print("TEST_RESULT all_ok=%s details=%s" % [all_ok, checks])
 	gs.delete_save()
 
 func _run_gold_guards_test() -> void:
@@ -1230,7 +1235,10 @@ func _run_gold_guards_test() -> void:
 	hud.respec_talents(500)
 	print("TEST_RESULT3 respec_blocked=%s gold_unchanged=%s"
 		% [inst.char_data.talents.has("5"), inst.char_data.gold == 3])
-	print("TEST_RESULT4 gold_never_negative=%s" % [inst.char_data.gold >= 0])
+	# Verdict : aucune depense ne doit passer sans l'or nécessaire, et l'or ne
+	# doit jamais devenir negatif.
+	var all_ok = inst.char_data.gold >= 0
+	print("TEST_RESULT4 all_ok=%s gold_never_negative=%s or=%d" % [all_ok, inst.char_data.gold >= 0, inst.char_data.gold])
 
 func _run_zone_lighting_test() -> void:
 	print("TEST_START:zone_lighting")
@@ -1592,8 +1600,10 @@ func _run_village_decor_test() -> void:
 	# le puits ajoute 3 Polygon2D (anneau, intérieur, toit) ; les torches (5 aux
 	# portes + celles des zones dangereuses) ajoutent chacune un PointLight2D ;
 	# les caisses/barils ajoutent 2 Polygon2D (barils) en plus du puits
-	print("TEST_RESULT well_and_props_polygons=%d (attendu >= 3) house_torches_present=%s house_bodies_unchanged=%d"
-		% [polygons, lights >= 5, house_bodies])
+	# Seuils appliques, plus seulement affiches en commentaire.
+	var all_ok = polygons >= 3 and lights >= 5 and house_bodies > 0
+	print("TEST_RESULT all_ok=%s well_and_props_polygons=%d (attendu >= 3) house_torches_present=%s house_bodies=%d"
+		% [all_ok, polygons, lights >= 5, house_bodies])
 
 func _run_plaine_decor_test() -> void:
 	print("TEST_START:plaine_decor")
@@ -1608,8 +1618,11 @@ func _run_plaine_decor_test() -> void:
 		if c is Polygon2D: polygons_in_plaine += 1
 		elif c is Node2D and c.get_child_count() == 3 and c.get_child(0) is ColorRect:
 			flower_patches_in_plaine += 1
-	print("TEST_RESULT hay_bales_and_rocks_in_plaine=%d (attendu >= 20) flower_patches_in_plaine=%d (attendu >= 40)"
-		% [polygons_in_plaine, flower_patches_in_plaine])
+	# Les seuils n'etaient ecrits qu'en COMMENTAIRE : le test les imprimait sans
+	# jamais les faire respecter. Ils sont maintenant appliques.
+	var all_ok = polygons_in_plaine >= 20 and flower_patches_in_plaine >= 40
+	print("TEST_RESULT all_ok=%s hay_bales_and_rocks_in_plaine=%d (attendu >= 20) flower_patches_in_plaine=%d (attendu >= 40)"
+		% [all_ok, polygons_in_plaine, flower_patches_in_plaine])
 
 func _run_foret_decor_test() -> void:
 	print("TEST_START:foret_decor")
@@ -1627,8 +1640,10 @@ func _run_foret_decor_test() -> void:
 		if c is Polygon2D: polygons_in_foret += 1
 		elif c is PointLight2D: lights_in_foret += 1
 		elif c is ColorRect and c.size.x > 25 and c.size.y < 10: logs_in_foret += 1 # troncs abattus : larges et fins
-	print("TEST_RESULT mushroom_and_log_polygons_in_foret=%d (attendu >= 40) fireflies_in_foret=%d (attendu >= 25) fallen_logs_in_foret=%d (attendu >= 14)"
-		% [polygons_in_foret, lights_in_foret, logs_in_foret])
+	# Seuils appliques, plus seulement affiches en commentaire.
+	var all_ok = polygons_in_foret >= 40 and lights_in_foret >= 25 and logs_in_foret >= 14
+	print("TEST_RESULT all_ok=%s mushroom_and_log_polygons_in_foret=%d (attendu >= 40) fireflies_in_foret=%d (attendu >= 25) fallen_logs_in_foret=%d (attendu >= 14)"
+		% [all_ok, polygons_in_foret, lights_in_foret, logs_in_foret])
 
 func _run_caverne_decor_test() -> void:
 	print("TEST_START:caverne_decor")
@@ -1646,8 +1661,9 @@ func _run_caverne_decor_test() -> void:
 		if c is Polygon2D: rock_and_crystal_polygons += 1
 		elif c is PointLight2D: lights_in_caverne += 1
 		elif c is ColorRect and c.size.y < 3: bone_colorrects += 1 # ossements : fins et courts, contrairement aux torches
-	print("TEST_RESULT rock_and_crystal_polygons_in_caverne=%d (attendu >= 110, dont 70 rochers génériques + cristaux) crystal_and_torch_lights_in_caverne=%d (attendu >= 30) bone_colorrects_in_caverne=%d (attendu >= 55)"
-		% [rock_and_crystal_polygons, lights_in_caverne, bone_colorrects])
+	var all_ok = rock_and_crystal_polygons >= 110 and lights_in_caverne >= 30 and bone_colorrects >= 55
+	print("TEST_RESULT all_ok=%s rock_and_crystal_polygons_in_caverne=%d (attendu >= 110) crystal_and_torch_lights_in_caverne=%d (attendu >= 30) bone_colorrects_in_caverne=%d (attendu >= 55)"
+		% [all_ok, rock_and_crystal_polygons, lights_in_caverne, bone_colorrects])
 
 func _run_marais_decor_test() -> void:
 	print("TEST_START:marais_decor")
@@ -1666,8 +1682,9 @@ func _run_marais_decor_test() -> void:
 			if c.polygon.size() == 3: reed_blades += 1 # roseaux : triangles fins
 			else: puddles += 1 # mares : polygones à 10 sommets
 		elif c is PointLight2D: lights += 1
-	print("TEST_RESULT reed_blades_in_marais=%d (attendu >= 100) puddles_in_marais=%d (attendu >= 18) wisp_and_torch_lights_in_marais=%d (attendu >= 18, 16 feux follets garantis + torches variables)"
-		% [reed_blades, puddles, lights])
+	var all_ok = reed_blades >= 100 and puddles >= 18 and lights >= 18
+	print("TEST_RESULT all_ok=%s reed_blades_in_marais=%d (attendu >= 100) puddles_in_marais=%d (attendu >= 18) wisp_and_torch_lights_in_marais=%d (attendu >= 18)"
+		% [all_ok, reed_blades, puddles, lights])
 
 func _run_npc_collision_test() -> void:
 	print("TEST_START:npc_collision")
@@ -1846,8 +1863,11 @@ func _run_shield_skill_test() -> void:
 	inst._apply_shield_to(inst.player, 40.0, 0.2)
 	var shield_right_after = inst.player.shield
 	await create_timer(0.6).timeout
-	print("TEST_RESULT3 shield_set_immediately=%s shield_expired_after_duration=%s"
-		% [shield_right_after == 40.0, inst.player.shield == 0.0])
+	# Verdict : le bouclier se pose immediatement et retombe a zero une fois sa
+	# duree ecoulee.
+	var all_ok = shield_right_after == 40.0 and inst.player.shield == 0.0
+	print("TEST_RESULT3 all_ok=%s shield_set_immediately=%s shield_expired_after_duration=%s"
+		% [all_ok, shield_right_after == 40.0, inst.player.shield == 0.0])
 
 func _run_cc_effects_test() -> void:
 	print("TEST_START:cc_effects")
@@ -4469,8 +4489,11 @@ func _run_chat_test() -> void:
 	var movement_blocked_while_focused = (inst.player.velocity == Vector2.ZERO) if chat_reports_focused else true
 	hud.chat_input.visible = false
 
-	print("TEST_RESULT empty_ignored=%s trimmed_correctly=%s sender_correct=%s truncated_correctly=%s capped_correctly=%s chat_reports_focused=%s movement_blocked_while_focused=%s"
-		% [empty_ignored, trimmed_correctly, sender_correct, truncated_correctly, capped_correctly, chat_reports_focused, movement_blocked_while_focused])
+	var _c = [empty_ignored, trimmed_correctly, sender_correct, truncated_correctly, capped_correctly, chat_reports_focused, movement_blocked_while_focused]
+	var all_ok = true
+	for _v in _c: if _v is bool and not _v: all_ok = false
+	print("TEST_RESULT all_ok=%s empty_ignored=%s trimmed_correctly=%s sender_correct=%s truncated_correctly=%s capped_correctly=%s chat_reports_focused=%s movement_blocked_while_focused=%s"
+		% [all_ok, empty_ignored, trimmed_correctly, sender_correct, truncated_correctly, capped_correctly, chat_reports_focused, movement_blocked_while_focused])
 
 func _run_data_integrity_test() -> void:
 	print("TEST_START:data_integrity")
